@@ -1,36 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# gcd signal
 
-## Getting Started
+A minimal, TweetDeck-style dashboard for trending AI content. One column per
+source — Reddit, Hacker News, curated AI news (RSS), Bluesky, Mastodon, and
+4chan /g/ — with a category switcher, custom feeds, dark/light themes, and an
+optional daily email digest.
 
-First, run the development server:
+## Quick start
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. All feed columns work out of the box with no API
+keys (see notes below). Preferences (hidden columns, custom feeds, category,
+theme) live in the browser's localStorage — no accounts, no database.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Features
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Categories** — Trending, Development, Security, Vibe Coding, Research,
+  Industry. Switching re-queries every column with tuned per-source searches.
+  Edit the mappings in [lib/categories.ts](lib/categories.ts).
+- **Filter feeds** — hide/show any column from the ⚙ settings drawer.
+- **Custom feeds** — add a subreddit, RSS URL, Hacker News/Bluesky search,
+  Mastodon hashtag, or 4chan board. Each becomes its own column (pinned across
+  categories). Feeds are test-fetched before they're added.
+- **Dark mode default** with a persisted light-mode toggle (no flash).
+- **Mobile** — columns become a swipeable snap carousel with a source chip bar.
+- **Auto-refresh** every 5 minutes (paused while the tab is hidden), plus a
+  manual refresh-all button.
+- **Daily digest email** — top ~10 items across all sources, sent by a Vercel
+  cron job through Resend (setup below).
 
-## Learn More
+## Source notes
 
-To learn more about Next.js, take a look at the following resources:
+All upstream fetching happens in the server route `/api/feeds/[source]` with
+~5-minute caching, so browser CORS and upstream rate limits are non-issues.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Reddit** — anonymous JSON is blocked from many networks/datacenter IPs.
+  The adapter falls back to Reddit's public Atom feed automatically (posts
+  still hot-ranked, but no vote counts). For full data, add free API
+  credentials (`REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` in `.env.local`,
+  see `.env.example`) — create a "script" app at
+  https://www.reddit.com/prefs/apps.
+- **Bluesky** — uses the public AppView (`public.api.bsky.app`). Bluesky
+  IP-blocks some networks/regions; if the column shows a 403 locally it will
+  generally still work once deployed.
+- **4chan** — read-only catalog API, text only, filtered to AI-related threads
+  by keywords. Content is unmoderated; keywords are in
+  [lib/categories.ts](lib/categories.ts).
+- **AI News (RSS)** — curated list in [lib/sources/rss.ts](lib/sources/rss.ts):
+  TechCrunch AI, The Verge AI, VentureBeat AI, Ars Technica AI, MIT Tech
+  Review, The Decoder, Simon Willison.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Newsletter setup (Resend)
 
-## Deploy on Vercel
+Subscribers are stored as contacts in a Resend **Audience** (free tier: 1
+audience, 1,000 contacts, 100 emails/day) — no database needed. The daily
+digest is sent as a Resend **Broadcast**.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Create a free account at https://resend.com.
+2. Copy an API key (https://resend.com/api-keys) → `RESEND_API_KEY`.
+3. Copy the default audience's ID (https://resend.com/audiences) →
+   `RESEND_AUDIENCE_ID`.
+4. Set `CRON_SECRET` to any long random string.
+5. Put all three in `.env.local` (copy `.env.example`).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Test mode:** without a verified domain in Resend, mail is sent from
+`onboarding@resend.dev` and only delivers to *your own* (account owner) email.
+To send to real subscribers, verify a domain at https://resend.com/domains and
+set `DIGEST_FROM="gcd signal <digest@yourdomain.com>"`.
+
+Trigger a digest manually:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/digest
+```
+
+## Deploy (Vercel)
+
+```bash
+npm i -g vercel && vercel
+```
+
+1. Add the env vars from `.env.example` in the Vercel project settings.
+2. `vercel.json` already schedules the digest cron daily at 14:00 UTC.
+   Vercel automatically attaches `CRON_SECRET` as the bearer token.
+   (Hobby-tier crons run once per day and may drift within the hour.)
+3. After deploying, open `/api/feeds/reddit` and `/api/feeds/bluesky` once to
+   confirm both work from Vercel's IPs; add the Reddit OAuth env vars if the
+   Reddit column reports errors.
+
+## Project map
+
+```
+app/api/feeds/[source]/  feed proxy (validation, category resolution, caching)
+app/api/subscribe/       newsletter signup → Resend contact
+app/api/digest/          cron-triggered daily broadcast
+lib/sources/             one adapter per source → normalized FeedItem[]
+lib/categories.ts        category → per-source query config
+components/              deck UI, settings drawer, dialogs
+```
