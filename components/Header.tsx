@@ -6,11 +6,16 @@ import { GearIcon, MailIcon } from "./icons";
 import RefreshControl from "./RefreshControl";
 import ThemeToggle from "./ThemeToggle";
 
+const ICON_BTN =
+  "rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-black/[0.05] hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300";
+
 export default function Header({
   category,
   onCategoryChange,
   lastRefreshAt,
   onRefresh,
+  refreshMs,
+  onRefreshMsChange,
   onOpenSettings,
   onOpenNewsletter,
 }: {
@@ -18,14 +23,19 @@ export default function Header({
   onCategoryChange: (c: CategoryId) => void;
   lastRefreshAt: number | null;
   onRefresh: () => void;
+  refreshMs: number;
+  onRefreshMsChange: (ms: number) => void;
   onOpenSettings: () => void;
   onOpenNewsletter: () => void;
 }) {
   return (
-    <header className="shrink-0 border-b border-black/[0.08] bg-white dark:border-white/[0.08] dark:bg-[#0a0a0a]">
+    <header className="relative z-30 shrink-0 border-b border-black/[0.06] bg-white/65 backdrop-blur-xl dark:border-white/[0.07] dark:bg-[#0a0a0b]/60">
       <div className="flex h-12 items-center gap-4 px-3 md:px-4">
-        <h1 className="text-sm font-semibold tracking-tight">
-          gcd<span className="text-indigo-500 dark:text-indigo-400">signal</span>
+        <h1 className="text-[15px] font-bold tracking-tight">
+          gcd
+          <span className="text-cyan-600 dark:bg-gradient-to-r dark:from-cyan-400 dark:to-sky-400 dark:bg-clip-text dark:text-transparent">
+            signal
+          </span>
         </h1>
 
         <div className="hidden min-w-0 md:block">
@@ -33,22 +43,22 @@ export default function Header({
         </div>
 
         <div className="ml-auto flex items-center gap-0.5">
-          <RefreshControl lastRefreshAt={lastRefreshAt} onRefresh={onRefresh} />
+          <RefreshControl
+            lastRefreshAt={lastRefreshAt}
+            onRefresh={onRefresh}
+            refreshMs={refreshMs}
+            onRefreshMsChange={onRefreshMsChange}
+          />
           <ThemeToggle />
           <button
             onClick={onOpenNewsletter}
             title="Daily email digest"
-            className="flex items-center gap-1.5 rounded p-1.5 text-zinc-500 transition-colors hover:bg-black/[0.05] hover:text-zinc-700 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300"
+            className={`flex items-center gap-1.5 ${ICON_BTN}`}
           >
             <MailIcon className="h-4 w-4" />
             <span className="hidden text-xs font-medium sm:inline">Subscribe</span>
           </button>
-          <button
-            onClick={onOpenSettings}
-            aria-label="Feed settings"
-            title="Feeds"
-            className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-black/[0.05] hover:text-zinc-700 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300"
-          >
+          <button onClick={onOpenSettings} aria-label="Feed settings" title="Feeds" className={ICON_BTN}>
             <GearIcon />
           </button>
         </div>

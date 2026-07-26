@@ -10,9 +10,8 @@ export const maxDuration = 60;
 // Per-source quotas keep the digest varied; backfill tops up to 10 when a
 // source fails or runs dry.
 const QUOTAS: Array<{ source: SourceId; take: number }> = [
-  { source: "rss", take: 3 },
-  { source: "hackernews", take: 2 },
-  { source: "reddit", take: 2 },
+  { source: "rss", take: 4 },
+  { source: "reddit", take: 3 },
   { source: "bluesky", take: 1 },
   { source: "mastodon", take: 1 },
   { source: "fourchan", take: 1 },

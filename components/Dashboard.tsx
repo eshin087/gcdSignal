@@ -18,8 +18,6 @@ export interface VisibleFeed {
   isCustom: boolean;
 }
 
-const REFRESH_MS = 5 * 60_000;
-
 export default function Dashboard() {
   const { prefs, setPrefs, ready } = usePrefs();
   const [refresh, setRefresh] = useState(() => ({ key: 0, at: Date.now() }));
@@ -35,14 +33,16 @@ export default function Dashboard() {
     setRefresh((r) => ({ key: r.key + 1, at: now }));
   }, []);
 
-  // Centralized auto-refresh: bump refreshKey so every column refetches
-  // (cheap — the server caches each feed for ~5 minutes anyway).
+  // Centralized auto-refresh at the user's chosen cadence: bump refreshKey so
+  // every column refetches (cheap — the server caches each feed ~5 min anyway).
+  const refreshMs = prefs.refreshMs;
   useEffect(() => {
+    if (refreshMs === 0) return;
     const id = setInterval(() => {
       if (!document.hidden) bumpRefresh();
-    }, REFRESH_MS);
+    }, refreshMs);
     const onVisible = () => {
-      if (!document.hidden && Date.now() - lastRefreshRef.current > REFRESH_MS) {
+      if (!document.hidden && Date.now() - lastRefreshRef.current > refreshMs) {
         bumpRefresh();
       }
     };
@@ -51,7 +51,7 @@ export default function Dashboard() {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [bumpRefresh]);
+  }, [bumpRefresh, refreshMs]);
 
   const setCategory = (category: CategoryId) => setPrefs((p) => ({ ...p, category }));
 
@@ -74,6 +74,8 @@ export default function Dashboard() {
         onCategoryChange={setCategory}
         lastRefreshAt={refresh.at}
         onRefresh={bumpRefresh}
+        refreshMs={prefs.refreshMs}
+        onRefreshMsChange={(ms) => setPrefs((p) => ({ ...p, refreshMs: ms }))}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenNewsletter={() => setNewsletterOpen(true)}
       />
@@ -104,24 +106,27 @@ export default function Dashboard() {
   );
 }
 
-/** Server-rendered first paint while localStorage prefs load. */
+/** Server-rendered first paint while localStorage prefs load — mirrors the
+ *  real deck's wrapper structure so there's no layout jump. */
 function DeckPlaceholder() {
   return (
-    <div className="flex min-h-0 flex-1 gap-0 overflow-hidden md:gap-3 md:p-3">
-      {Array.from({ length: 6 }, (_, i) => (
-        <div
-          key={i}
-          className="w-[88vw] max-w-[380px] flex-none border-r border-black/[0.07] bg-white p-3 md:w-[340px] md:rounded-lg md:border dark:border-white/[0.07] dark:bg-[#121214]"
-        >
-          <div className="skeleton mb-4 h-3 w-24 rounded bg-zinc-300/60 dark:bg-zinc-700/50" />
-          {Array.from({ length: 6 }, (_, j) => (
-            <div key={j} className="skeleton mb-4 space-y-1.5" style={{ animationDelay: `${j * 120}ms` }}>
-              <div className="h-3 w-full rounded bg-zinc-300/60 dark:bg-zinc-700/50" />
-              <div className="h-3 w-3/4 rounded bg-zinc-300/60 dark:bg-zinc-700/50" />
-            </div>
-          ))}
-        </div>
-      ))}
+    <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="mx-auto flex h-full min-w-max gap-0 md:gap-3 md:px-3 md:py-3">
+        {Array.from({ length: 5 }, (_, i) => (
+          <div
+            key={i}
+            className="w-[88vw] max-w-[380px] flex-none overflow-hidden border-r border-black/[0.06] bg-white p-3 first:border-l md:w-[340px] md:rounded-xl md:border md:border-black/[0.07] xl:w-[360px] dark:border-white/[0.07] dark:bg-[#111114]/80"
+          >
+            <div className="skeleton mb-5 h-3 w-24" />
+            {Array.from({ length: 6 }, (_, j) => (
+              <div key={j} className="mb-4 space-y-1.5">
+                <div className="skeleton h-3 w-full" />
+                <div className="skeleton h-3 w-3/4" />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

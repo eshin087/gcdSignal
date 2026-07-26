@@ -1,7 +1,5 @@
-import { BUILT_IN_FEEDS } from "./feeds";
+import { SOURCE_LABELS } from "./feeds";
 import type { FeedItem } from "./types";
-
-const SOURCE_LABELS = Object.fromEntries(BUILT_IN_FEEDS.map((f) => [f.source, f.label]));
 
 function esc(s: string): string {
   return s
@@ -16,7 +14,7 @@ export function buildDigestHtml(items: FeedItem[], dateLabel: string): string {
   const rows = items
     .map((item, i) => {
       const href = item.externalUrl ?? item.url;
-      const metaParts = [SOURCE_LABELS[item.source] ?? item.source];
+      const metaParts: string[] = [SOURCE_LABELS[item.source] ?? item.source];
       if (item.sourceMeta && item.sourceMeta !== metaParts[0]) metaParts.push(item.sourceMeta);
       if (typeof item.score === "number") metaParts.push(`▲ ${item.score}`);
       if (typeof item.comments === "number" && item.comments !== item.score) {
@@ -29,7 +27,7 @@ export function buildDigestHtml(items: FeedItem[], dateLabel: string): string {
           <a href="${esc(href)}" style="font-size:16px;font-weight:600;color:#18181b;text-decoration:none;line-height:1.4;">${esc(item.title)}</a>
           <div style="font-size:12px;color:#71717a;padding-top:4px;">
             ${esc(metaParts.join(" · "))}
-            ${item.url !== href ? ` · <a href="${esc(item.url)}" style="color:#6366f1;text-decoration:none;">discussion</a>` : ""}
+            ${item.url !== href ? ` · <a href="${esc(item.url)}" style="color:#06b6d4;text-decoration:none;">discussion</a>` : ""}
           </div>
         </td>
       </tr>`;
@@ -45,7 +43,7 @@ export function buildDigestHtml(items: FeedItem[], dateLabel: string): string {
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;padding:28px 32px;">
           <tr>
             <td style="padding-bottom:4px;font-size:18px;font-weight:700;color:#18181b;">
-              gcd<span style="color:#6366f1;">signal</span>
+              gcd<span style="color:#06b6d4;">signal</span>
             </td>
           </tr>
           <tr>

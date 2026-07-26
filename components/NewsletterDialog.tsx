@@ -46,7 +46,7 @@ export default function NewsletterDialog({
           </p>
           <button
             onClick={onClose}
-            className="w-full rounded bg-indigo-500 py-2 text-sm font-medium text-white hover:bg-indigo-600"
+            className="w-full rounded-lg bg-cyan-500 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-400 dark:bg-cyan-400 dark:text-cyan-950 dark:hover:bg-cyan-300"
           >
             Done
           </button>
@@ -63,7 +63,7 @@ export default function NewsletterDialog({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
-            className="w-full rounded border border-black/10 bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-zinc-400 focus:border-indigo-500/60 dark:border-white/15 dark:placeholder:text-zinc-600"
+            className="w-full rounded-lg border border-black/10 bg-black/[0.02] px-2.5 py-1.5 text-sm outline-none placeholder:text-zinc-400 focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/15 dark:bg-white/[0.03] dark:placeholder:text-zinc-600"
           />
           {/* Honeypot — humans never see or fill this. */}
           <input
@@ -80,7 +80,7 @@ export default function NewsletterDialog({
           <button
             type="submit"
             disabled={state === "loading"}
-            className="w-full rounded bg-indigo-500 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-600 disabled:opacity-50"
+            className="w-full rounded-lg bg-cyan-500 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-400 disabled:opacity-50 dark:bg-cyan-400 dark:text-cyan-950 dark:hover:bg-cyan-300"
           >
             {state === "loading" ? "Subscribing…" : "Subscribe"}
           </button>

@@ -3,11 +3,18 @@
 import { useSyncExternalStore } from "react";
 import { CATEGORIES } from "./categories";
 import { SOURCE_IDS } from "./feeds";
+import { DEFAULT_REFRESH_MS, isValidRefreshMs } from "./refresh";
 import type { CustomFeed, Prefs } from "./types";
 
 const KEY = "gcdsignal:prefs";
 
-export const DEFAULT_PREFS: Prefs = { v: 1, category: "trending", hidden: [], custom: [] };
+export const DEFAULT_PREFS: Prefs = {
+  v: 1,
+  category: "trending",
+  hidden: [],
+  custom: [],
+  refreshMs: DEFAULT_REFRESH_MS,
+};
 
 function isCustomFeed(x: unknown): x is CustomFeed {
   if (typeof x !== "object" || x === null) return false;
@@ -34,6 +41,7 @@ function load(): Prefs {
       category: typeof p.category === "string" && p.category in CATEGORIES ? p.category : "trending",
       hidden: Array.isArray(p.hidden) ? p.hidden.filter((x): x is string => typeof x === "string") : [],
       custom: Array.isArray(p.custom) ? p.custom.filter(isCustomFeed) : [],
+      refreshMs: isValidRefreshMs(p.refreshMs) ? p.refreshMs : DEFAULT_REFRESH_MS,
     };
   } catch {
     return DEFAULT_PREFS;

@@ -69,9 +69,10 @@ export async function fetchReddit({ subs }: { subs: string }): Promise<FeedItem[
   if (token) {
     attempts.push(async () =>
       mapListing(
-        await fetchJson<RedditListing>(`https://oauth.reddit.com/r/${subs}/hot?limit=25&raw_json=1`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
+        await fetchJson<RedditListing>(
+          `https://oauth.reddit.com/r/${subs}/top?t=day&limit=25&raw_json=1`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
       )
     );
   }
@@ -79,7 +80,9 @@ export async function fetchReddit({ subs }: { subs: string }): Promise<FeedItem[
     attempts.push(async () => {
       try {
         return mapListing(
-          await fetchJson<RedditListing>(`https://www.reddit.com/r/${subs}/hot.json?limit=25&raw_json=1`)
+          await fetchJson<RedditListing>(
+            `https://www.reddit.com/r/${subs}/top.json?t=day&limit=25&raw_json=1`
+          )
         );
       } catch (e) {
         jsonBlockedUntil = Date.now() + 30 * 60_000;
@@ -124,7 +127,7 @@ function mapListing(listing: RedditListing): FeedItem[] {
 }
 
 async function fetchViaRss(subs: string): Promise<FeedItem[]> {
-  const xml = await fetchText(`https://www.reddit.com/r/${subs}/hot.rss?limit=25`, {
+  const xml = await fetchText(`https://www.reddit.com/r/${subs}/top.rss?t=day&limit=25`, {
     headers: ANON_HEADERS,
   });
   const parsed = await new Parser().parseString(xml);

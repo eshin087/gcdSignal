@@ -27,12 +27,12 @@ export default function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={onClose} aria-hidden />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative w-full max-w-sm rounded-lg border border-black/10 bg-white shadow-xl dark:border-white/10 dark:bg-[#161618]"
+        className="relative w-full max-w-sm rounded-xl border border-black/10 bg-white/90 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-[#141416]/90"
       >
         <header className="flex items-center justify-between px-4 pt-4">
           <h2 className="text-sm font-semibold">{title}</h2>

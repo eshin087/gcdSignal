@@ -57,30 +57,34 @@ export default function ColumnDeck({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Mobile source chips */}
-      <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-black/[0.07] px-3 py-2 md:hidden dark:border-white/[0.07]">
+      <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-black/[0.06] px-3 py-2 md:hidden dark:border-white/[0.06]">
         {feeds.map((f) => (
           <button
             key={f.id}
             onClick={() => jumpTo(f.id)}
             className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
               activeId === f.id
-                ? "border-indigo-500/60 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+                ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
                 : "border-black/10 text-zinc-500 dark:border-white/15"
             }`}
           >
-            <SourceIcon source={f.source} className="h-1.5 w-1.5" />
+            <SourceIcon source={f.source} className="h-3 w-3" />
             {f.label}
           </button>
         ))}
       </div>
 
+      {/* Outer div scrolls; inner mx-auto wrapper centers the deck when it
+          fits and collapses to normal flow when it overflows. */}
       <div
         ref={deckRef}
-        className="flex min-h-0 flex-1 snap-x snap-mandatory gap-0 overflow-x-auto scroll-smooth md:snap-none md:gap-3 md:p-3"
+        className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto scroll-smooth md:snap-none"
       >
-        {feeds.map((feed) => (
-          <FeedColumn key={feed.id} feed={feed} category={category} refreshKey={refreshKey} />
-        ))}
+        <div className="mx-auto flex h-full min-w-max gap-0 md:gap-3 md:px-3 md:py-3">
+          {feeds.map((feed) => (
+            <FeedColumn key={feed.id} feed={feed} category={category} refreshKey={refreshKey} />
+          ))}
+        </div>
       </div>
     </div>
   );

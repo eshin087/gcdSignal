@@ -54,4 +54,6 @@ export interface Prefs {
   /** Hidden feed ids (built-in SourceIds or custom ids). */
   hidden: string[];
   custom: CustomFeed[];
+  /** Auto-refresh cadence in ms; 0 disables. Must be one of REFRESH_OPTIONS. */
+  refreshMs: number;
 }

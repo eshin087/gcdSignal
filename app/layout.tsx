@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0a0a",
+  themeColor: "#0a0a0b",
 };
 
 // Runs before paint: dark is the server-rendered default, so this only ever
@@ -41,7 +41,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body className="h-dvh overflow-hidden flex flex-col font-sans bg-zinc-50 text-zinc-800 dark:bg-[#0a0a0a] dark:text-zinc-200">
+      <body className="h-dvh overflow-hidden flex flex-col font-sans text-zinc-800 dark:text-zinc-200">
         {children}
       </body>
     </html>

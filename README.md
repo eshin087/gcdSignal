@@ -1,9 +1,10 @@
 # gcd signal
 
-A minimal, TweetDeck-style dashboard for trending AI content. One column per
-source — Reddit, Hacker News, curated AI news (RSS), Bluesky, Mastodon, and
-4chan /g/ — with a category switcher, custom feeds, dark/light themes, and an
-optional daily email digest.
+A glass-dark, TweetDeck-style dashboard for trending AI content. One column per
+source — Reddit (top of day), curated AI news from ~15 outlets, Bluesky,
+Mastodon (instance trending + tags), and 4chan /g/ — with a category switcher,
+custom feeds (including Hacker News searches), configurable auto-refresh,
+dark/light themes, and an optional daily email digest.
 
 ## Quick start
 
@@ -27,8 +28,8 @@ theme) live in the browser's localStorage — no accounts, no database.
   categories). Feeds are test-fetched before they're added.
 - **Dark mode default** with a persisted light-mode toggle (no flash).
 - **Mobile** — columns become a swipeable snap carousel with a source chip bar.
-- **Auto-refresh** every 5 minutes (paused while the tab is hidden), plus a
-  manual refresh-all button.
+- **Auto-refresh** on your schedule (off / 1m / 5m / 15m / 30m, paused while
+  the tab is hidden) plus a manual refresh — both in the header popover.
 - **Daily digest email** — top ~10 items across all sources, sent by a Vercel
   cron job through Resend (setup below).
 
@@ -50,8 +51,12 @@ All upstream fetching happens in the server route `/api/feeds/[source]` with
   by keywords. Content is unmoderated; keywords are in
   [lib/categories.ts](lib/categories.ts).
 - **AI News (RSS)** — curated list in [lib/sources/rss.ts](lib/sources/rss.ts):
-  TechCrunch AI, The Verge AI, VentureBeat AI, Ars Technica AI, MIT Tech
-  Review, The Decoder, Simon Willison.
+  TechCrunch, The Verge, VentureBeat, Ars Technica, MIT Tech Review, The
+  Decoder, Simon Willison, Wired, The Register, ZDNet, IEEE Spectrum, Hugging
+  Face, Google AI, 404 Media, TechRadar — capped per site so no outlet
+  dominates.
+- **Mastodon** — blends the instance's trending posts (keyword-filtered) with
+  hashtag timelines, ranked by engagement.
 
 ## Newsletter setup (Resend)
 

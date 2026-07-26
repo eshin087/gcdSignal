@@ -51,7 +51,7 @@ export default function SettingsDrawer({
       <aside
         role="dialog"
         aria-label="Feed settings"
-        className={`absolute right-0 top-0 h-full w-80 max-w-[85vw] border-l border-black/10 bg-white shadow-2xl transition-transform duration-200 dark:border-white/10 dark:bg-[#121214] ${
+        className={`absolute right-0 top-0 h-full w-80 max-w-[85vw] border-l border-black/10 bg-white/95 shadow-2xl backdrop-blur-xl transition-transform duration-200 dark:border-white/10 dark:bg-[#101013]/95 ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -80,7 +80,7 @@ export default function SettingsDrawer({
                   checked={!prefs.hidden.includes(f.id)}
                   onChange={() => toggleHidden(f.id)}
                   aria-label={`Show ${f.label}`}
-                  className="h-3.5 w-3.5 accent-indigo-500"
+                  className="h-3.5 w-3.5 accent-cyan-500"
                 />
               </li>
             ))}
@@ -106,7 +106,7 @@ export default function SettingsDrawer({
                   checked={!prefs.hidden.includes(c.id)}
                   onChange={() => toggleHidden(c.id)}
                   aria-label={`Show ${c.label}`}
-                  className="h-3.5 w-3.5 accent-indigo-500"
+                  className="h-3.5 w-3.5 accent-cyan-500"
                 />
                 <button
                   onClick={() => removeCustom(c.id)}
@@ -122,7 +122,7 @@ export default function SettingsDrawer({
 
           <button
             onClick={onAddFeed}
-            className="flex w-full items-center justify-center gap-1.5 rounded border border-dashed border-black/15 px-3 py-2 text-xs font-medium text-zinc-500 transition-colors hover:border-indigo-500/50 hover:text-indigo-600 dark:border-white/15 dark:hover:text-indigo-400"
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-black/15 px-3 py-2 text-xs font-medium text-zinc-500 transition-colors hover:border-cyan-500/50 hover:text-cyan-600 dark:border-white/15 dark:hover:border-cyan-400/50 dark:hover:text-cyan-300"
           >
             <PlusIcon className="h-3.5 w-3.5" />
             Add feed

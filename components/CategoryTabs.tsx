@@ -19,9 +19,9 @@ export default function CategoryTabs({
             key={id}
             onClick={() => onChange(id)}
             aria-pressed={active}
-            className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
               active
-                ? "bg-indigo-500/15 text-indigo-600 dark:bg-indigo-400/15 dark:text-indigo-400"
+                ? "bg-cyan-500/[0.12] text-cyan-700 ring-1 ring-inset ring-cyan-500/25 dark:bg-cyan-400/10 dark:text-cyan-300 dark:ring-cyan-400/20"
                 : "text-zinc-500 hover:bg-black/[0.05] hover:text-zinc-700 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300"
             }`}
           >
