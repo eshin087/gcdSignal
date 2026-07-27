@@ -11,7 +11,6 @@ const SOURCE_OPTIONS: Array<{ id: SourceId; label: string }> = [
   { id: "reddit", label: "Subreddit" },
   { id: "rss", label: "RSS / news site" },
   { id: "youtube", label: "YouTube channel" },
-  { id: "x", label: "X account" },
   { id: "github", label: "GitHub search" },
   { id: "hackernews", label: "Hacker News search" },
   { id: "bluesky", label: "Bluesky search" },
@@ -22,7 +21,6 @@ const FIELD_META: Partial<Record<SourceId, { label: string; placeholder: string 
   reddit: { label: "Subreddit (joins with + allowed)", placeholder: "StableDiffusion or ai+robotics" },
   rss: { label: "Feed URL", placeholder: "https://example.com/feed.xml" },
   youtube: { label: "Channel ID or channel URL", placeholder: "UCXUPKJO5MZQN11PqgIvyuvQ" },
-  x: { label: "Account handle (without @)", placeholder: "OpenAI" },
   github: { label: "Search query or topic", placeholder: "llm agents" },
   hackernews: { label: "Search query", placeholder: "AI agents" },
   bluesky: { label: "Search query", placeholder: "AI agents" },
@@ -60,11 +58,6 @@ function buildFeed(
         return { error: "Paste a channel ID (starts with UC) or a URL containing one" };
       }
       return { feed: { source, label: `YouTube: ${id.slice(0, 12)}…`, params: { channel: id } } };
-    }
-    case "x": {
-      const handle = v.replace(/^@/, "");
-      if (!/^[A-Za-z0-9_]{1,15}$/.test(handle)) return { error: "Invalid account handle" };
-      return { feed: { source, label: `@${handle}`, params: { handle } } };
     }
     case "github": {
       if (v.length > 100) return { error: "Query too long" };

@@ -42,7 +42,7 @@ export async function fetchPapers(
   const merged = [...hf, ...arxiv.filter((p) => !seen.has(arxivKey(p.id)))];
 
   const matches = makeMatcher(keywords);
-  return merged.filter((p) => matches(p.title, p.excerpt ?? "")).slice(0, 25);
+  return merged.filter((p) => matches(p.title, p.excerpt ?? "")).slice(0, 60);
 }
 
 const arxivKey = (id: string) => id.replace(/^(hf|arxiv):/, "");
@@ -72,7 +72,7 @@ async function fetchHf(revalidate?: number): Promise<FeedItem[]> {
 async function fetchArxiv(revalidate?: number): Promise<FeedItem[]> {
   const xml = await fetchText(
     "http://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG+OR+cat:cs.CL" +
-      "&start=0&max_results=25&sortBy=submittedDate&sortOrder=descending",
+      "&start=0&max_results=40&sortBy=submittedDate&sortOrder=descending",
     { timeoutMs: 8000, revalidate }
   );
   const parsed = await new Parser().parseString(xml);

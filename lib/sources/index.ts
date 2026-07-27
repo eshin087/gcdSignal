@@ -6,7 +6,6 @@ import { fetchHackerNews } from "./hackernews";
 import { fetchPapers } from "./papers";
 import { fetchReddit } from "./reddit";
 import { fetchRss } from "./rss";
-import { fetchX } from "./x";
 import { fetchYouTube } from "./youtube";
 
 const splitList = (s: string | undefined) =>
@@ -20,6 +19,8 @@ export const SOURCES: Record<
     fetchReddit(
       {
         subs: p.subs,
+        subsB: p.subsB || undefined,
+        window: p.window === "week" ? "week" : "day",
         gates: [
           { subs: splitList(p.gateSubs), terms: splitList(p.gateTerms) },
           { subs: splitList(p.gate2Subs), terms: splitList(p.gate2Terms) },
@@ -31,11 +32,18 @@ export const SOURCES: Record<
   bluesky: (p, f) => fetchBluesky({ q: p.q }, f),
   fourchan: (p, f) =>
     fetchFourchan({ board: p.board, keywords: splitList(p.keywords), aiGate: p.aiGate === "1" }, f),
-  rss: (p, f) => fetchRss({ url: p.url || undefined, keywords: splitList(p.keywords) }, f),
-  youtube: (p, f) => fetchYouTube({ q: p.q || undefined, channel: p.channel || undefined }, f),
+  rss: (p, f) =>
+    fetchRss(
+      { url: p.url || undefined, keywords: splitList(p.keywords), category: p.cat || undefined },
+      f
+    ),
+  youtube: (p, f) =>
+    fetchYouTube(
+      { q: p.q || undefined, channel: p.channel || undefined, keywords: splitList(p.keywords) },
+      f
+    ),
   github: (p, f) => fetchGitHub({ q: p.q }, f),
   papers: (p, f) => fetchPapers({ keywords: splitList(p.keywords) }, f),
-  x: (p, f) => fetchX({ handle: p.handle || undefined, keywords: splitList(p.keywords) }, f),
 };
 
 export function isSourceId(v: string): v is SourceId {

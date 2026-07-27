@@ -22,7 +22,7 @@ export async function fetchGitHub({ q }: { q: string }, fresh = false): Promise<
   const query = `${q} pushed:>${pushedAfter}`;
   const data = await fetchJson<{ items?: Repo[] }>(
     `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}` +
-      `&sort=stars&order=desc&per_page=25`,
+      `&sort=stars&order=desc&per_page=50`,
     {
       headers: { Accept: "application/vnd.github+json" },
       revalidate: fresh ? 0 : undefined,

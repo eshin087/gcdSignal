@@ -17,6 +17,11 @@ export interface CategoryDef {
   label: string;
   reddit: {
     subs: string;
+    /** Second multireddit fetched separately, so one side of an intersection
+     *  category can't crowd the other out of the ranked results. */
+    subsB?: string;
+    /** top?t= window; thin intersection categories use "week". Default "day". */
+    window?: "day" | "week";
     /** Subs (lowercase, no r/) whose posts must additionally match gateTerms. */
     gateSubs?: string[];
     gateTerms?: string[];
@@ -30,10 +35,10 @@ export interface CategoryDef {
   fourchan: { board: string; keywords: string[]; aiGate?: boolean };
   /** Title-weighted require list (empty = everything passes). */
   rss: { keywords: string[] };
-  youtube: { q: string };
+  /** q drives keyed API search; keywords filter the keyless channel fallback. */
+  youtube: { q: string; keywords: string[] };
   github: { q: string };
   papers: { keywords: string[] };
-  x: { keywords: string[] };
 }
 
 export const CATEGORIES: Record<CategoryId, CategoryDef> = {
@@ -50,10 +55,9 @@ export const CATEGORIES: Record<CategoryId, CategoryDef> = {
       ],
     },
     rss: { keywords: [] },
-    youtube: { q: "AI" },
+    youtube: { q: "AI", keywords: [] },
     github: { q: "ai" },
     papers: { keywords: [] },
-    x: { keywords: [] },
   },
   development: {
     label: "Development",
@@ -70,24 +74,30 @@ export const CATEGORIES: Record<CategoryId, CategoryDef> = {
         "agent", "fine-tun", "inference", "hugging face", "benchmark",
       ],
     },
-    youtube: { q: "LLM development" },
+    youtube: {
+      q: "LLM development",
+      keywords: ["llm", "coding", "developer", "open source", "model", "tutorial", "agent"],
+    },
     github: { q: "llm" },
     papers: { keywords: ["llm", "agent", "code", "inference", "efficient"] },
-    x: { keywords: ["llm", "open source", "model", "release", "code", "agent", "developer"] },
   },
   security: {
     label: "Security",
     // Two-sided intersection: security subs must mention AI; AI subs must
     // mention security. r/ChatGPTJailbreak is on-topic by construction.
     reddit: {
-      subs: "netsec+cybersecurity+ChatGPTJailbreak+artificial+OpenAI+LocalLLaMA+ClaudeAI",
-      gateSubs: ["netsec", "cybersecurity"],
+      subs: "netsec+cybersecurity+privacy+hacking+ChatGPTJailbreak",
+      subsB: "artificial+OpenAI+LocalLLaMA+ClaudeAI+singularity",
+      window: "week",
+      gateSubs: ["netsec", "cybersecurity", "privacy", "hacking"],
       gateTerms: AI_TERMS,
-      gate2Subs: ["artificial", "openai", "localllama", "claudeai"],
+      gate2Subs: ["artificial", "openai", "localllama", "claudeai", "singularity"],
       gate2Terms: [
         "security", "jailbreak", "prompt injection", "exploit", "vulnerab",
         "leak", "breach", "malware", "attack", "safety", "adversarial", "hack",
-        "phishing", "scam", "guardrail", "privacy",
+        "phishing", "scam", "guardrail", "privacy", "deepfake", "surveillance",
+        "facial recognition", "voice clon", "impersonat", "misinformation",
+        "detection", "spyware",
       ],
     },
     hackernews: { q: "AI security" },
@@ -104,12 +114,14 @@ export const CATEGORIES: Record<CategoryId, CategoryDef> = {
         "red team", "malware", "attack", "safety", "scam", "fraud",
       ],
     },
-    youtube: { q: "AI security" },
+    youtube: {
+      q: "AI security",
+      keywords: ["security", "jailbreak", "hack", "safety", "attack", "scam", "adversarial"],
+    },
     github: { q: "ai security" },
     papers: {
       keywords: ["security", "adversarial", "jailbreak", "attack", "safety", "alignment", "robust", "poisoning", "backdoor"],
     },
-    x: { keywords: ["security", "jailbreak", "vulnerab", "exploit", "hack", "safety", "adversarial", "injection"] },
   },
   vibecoding: {
     label: "Vibe Coding",
@@ -134,10 +146,12 @@ export const CATEGORIES: Record<CategoryId, CategoryDef> = {
         "code generation", "ide",
       ],
     },
-    youtube: { q: "vibe coding" },
+    youtube: {
+      q: "vibe coding",
+      keywords: ["coding", "cursor", "copilot", "claude code", "codex", "vibe", "app", "build"],
+    },
     github: { q: "coding agent" },
     papers: { keywords: ["code generation", "program synthesis", "software engineer", "coding"] },
-    x: { keywords: ["coding", "cursor", "copilot", "claude code", "codex", "vibe", "built", "shipped"] },
   },
   research: {
     label: "Research",
@@ -155,10 +169,12 @@ export const CATEGORIES: Record<CategoryId, CategoryDef> = {
         "dataset", "scaling", "reasoning", "training",
       ],
     },
-    youtube: { q: "AI research paper" },
+    youtube: {
+      q: "AI research paper",
+      keywords: ["paper", "research", "benchmark", "training", "reasoning", "breakthrough", "explained"],
+    },
     github: { q: "machine learning" },
     papers: { keywords: [] },
-    x: { keywords: ["paper", "research", "arxiv", "benchmark", "dataset", "training", "reasoning"] },
   },
   industry: {
     label: "Industry",
@@ -182,15 +198,12 @@ export const CATEGORIES: Record<CategoryId, CategoryDef> = {
         "investment", "ipo", "billion", "startup", "antitrust", "chip",
       ],
     },
-    youtube: { q: "AI industry news" },
+    youtube: {
+      q: "AI industry news",
+      keywords: ["openai", "anthropic", "google", "nvidia", "news", "launch", "funding", "industry"],
+    },
     github: { q: "ai" },
     papers: { keywords: ["efficient", "deployment", "production", "cost"] },
-    x: {
-      keywords: [
-        "openai", "anthropic", "google", "funding", "launch", "announce",
-        "release", "valuation", "acquisition", "partnership", "nvidia",
-      ],
-    },
   },
 };
 
@@ -217,6 +230,8 @@ export function resolveParams(
       if (sub) return { subs: sub }; // custom feeds: no category gates
       return {
         subs: def.reddit.subs,
+        subsB: def.reddit.subsB ?? "",
+        window: def.reddit.window ?? "",
         gateSubs: (def.reddit.gateSubs ?? []).join(","),
         gateTerms: (def.reddit.gateTerms ?? []).join(","),
         gate2Subs: (def.reddit.gate2Subs ?? []).join(","),
@@ -240,23 +255,19 @@ export function resolveParams(
     }
     case "rss": {
       const url = sp.get("url");
-      // A custom RSS feed is shown unfiltered; the curated bundle gets category keywords.
-      if (url) return { url, keywords: "" };
-      return { url: "", keywords: def.rss.keywords.join(",") };
+      // A custom RSS feed is shown unfiltered; the curated bundle gets category
+      // keywords plus any category-scoped bonus feeds.
+      if (url) return { url, keywords: "", cat: "" };
+      return { url: "", keywords: def.rss.keywords.join(","), cat: category };
     }
     case "youtube": {
       const channel = sp.get("channel");
-      if (channel) return { channel, q: "" };
-      return { channel: "", q: def.youtube.q };
+      if (channel) return { channel, q: "", keywords: "" };
+      return { channel: "", q: def.youtube.q, keywords: def.youtube.keywords.join(",") };
     }
     case "github":
       return { q: sp.get("q") ?? def.github.q };
     case "papers":
       return { keywords: def.papers.keywords.join(",") };
-    case "x": {
-      const handle = sp.get("handle");
-      if (handle) return { handle, keywords: "" };
-      return { handle: "", keywords: def.x.keywords.join(",") };
-    }
   }
 }

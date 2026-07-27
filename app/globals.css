@@ -18,14 +18,12 @@
   --src-youtube: #ff0000;
   --src-github: #24292f;
   --src-papers: #ca8a04;
-  --src-x: #0f1419;
 }
 
 .dark {
   color-scheme: dark;
   --src-github: #e6edf3;
   --src-papers: #ffd21e;
-  --src-x: #e7e9ea;
 }
 
 /* Ambient glow — brightest at the top so the glass header and translucent

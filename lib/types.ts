@@ -6,8 +6,7 @@ export type SourceId =
   | "rss"
   | "youtube"
   | "github"
-  | "papers"
-  | "x";
+  | "papers";
 
 export type CategoryId =
   | "trending"
@@ -52,7 +51,7 @@ export interface CustomFeed {
 }
 
 export interface Prefs {
-  v: 2;
+  v: 3;
   category: CategoryId;
   /** Hidden feed ids (built-in SourceIds or custom ids). */
   hidden: string[];

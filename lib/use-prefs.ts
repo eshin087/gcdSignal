@@ -9,10 +9,10 @@ import type { CustomFeed, Prefs } from "./types";
 const KEY = "gcdsignal:prefs";
 
 /** Built-ins that start hidden — full coverage is one Settings toggle away. */
-const DEFAULT_HIDDEN: string[] = ["fourchan", "papers", "hackernews"];
+const DEFAULT_HIDDEN: string[] = ["fourchan", "papers"];
 
 export const DEFAULT_PREFS: Prefs = {
-  v: 2,
+  v: 3,
   category: "trending",
   hidden: DEFAULT_HIDDEN,
   custom: [],
@@ -38,16 +38,20 @@ function load(): Prefs {
     const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULT_PREFS;
     const p = JSON.parse(raw) as Omit<Partial<Prefs>, "v"> & { v?: number };
-    if (p?.v !== 1 && p?.v !== 2) return DEFAULT_PREFS;
-    const hidden = Array.isArray(p.hidden)
+    if (p?.v !== 1 && p?.v !== 2 && p?.v !== 3) return DEFAULT_PREFS;
+    let hidden = Array.isArray(p.hidden)
       ? p.hidden.filter((x): x is string => typeof x === "string")
       : [];
+    // v1 → hide the sources that ship default-hidden; the user's own hides and
+    // custom feeds are preserved through every migration.
+    if (p.v === 1) hidden = [...new Set([...hidden, ...DEFAULT_HIDDEN])];
+    // v2 → v3: Hacker News was hidden only by OUR v2 default (X occupied its
+    // deck slot); with X gone, unhide it. Prune the removed "x" id too.
+    if (p.v === 1 || p.v === 2) hidden = hidden.filter((h) => h !== "hackernews" && h !== "x");
     return {
-      v: 2,
+      v: 3,
       category: typeof p.category === "string" && p.category in CATEGORIES ? p.category : "trending",
-      // v1 → v2: the new sources ship default-hidden; preserve the user's own
-      // hides and custom feeds untouched.
-      hidden: p.v === 1 ? [...new Set([...hidden, ...DEFAULT_HIDDEN])] : hidden,
+      hidden,
       custom: Array.isArray(p.custom) ? p.custom.filter(isCustomFeed) : [],
       refreshMs: isValidRefreshMs(p.refreshMs) ? p.refreshMs : DEFAULT_REFRESH_MS,
     };

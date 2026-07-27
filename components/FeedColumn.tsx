@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SOURCE_COLORS } from "@/lib/feeds";
 import { useFeed } from "@/lib/use-feed";
+import { markSeen } from "@/lib/use-seen";
 import type { CategoryId } from "@/lib/types";
 import FeedCard from "./FeedCard";
 import { RefreshIcon } from "./icons";
@@ -11,6 +12,7 @@ import type { VisibleFeed } from "./Dashboard";
 
 const MANUAL_COOLDOWN_MS = 10_000;
 const PULL_THRESHOLD_PX = 70;
+const PAGE = 25;
 
 export default function FeedColumn({
   feed,
@@ -24,7 +26,7 @@ export default function FeedColumn({
   // Custom feeds are pinned: their explicit params override the category anyway,
   // so a fixed category keeps their cache key stable across tab switches.
   const effectiveCategory = feed.isCustom ? "trending" : category;
-  const { items, status, error, refetch } = useFeed(
+  const { unseen, seenTail, status, error, refetch, requestKey } = useFeed(
     feed.source,
     feed.params,
     effectiveCategory,
@@ -38,15 +40,73 @@ export default function FeedColumn({
     refetch(true);
   };
 
-  // Bottom pull-to-refresh (mobile): overscroll past the end arms a refresh.
+  // Progressive reveal over the concatenated unseen+seen list; the key
+  // comparison resets it to one page on every new fetch without an effect.
+  const [reveal, setReveal] = useState<{ key: string; count: number } | null>(null);
+  const revealed = reveal?.key === requestKey ? reveal.count : PAGE;
+  const total = unseen.length + seenTail.length;
+  const fullyRevealed = revealed >= total;
+
+  const { shownUnseen, shownSeen } = useMemo(
+    () => ({
+      shownUnseen: unseen.slice(0, Math.min(revealed, unseen.length)),
+      shownSeen: revealed > unseen.length ? seenTail.slice(0, revealed - unseen.length) : [],
+    }),
+    [unseen, seenTail, revealed]
+  );
+
+  // Mark cards seen once ~60% visible. root: null on purpose — with the scroll
+  // div as root, columns scrolled off-screen horizontally on mobile would mark
+  // their cards; the viewport root clips by every ancestor scroll container.
   const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const keys: string[] = [];
+        for (const entry of entries) {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+            const key = entry.target.getAttribute("data-item-key");
+            if (key) keys.push(key);
+            io.unobserve(entry.target);
+          }
+        }
+        if (keys.length) markSeen(keys);
+      },
+      { threshold: 0.6 }
+    );
+    for (const card of el.querySelectorAll("[data-item-key]")) io.observe(card);
+    return () => io.disconnect();
+  }, [shownUnseen, shownSeen]);
+
+  // Reveal sentinel: extend the window when the user nears the rendered bottom.
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return; // fully revealed → sentinel not rendered
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          io.disconnect();
+          setReveal({ key: requestKey, count: revealed + PAGE });
+        }
+      },
+      { rootMargin: "300px 0px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [requestKey, revealed, fullyRevealed]);
+
+  // Bottom pull-to-refresh (mobile) — armed only once the pool is exhausted,
+  // so it never fights the reveal sentinel.
   const pullStartY = useRef<number | null>(null);
   const [pullArmed, setPullArmed] = useState(false);
 
   const onTouchStart = (e: React.TouchEvent) => {
     const el = scrollRef.current;
     pullStartY.current =
-      el && el.scrollTop + el.clientHeight >= el.scrollHeight - 4
+      fullyRevealed && el && el.scrollTop + el.clientHeight >= el.scrollHeight - 4
         ? e.touches[0].clientY
         : null;
   };
@@ -89,8 +149,11 @@ export default function FeedColumn({
         )}
         <span className="ml-auto flex items-center gap-1">
           {status === "ok" && (
-            <span className="rounded-full bg-black/[0.04] px-1.5 py-px text-[10px] tabular-nums text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400">
-              {items.length}
+            <span
+              className="rounded-full bg-black/[0.04] px-1.5 py-px text-[10px] tabular-nums text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400"
+              title={`${unseen.length} new · ${total} total`}
+            >
+              {unseen.length}
             </span>
           )}
           <button
@@ -130,7 +193,7 @@ export default function FeedColumn({
           </div>
         )}
 
-        {status === "ok" && items.length === 0 && (
+        {status === "ok" && total === 0 && (
           <div className="px-4 py-10 text-center">
             <p className="text-xs text-zinc-500">Nothing matching right now.</p>
             <p className="mt-1 text-[10px] text-zinc-400 dark:text-zinc-600">
@@ -139,9 +202,34 @@ export default function FeedColumn({
           </div>
         )}
 
-        {status === "ok" && items.map((item) => <FeedCard key={item.id} item={item} />)}
+        {status === "ok" && total > 0 && unseen.length === 0 && (
+          <div className="px-4 pb-1 pt-4 text-center">
+            <p className="text-xs font-medium text-cyan-700 dark:text-cyan-300">
+              You&apos;re all caught up ✓
+            </p>
+            <p className="mt-0.5 text-[10px] text-zinc-400 dark:text-zinc-600">
+              Everything below has been seen before.
+            </p>
+          </div>
+        )}
 
-        {status === "ok" && items.length > 0 && (
+        {status === "ok" && shownUnseen.map((item) => <FeedCard key={item.id} item={item} />)}
+
+        {status === "ok" && shownUnseen.length > 0 && shownSeen.length > 0 && (
+          <div className="flex items-center gap-2 px-3 py-2" aria-label="Previously seen items">
+            <span className="h-px flex-1 bg-black/[0.06] dark:bg-white/[0.06]" />
+            <span className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-600">
+              seen
+            </span>
+            <span className="h-px flex-1 bg-black/[0.06] dark:bg-white/[0.06]" />
+          </div>
+        )}
+
+        {status === "ok" && shownSeen.map((item) => <FeedCard key={item.id} item={item} />)}
+
+        {status === "ok" && !fullyRevealed && <div ref={sentinelRef} className="h-px" />}
+
+        {status === "ok" && total > 0 && fullyRevealed && (
           <div className="py-3 text-center text-[10px] text-zinc-400 md:hidden dark:text-zinc-600">
             {pullArmed ? "Release to refresh ↻" : "Pull up to refresh"}
           </div>

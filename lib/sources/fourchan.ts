@@ -45,7 +45,7 @@ export async function fetchFourchan(
       return aiMatches ? aiMatches(sub, com) : true;
     })
     .sort((a, b) => blendScore(b) - blendScore(a))
-    .slice(0, 25)
+    .slice(0, 60)
     .map((t) => {
       const sub = t.sub ? stripHtml(t.sub) : "";
       const com = t.com ? stripHtml(t.com) : "";

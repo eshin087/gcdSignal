@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { timeAgo } from "@/lib/fetch-helpers";
 import { SOURCE_COLORS } from "@/lib/feeds";
+import { seenKey } from "@/lib/use-seen";
 import type { FeedItem, SourceId } from "@/lib/types";
 import { CommentIcon } from "./icons";
 
@@ -15,7 +16,6 @@ const SCORE_GLYPH: Record<SourceId, string> = {
   youtube: "▶",
   github: "★",
   papers: "▲",
-  x: "♥",
 };
 
 function formatCount(n: number): string {
@@ -90,7 +90,10 @@ export default function FeedCard({ item }: { item: FeedItem }) {
   );
 
   return (
-    <article className="group border-b border-black/[0.05] px-3 py-2.5 transition-colors last:border-b-0 hover:bg-black/[0.03] dark:border-white/[0.05] dark:hover:bg-white/[0.035]">
+    <article
+      data-item-key={seenKey(item)}
+      className="group border-b border-black/[0.05] px-3 py-2.5 transition-colors last:border-b-0 hover:bg-black/[0.03] dark:border-white/[0.05] dark:hover:bg-white/[0.035]"
+    >
       {titleHref ? (
         <a
           href={titleHref}

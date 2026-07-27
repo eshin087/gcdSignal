@@ -43,7 +43,7 @@ export async function fetchBluesky({ q }: { q: string }, fresh = false): Promise
   const since = new Date(Date.now() - 7 * 86400_000).toISOString();
   const path =
     `/xrpc/app.bsky.feed.searchPosts` +
-    `?q=${encodeURIComponent(q)}&sort=top&limit=25&since=${encodeURIComponent(since)}`;
+    `?q=${encodeURIComponent(q)}&sort=top&limit=50&since=${encodeURIComponent(since)}`;
 
   const attempts: Array<() => Promise<{ posts: BskyPost[] }>> = [
     () => fetchJson(`https://public.api.bsky.app${path}`, { revalidate: rv }),

@@ -5,7 +5,6 @@ import {
   siHuggingface,
   siReddit,
   siRss,
-  siX,
   siYcombinator,
   siYoutube,
 } from "simple-icons";
@@ -21,7 +20,6 @@ const ICONS: Partial<Record<SourceId, { path: string }>> = {
   youtube: siYoutube,
   github: siGithub,
   papers: siHuggingface,
-  x: siX,
 };
 
 export default function SourceIcon({

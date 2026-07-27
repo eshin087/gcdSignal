@@ -3,7 +3,7 @@ import {
   decodeEntities,
   fetchJson,
   fetchText,
-  makeMatcher,
+  keywordMatcher,
   stripHtml,
   truncate,
   USER_AGENT,
@@ -77,21 +77,49 @@ export interface RedditGate {
 export async function fetchReddit(
   {
     subs,
+    subsB,
     gates = [],
-  }: { subs: string; gates?: RedditGate[] },
+    window = "day",
+  }: { subs: string; subsB?: string; gates?: RedditGate[]; window?: "day" | "week" },
   fresh = false
 ): Promise<FeedItem[]> {
   const rv = fresh ? 0 : undefined;
-  const token = await getOauthToken();
+  const t = window === "week" ? "week" : "day";
 
-  // Chain: OAuth (if creds) → HTML scrape (real scores, no key) → Atom fallback
-  // (hot-ranked but scoreless). Anonymous JSON is confirmed 403 — not attempted.
+  // Gated intersection categories fetch each side as its own multireddit —
+  // otherwise the high-volume side crowds the other out of the 100-slot ranking
+  // before the gates even run.
+  const multis = [subs, subsB].filter((m): m is string => Boolean(m));
+  const results = await Promise.allSettled(multis.map((m) => fetchOneMulti(m, t, rv)));
+  const fetched = results
+    .filter((r): r is PromiseFulfilledResult<FeedItem[]> => r.status === "fulfilled")
+    .flatMap((r) => r.value);
+  if (!fetched.length) {
+    const firstErr = results.find((r) => r.status === "rejected") as
+      | PromiseRejectedResult
+      | undefined;
+    throw firstErr?.reason instanceof Error ? firstErr.reason : new Error("Reddit fetch failed");
+  }
+
+  const seen = new Set<string>();
+  const deduped = fetched.filter((it) => {
+    if (seen.has(it.id)) return false;
+    seen.add(it.id);
+    return true;
+  });
+  return diversify(applyGates(deduped, gates));
+}
+
+/** OAuth (if creds) → HTML scrape (real scores, no key) → Atom fallback
+ *  (hot-ranked but scoreless). Anonymous JSON is confirmed 403 — not attempted. */
+async function fetchOneMulti(subs: string, t: string, rv?: number): Promise<FeedItem[]> {
+  const token = await getOauthToken();
   const attempts: Array<() => Promise<FeedItem[]>> = [];
   if (token) {
     attempts.push(async () =>
       mapListing(
         await fetchJson<RedditListing>(
-          `https://oauth.reddit.com/r/${subs}/top?t=day&limit=100&raw_json=1`,
+          `https://oauth.reddit.com/r/${subs}/top?t=${t}&limit=100&raw_json=1`,
           { headers: { Authorization: `Bearer ${token}` }, revalidate: rv }
         )
       )
@@ -100,20 +128,20 @@ export async function fetchReddit(
   if (Date.now() > htmlBlockedUntil) {
     attempts.push(async () => {
       try {
-        return await fetchViaHtml(subs, rv);
+        return await fetchViaHtml(subs, t, rv);
       } catch (e) {
         htmlBlockedUntil = Date.now() + 30 * 60_000;
         throw e;
       }
     });
   }
-  attempts.push(() => fetchViaRss(subs, rv));
+  attempts.push(() => fetchViaRss(subs, t, rv));
 
   let lastError: unknown;
   for (const attempt of attempts) {
     try {
       const items = await attempt();
-      if (items.length) return diversify(applyGates(items, gates));
+      if (items.length) return items;
     } catch (e) {
       lastError = e;
     }
@@ -121,18 +149,22 @@ export async function fetchReddit(
   throw lastError instanceof Error ? lastError : new Error("Reddit fetch failed");
 }
 
-/** Posts from gated subs must be topically relevant; ungated subs pass through. */
+/**
+ * Posts from gated subs must be topically relevant; ungated subs pass through.
+ * Gates are coarse relevance filters, so a single keyword hit anywhere in
+ * title+excerpt passes — the title-weighted matcher starved thin categories.
+ */
 function applyGates(items: FeedItem[], gates: RedditGate[]): FeedItem[] {
   const active = gates
     .filter((g) => g.subs.length && g.terms.length)
     .map((g) => ({
       subs: new Set(g.subs.map((s) => s.toLowerCase())),
-      matches: makeMatcher(g.terms),
+      matches: keywordMatcher(g.terms),
     }));
   if (!active.length) return items;
   return items.filter((it) => {
     const sub = (it.sourceMeta ?? "").replace(/^r\//i, "").toLowerCase();
-    return active.every((g) => !g.subs.has(sub) || g.matches(it.title, it.excerpt ?? ""));
+    return active.every((g) => !g.subs.has(sub) || g.matches(`${it.title} ${it.excerpt ?? ""}`));
   });
 }
 
@@ -141,7 +173,7 @@ function applyGates(items: FeedItem[], gates: RedditGate[]): FeedItem[] {
  * Interleave round-robin by subreddit (preserving Reddit's own in-sub order)
  * with a per-sub cap.
  */
-function diversify(items: FeedItem[], cap = 5, size = 25): FeedItem[] {
+function diversify(items: FeedItem[], cap = 12, size = 100): FeedItem[] {
   const groups = new Map<string, FeedItem[]>();
   for (const it of items) {
     const key = it.sourceMeta ?? "";
@@ -194,9 +226,9 @@ function mapListing(listing: RedditListing): FeedItem[] {
  * the only anonymous path that carries real scores + comment counts.
  * Single-sub URLs get a bot challenge — always use the `+` form.
  */
-async function fetchViaHtml(subs: string, revalidate?: number): Promise<FeedItem[]> {
+async function fetchViaHtml(subs: string, t: string, revalidate?: number): Promise<FeedItem[]> {
   const multi = subs.includes("+") ? subs : `${subs}+${subs}`;
-  const html = await fetchText(`https://www.reddit.com/r/${multi}/top/?t=day&limit=100`, {
+  const html = await fetchText(`https://www.reddit.com/r/${multi}/top/?t=${t}&limit=100`, {
     headers: ANON_HEADERS,
     timeoutMs: 12_000,
     revalidate,
@@ -252,8 +284,8 @@ async function fetchViaHtml(subs: string, revalidate?: number): Promise<FeedItem
   return items;
 }
 
-async function fetchViaRss(subs: string, revalidate?: number): Promise<FeedItem[]> {
-  const xml = await fetchText(`https://www.reddit.com/r/${subs}/top.rss?t=day&limit=100`, {
+async function fetchViaRss(subs: string, t: string, revalidate?: number): Promise<FeedItem[]> {
+  const xml = await fetchText(`https://www.reddit.com/r/${subs}/top.rss?t=${t}&limit=100`, {
     headers: { ...ANON_HEADERS, Accept: "application/rss+xml, application/atom+xml, */*" },
     revalidate,
   });

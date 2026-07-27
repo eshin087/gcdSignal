@@ -11,7 +11,6 @@ export const BUILT_IN_FEEDS: BuiltInFeed[] = [
   { id: "reddit", source: "reddit", label: "Reddit" },
   { id: "rss", source: "rss", label: "AI News" },
   { id: "youtube", source: "youtube", label: "YouTube" },
-  { id: "x", source: "x", label: "X" },
   { id: "bluesky", source: "bluesky", label: "Bluesky" },
   { id: "github", source: "github", label: "GitHub" },
   { id: "hackernews", source: "hackernews", label: "Hacker News" },
@@ -32,7 +31,6 @@ export const SOURCE_IDS: SourceId[] = [
   "youtube",
   "github",
   "papers",
-  "x",
 ];
 
 export const SOURCE_LABELS: Record<SourceId, string> = {
@@ -44,12 +42,11 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   youtube: "YouTube",
   github: "GitHub",
   papers: "Papers",
-  x: "X",
 };
 
 /**
  * Brand colors as CSS variables (defined in globals.css) so near-black brands
- * (X, GitHub) can flip to light values in dark mode. Use with `style={{color}}`
+ * (GitHub) can flip to light values in dark mode. Use with `style={{color}}`
  * or `color-mix(in srgb, <color> N%, transparent)` — never string-concatenate
  * alpha hex onto these.
  */
@@ -62,5 +59,4 @@ export const SOURCE_COLORS: Record<SourceId, string> = {
   youtube: "var(--src-youtube)",
   github: "var(--src-github)",
   papers: "var(--src-papers)",
-  x: "var(--src-x)",
 };

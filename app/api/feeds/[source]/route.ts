@@ -3,10 +3,9 @@ import { isCategoryId, resolveParams } from "@/lib/categories";
 import { isSourceId, SOURCES } from "@/lib/sources";
 import type { FeedResponse } from "@/lib/types";
 
-const SUB_RE = /^[A-Za-z0-9_+]{1,120}$/;
+const SUB_RE = /^[A-Za-z0-9_+]{1,160}$/;
 const BOARD_RE = /^[a-z0-9]{1,10}$/;
 const CHANNEL_RE = /^(UC|UU)[A-Za-z0-9_-]{10,40}$/;
-const HANDLE_RE = /^[A-Za-z0-9_]{1,15}$/;
 
 function validationError(sp: URLSearchParams): string | null {
   const sub = sp.get("sub");
@@ -15,8 +14,6 @@ function validationError(sp: URLSearchParams): string | null {
   if (board !== null && !BOARD_RE.test(board)) return "Invalid board";
   const channel = sp.get("channel");
   if (channel !== null && !CHANNEL_RE.test(channel)) return "Invalid channel id";
-  const handle = sp.get("handle");
-  if (handle !== null && !HANDLE_RE.test(handle)) return "Invalid account handle";
   const q = sp.get("q");
   if (q !== null && (q.length < 1 || q.length > 100)) return "Invalid query";
   const url = sp.get("url");
