@@ -3,8 +3,11 @@ export type SourceId =
   | "fourchan"
   | "bluesky"
   | "hackernews"
-  | "mastodon"
-  | "rss";
+  | "rss"
+  | "youtube"
+  | "github"
+  | "papers"
+  | "x";
 
 export type CategoryId =
   | "trending"
@@ -49,7 +52,7 @@ export interface CustomFeed {
 }
 
 export interface Prefs {
-  v: 1;
+  v: 2;
   category: CategoryId;
   /** Hidden feed ids (built-in SourceIds or custom ids). */
   hidden: string[];

@@ -1,11 +1,16 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { SOURCE_COLORS } from "@/lib/feeds";
 import { useFeed } from "@/lib/use-feed";
 import type { CategoryId } from "@/lib/types";
 import FeedCard from "./FeedCard";
+import { RefreshIcon } from "./icons";
 import SourceIcon from "./SourceIcon";
 import type { VisibleFeed } from "./Dashboard";
+
+const MANUAL_COOLDOWN_MS = 10_000;
+const PULL_THRESHOLD_PX = 70;
 
 export default function FeedColumn({
   feed,
@@ -26,8 +31,37 @@ export default function FeedColumn({
     refreshKey
   );
 
+  const cooldownRef = useRef(0);
+  const manualRefresh = () => {
+    if (Date.now() < cooldownRef.current || status === "loading") return;
+    cooldownRef.current = Date.now() + MANUAL_COOLDOWN_MS;
+    refetch(true);
+  };
+
+  // Bottom pull-to-refresh (mobile): overscroll past the end arms a refresh.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pullStartY = useRef<number | null>(null);
+  const [pullArmed, setPullArmed] = useState(false);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    const el = scrollRef.current;
+    pullStartY.current =
+      el && el.scrollTop + el.clientHeight >= el.scrollHeight - 4
+        ? e.touches[0].clientY
+        : null;
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (pullStartY.current === null) return;
+    setPullArmed(pullStartY.current - e.touches[0].clientY > PULL_THRESHOLD_PX);
+  };
+  const onTouchEnd = () => {
+    if (pullArmed) manualRefresh();
+    setPullArmed(false);
+    pullStartY.current = null;
+  };
+
   const color = SOURCE_COLORS[feed.source];
-  const networkBlocked = error !== null && /\b(403|429|blocked)\b/i.test(error);
+  const networkBlocked = error !== null && /\b(403|429|blocked|rate limited)\b/i.test(error);
 
   return (
     <section
@@ -39,7 +73,7 @@ export default function FeedColumn({
         aria-hidden
         className="h-[2px] shrink-0"
         style={{
-          background: `linear-gradient(90deg, ${color}99, ${color}11 70%, transparent)`,
+          background: `linear-gradient(90deg, color-mix(in srgb, ${color} 60%, transparent), color-mix(in srgb, ${color} 8%, transparent) 70%, transparent)`,
         }}
       />
 
@@ -53,26 +87,42 @@ export default function FeedColumn({
             custom
           </span>
         )}
-        {status === "ok" && (
-          <span className="ml-auto rounded-full bg-black/[0.04] px-1.5 py-px text-[10px] tabular-nums text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400">
-            {items.length}
-          </span>
-        )}
+        <span className="ml-auto flex items-center gap-1">
+          {status === "ok" && (
+            <span className="rounded-full bg-black/[0.04] px-1.5 py-px text-[10px] tabular-nums text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400">
+              {items.length}
+            </span>
+          )}
+          <button
+            onClick={manualRefresh}
+            aria-label={`Refresh ${feed.label}`}
+            title={`Refresh ${feed.label}`}
+            className="rounded p-1 text-zinc-400 transition-colors hover:bg-black/[0.05] hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:text-zinc-600 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300"
+          >
+            <RefreshIcon className={`h-3 w-3 ${status === "loading" ? "animate-spin" : ""}`} />
+          </button>
+        </span>
       </header>
 
-      <div className="feed-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div
+        ref={scrollRef}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        className="feed-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain"
+      >
         {status === "loading" && <ColumnSkeleton />}
 
         {status === "error" && (
           <div className="mx-3 my-4 rounded-lg border border-red-500/20 bg-red-500/[0.05] p-3 text-xs leading-relaxed text-red-700 dark:border-red-400/20 dark:text-red-300/90">
             <p className="mb-1 font-medium">
               {networkBlocked
-                ? `${feed.label} appears blocked from this network — it usually works on the deployed site.`
+                ? `${feed.label} is temporarily unavailable (blocked or rate-limited upstream).`
                 : "Couldn't load this feed."}
             </p>
             <p className="break-all font-mono text-[10px] opacity-60">{error}</p>
             <button
-              onClick={refetch}
+              onClick={() => refetch(true)}
               className="mt-2 rounded-md border border-black/10 px-2.5 py-1 text-[11px] font-medium text-zinc-700 transition-colors hover:border-cyan-500/50 hover:text-cyan-600 dark:border-white/15 dark:text-zinc-300 dark:hover:border-cyan-400/50 dark:hover:text-cyan-300"
             >
               Retry
@@ -90,6 +140,12 @@ export default function FeedColumn({
         )}
 
         {status === "ok" && items.map((item) => <FeedCard key={item.id} item={item} />)}
+
+        {status === "ok" && items.length > 0 && (
+          <div className="py-3 text-center text-[10px] text-zinc-400 md:hidden dark:text-zinc-600">
+            {pullArmed ? "Release to refresh ↻" : "Pull up to refresh"}
+          </div>
+        )}
       </div>
     </section>
   );

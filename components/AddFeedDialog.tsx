@@ -10,18 +10,22 @@ const INPUT_CLS =
 const SOURCE_OPTIONS: Array<{ id: SourceId; label: string }> = [
   { id: "reddit", label: "Subreddit" },
   { id: "rss", label: "RSS / news site" },
+  { id: "youtube", label: "YouTube channel" },
+  { id: "x", label: "X account" },
+  { id: "github", label: "GitHub search" },
   { id: "hackernews", label: "Hacker News search" },
   { id: "bluesky", label: "Bluesky search" },
-  { id: "mastodon", label: "Mastodon hashtag" },
   { id: "fourchan", label: "4chan board" },
 ];
 
-const FIELD_META: Record<SourceId, { label: string; placeholder: string }> = {
+const FIELD_META: Partial<Record<SourceId, { label: string; placeholder: string }>> = {
   reddit: { label: "Subreddit (joins with + allowed)", placeholder: "StableDiffusion or ai+robotics" },
   rss: { label: "Feed URL", placeholder: "https://example.com/feed.xml" },
+  youtube: { label: "Channel ID or channel URL", placeholder: "UCXUPKJO5MZQN11PqgIvyuvQ" },
+  x: { label: "Account handle (without @)", placeholder: "OpenAI" },
+  github: { label: "Search query or topic", placeholder: "llm agents" },
   hackernews: { label: "Search query", placeholder: "AI agents" },
   bluesky: { label: "Search query", placeholder: "AI agents" },
-  mastodon: { label: "Hashtag (without #)", placeholder: "generativeai" },
   fourchan: { label: "Board (without slashes)", placeholder: "g" },
 };
 
@@ -50,6 +54,22 @@ function buildFeed(
       if (!/^https?:$/.test(parsed.protocol)) return { error: "URL must be http(s)" };
       return { feed: { source, label: parsed.hostname.replace(/^www\./, ""), params: { url: v } } };
     }
+    case "youtube": {
+      const id = /(U[CU][A-Za-z0-9_-]{10,40})/.exec(v)?.[1];
+      if (!id) {
+        return { error: "Paste a channel ID (starts with UC) or a URL containing one" };
+      }
+      return { feed: { source, label: `YouTube: ${id.slice(0, 12)}…`, params: { channel: id } } };
+    }
+    case "x": {
+      const handle = v.replace(/^@/, "");
+      if (!/^[A-Za-z0-9_]{1,15}$/.test(handle)) return { error: "Invalid account handle" };
+      return { feed: { source, label: `@${handle}`, params: { handle } } };
+    }
+    case "github": {
+      if (v.length > 100) return { error: "Query too long" };
+      return { feed: { source, label: `GH: ${v}`, params: { q: v } } };
+    }
     case "hackernews": {
       if (v.length > 100) return { error: "Query too long" };
       return { feed: { source, label: `HN: ${v}`, params: { q: v } } };
@@ -57,19 +77,6 @@ function buildFeed(
     case "bluesky": {
       if (v.length > 100) return { error: "Query too long" };
       return { feed: { source, label: `Bsky: ${v}`, params: { q: v } } };
-    }
-    case "mastodon": {
-      const tag = v.replace(/^#/, "");
-      if (!/^[A-Za-z0-9_]{1,64}$/.test(tag)) return { error: "Invalid hashtag" };
-      const instance = extra.trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-      if (instance && !/^[a-z0-9.-]{3,100}$/i.test(instance)) return { error: "Invalid instance" };
-      return {
-        feed: {
-          source,
-          label: instance ? `#${tag}@${instance}` : `#${tag}`,
-          params: { tag, ...(instance ? { instance } : {}) },
-        },
-      };
     }
     case "fourchan": {
       const board = v.replace(/\//g, "").toLowerCase();
@@ -79,6 +86,8 @@ function buildFeed(
         feed: { source, label: `/${board}/`, params: { board, ...(kw ? { q: kw } : {}) } },
       };
     }
+    default:
+      return { error: "Unsupported source" };
   }
 }
 
@@ -115,9 +124,18 @@ export default function AddFeedDialog({
     try {
       const qs = new URLSearchParams(built.feed.params);
       const res = await fetch(`/api/feeds/${source}?${qs}`);
-      const data = (await res.json()) as { items?: unknown[]; error?: string };
+      const data = (await res.json()) as {
+        items?: Array<{ sourceMeta?: string }>;
+        error?: string;
+      };
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
-      onAdd({ ...built.feed, id: `custom:${Date.now().toString(36)}` });
+      // YouTube custom feeds: replace the opaque channel-id label with the
+      // channel's actual name from the test fetch.
+      const label =
+        source === "youtube" && data.items?.[0]?.sourceMeta
+          ? `YT: ${data.items[0].sourceMeta}`
+          : built.feed.label;
+      onAdd({ ...built.feed, label, id: `custom:${Date.now().toString(36)}` });
       reset();
       onClose();
     } catch (e) {
@@ -125,6 +143,8 @@ export default function AddFeedDialog({
       setTesting(false);
     }
   };
+
+  const meta = FIELD_META[source] ?? { label: "Value", placeholder: "" };
 
   return (
     <Modal
@@ -155,27 +175,16 @@ export default function AddFeedDialog({
         </label>
 
         <label className="block">
-          <span className="mb-1 block text-xs text-zinc-500">{FIELD_META[source].label}</span>
+          <span className="mb-1 block text-xs text-zinc-500">{meta.label}</span>
           <input
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder={FIELD_META[source].placeholder}
+            placeholder={meta.placeholder}
             className={INPUT_CLS}
             onKeyDown={(e) => e.key === "Enter" && submit()}
           />
         </label>
 
-        {source === "mastodon" && (
-          <label className="block">
-            <span className="mb-1 block text-xs text-zinc-500">Instance (optional)</span>
-            <input
-              value={extra}
-              onChange={(e) => setExtra(e.target.value)}
-              placeholder="mastodon.social"
-              className={INPUT_CLS}
-            />
-          </label>
-        )}
         {source === "fourchan" && (
           <label className="block">
             <span className="mb-1 block text-xs text-zinc-500">

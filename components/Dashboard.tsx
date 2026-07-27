@@ -112,7 +112,7 @@ function DeckPlaceholder() {
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
       <div className="mx-auto flex h-full min-w-max gap-0 md:gap-3 md:px-3 md:py-3">
-        {Array.from({ length: 5 }, (_, i) => (
+        {Array.from({ length: 6 }, (_, i) => (
           <div
             key={i}
             className="w-[88vw] max-w-[380px] flex-none overflow-hidden border-r border-black/[0.06] bg-white p-3 first:border-l md:w-[340px] md:rounded-xl md:border md:border-black/[0.07] xl:w-[360px] dark:border-white/[0.07] dark:bg-[#111114]/80"

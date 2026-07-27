@@ -8,10 +8,13 @@ import type { CustomFeed, Prefs } from "./types";
 
 const KEY = "gcdsignal:prefs";
 
+/** Built-ins that start hidden — full coverage is one Settings toggle away. */
+const DEFAULT_HIDDEN: string[] = ["fourchan", "papers", "hackernews"];
+
 export const DEFAULT_PREFS: Prefs = {
-  v: 1,
+  v: 2,
   category: "trending",
-  hidden: [],
+  hidden: DEFAULT_HIDDEN,
   custom: [],
   refreshMs: DEFAULT_REFRESH_MS,
 };
@@ -34,12 +37,17 @@ function load(): Prefs {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULT_PREFS;
-    const p = JSON.parse(raw) as Partial<Prefs>;
-    if (p?.v !== 1) return DEFAULT_PREFS;
+    const p = JSON.parse(raw) as Omit<Partial<Prefs>, "v"> & { v?: number };
+    if (p?.v !== 1 && p?.v !== 2) return DEFAULT_PREFS;
+    const hidden = Array.isArray(p.hidden)
+      ? p.hidden.filter((x): x is string => typeof x === "string")
+      : [];
     return {
-      v: 1,
+      v: 2,
       category: typeof p.category === "string" && p.category in CATEGORIES ? p.category : "trending",
-      hidden: Array.isArray(p.hidden) ? p.hidden.filter((x): x is string => typeof x === "string") : [],
+      // v1 → v2: the new sources ship default-hidden; preserve the user's own
+      // hides and custom feeds untouched.
+      hidden: p.v === 1 ? [...new Set([...hidden, ...DEFAULT_HIDDEN])] : hidden,
       custom: Array.isArray(p.custom) ? p.custom.filter(isCustomFeed) : [],
       refreshMs: isValidRefreshMs(p.refreshMs) ? p.refreshMs : DEFAULT_REFRESH_MS,
     };

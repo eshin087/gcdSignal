@@ -10,12 +10,16 @@ const SCORE_GLYPH: Record<SourceId, string> = {
   reddit: "▲",
   hackernews: "▲",
   bluesky: "♥",
-  mastodon: "↻",
   fourchan: "▲",
   rss: "▲",
+  youtube: "▶",
+  github: "★",
+  papers: "▲",
+  x: "♥",
 };
 
 function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   if (n >= 10_000) return `${Math.round(n / 1000)}k`;
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
   return String(n);
@@ -31,7 +35,7 @@ function Favicon({ host, color }: { host: string; color: string }) {
     return (
       <span
         className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] text-[8px] font-bold"
-        style={{ backgroundColor: color + "26", color }}
+        style={{ backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`, color }}
       >
         {host[0]?.toUpperCase()}
       </span>
@@ -92,7 +96,7 @@ export default function FeedCard({ item }: { item: FeedItem }) {
           href={titleHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="block text-[13px] font-medium leading-snug tracking-[-0.01em] text-zinc-900 transition-colors group-hover:text-cyan-700 dark:text-zinc-100 dark:group-hover:text-cyan-300"
+          className="block text-[13px] font-medium leading-snug tracking-[-0.01em] text-zinc-900 transition-colors visited:text-zinc-400 group-hover:text-cyan-700 dark:text-zinc-100 dark:visited:text-zinc-500 dark:group-hover:text-cyan-300"
         >
           {item.title}
         </a>

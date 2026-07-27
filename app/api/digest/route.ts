@@ -10,11 +10,13 @@ export const maxDuration = 60;
 // Per-source quotas keep the digest varied; backfill tops up to 10 when a
 // source fails or runs dry.
 const QUOTAS: Array<{ source: SourceId; take: number }> = [
-  { source: "rss", take: 4 },
-  { source: "reddit", take: 3 },
+  { source: "rss", take: 3 },
+  { source: "reddit", take: 2 },
+  { source: "youtube", take: 1 },
+  { source: "github", take: 1 },
+  { source: "papers", take: 1 },
   { source: "bluesky", take: 1 },
-  { source: "mastodon", take: 1 },
-  { source: "fourchan", take: 1 },
+  { source: "hackernews", take: 1 },
 ];
 
 const DIGEST_SIZE = 10;
@@ -42,9 +44,12 @@ export async function GET(req: NextRequest) {
   QUOTAS.forEach((q, i) => {
     const r = results[i];
     if (r.status !== "fulfilled") return;
-    // RSS is freshest-first already; social sources rank by score.
+    // The RSS adapter round-robins by outlet, so re-sort by date here; social
+    // sources rank by score.
     const ranked =
-      q.source === "rss" ? r.value : [...r.value].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+      q.source === "rss"
+        ? [...r.value].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))
+        : [...r.value].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
     picked.push(...ranked.slice(0, q.take));
     backfill.push(...ranked.slice(q.take));
   });

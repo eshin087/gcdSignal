@@ -1,13 +1,39 @@
 import type { CategoryId, SourceId } from "./types";
 
+/**
+ * Baseline "is this about AI at all" terms — used to gate sources that aren't
+ * AI-native (r/technology, r/cybersecurity, /g/ vendor-name matches) so they
+ * only contribute AI-relevant posts.
+ */
+export const AI_TERMS = [
+  "ai", "llm", "gpt", "openai", "anthropic", "claude", "gemini", "deepseek",
+  "chatbot", "machine learning", "neural", "deep learning",
+  "artificial intelligence", "genai", "generative", "copilot", "agentic",
+  "diffusion", "transformer", "deepfake", "mistral", "hugging face", "llama",
+  "grok", "midjourney",
+];
+
 export interface CategoryDef {
   label: string;
-  reddit: { subs: string };
+  reddit: {
+    subs: string;
+    /** Subs (lowercase, no r/) whose posts must additionally match gateTerms. */
+    gateSubs?: string[];
+    gateTerms?: string[];
+    /** Optional second gate — e.g. AI subs gated on security terms while
+     *  security subs are gated on AI terms. */
+    gate2Subs?: string[];
+    gate2Terms?: string[];
+  };
   hackernews: { q: string };
   bluesky: { q: string };
-  mastodon: { tags: string[] };
-  fourchan: { board: string; keywords: string[] };
+  fourchan: { board: string; keywords: string[]; aiGate?: boolean };
+  /** Title-weighted require list (empty = everything passes). */
   rss: { keywords: string[] };
+  youtube: { q: string };
+  github: { q: string };
+  papers: { keywords: string[] };
+  x: { keywords: string[] };
 }
 
 export const CATEGORIES: Record<CategoryId, CategoryDef> = {
@@ -16,7 +42,6 @@ export const CATEGORIES: Record<CategoryId, CategoryDef> = {
     reddit: { subs: "artificial+singularity+OpenAI+ClaudeAI+LocalLLaMA+MachineLearning" },
     hackernews: { q: "AI" },
     bluesky: { q: "AI" },
-    mastodon: { tags: ["ai", "artificialintelligence", "llm"] },
     fourchan: {
       board: "g",
       keywords: [
@@ -25,70 +50,145 @@ export const CATEGORIES: Record<CategoryId, CategoryDef> = {
       ],
     },
     rss: { keywords: [] },
+    youtube: { q: "AI" },
+    github: { q: "ai" },
+    papers: { keywords: [] },
+    x: { keywords: [] },
   },
   development: {
     label: "Development",
     reddit: { subs: "LocalLLaMA+LLMDevs+huggingface+ollama+mlops" },
     hackernews: { q: "LLM" },
     bluesky: { q: "LLM" },
-    mastodon: { tags: ["llm", "machinelearning"] },
     fourchan: {
       board: "g",
       keywords: ["lmg", "llama", "ollama", "local model", "gguf", "quant", "fine-tun", "inference", "vllm"],
     },
-    rss: { keywords: ["model", "open source", "open-source", "api", "developer", "agent", "release", "llm"] },
+    rss: {
+      keywords: [
+        "llm", "open source", "open-source", "developer", "framework", "sdk",
+        "agent", "fine-tun", "inference", "hugging face", "benchmark",
+      ],
+    },
+    youtube: { q: "LLM development" },
+    github: { q: "llm" },
+    papers: { keywords: ["llm", "agent", "code", "inference", "efficient"] },
+    x: { keywords: ["llm", "open source", "model", "release", "code", "agent", "developer"] },
   },
   security: {
     label: "Security",
-    reddit: { subs: "netsec+cybersecurity+ChatGPTJailbreak" },
+    // Two-sided intersection: security subs must mention AI; AI subs must
+    // mention security. r/ChatGPTJailbreak is on-topic by construction.
+    reddit: {
+      subs: "netsec+cybersecurity+ChatGPTJailbreak+artificial+OpenAI+LocalLLaMA+ClaudeAI",
+      gateSubs: ["netsec", "cybersecurity"],
+      gateTerms: AI_TERMS,
+      gate2Subs: ["artificial", "openai", "localllama", "claudeai"],
+      gate2Terms: [
+        "security", "jailbreak", "prompt injection", "exploit", "vulnerab",
+        "leak", "breach", "malware", "attack", "safety", "adversarial", "hack",
+        "phishing", "scam", "guardrail", "privacy",
+      ],
+    },
     hackernews: { q: "AI security" },
     bluesky: { q: "AI security" },
-    mastodon: { tags: ["infosec", "cybersecurity", "aisecurity"] },
     fourchan: {
       board: "g",
       keywords: ["jailbreak", "prompt injection", "exploit", "malware", "vulnerabilit", "security", "leak"],
+      aiGate: true,
     },
-    rss: { keywords: ["security", "vulnerability", "jailbreak", "breach", "exploit", "injection", "safety", "privacy"] },
+    rss: {
+      keywords: [
+        "security", "vulnerability", "jailbreak", "breach", "exploit",
+        "injection", "privacy", "adversarial", "cve", "guardrail", "alignment",
+        "red team", "malware", "attack", "safety", "scam", "fraud",
+      ],
+    },
+    youtube: { q: "AI security" },
+    github: { q: "ai security" },
+    papers: {
+      keywords: ["security", "adversarial", "jailbreak", "attack", "safety", "alignment", "robust", "poisoning", "backdoor"],
+    },
+    x: { keywords: ["security", "jailbreak", "vulnerab", "exploit", "hack", "safety", "adversarial", "injection"] },
   },
   vibecoding: {
     label: "Vibe Coding",
-    reddit: { subs: "vibecoding+ChatGPTCoding+cursor+ClaudeAI+GithubCopilot" },
+    reddit: {
+      subs: "vibecoding+ChatGPTCoding+cursor+ClaudeAI+GithubCopilot",
+      gateSubs: ["claudeai"],
+      gateTerms: [
+        "code", "coding", "program", "dev", "build", "app", "script", "debug",
+        "cli", "ide", "agent", "mcp", "terminal", "engineer",
+      ],
+    },
     hackernews: { q: "vibe coding" },
     bluesky: { q: "vibe coding" },
-    mastodon: { tags: ["vibecoding", "aicoding", "copilot"] },
     fourchan: {
       board: "g",
       keywords: ["cursor", "copilot", "claude code", "codex", "vibe cod", "agentic", "coding"],
     },
-    rss: { keywords: ["coding", "copilot", "cursor", "claude code", "codex", "ide", "programming", "developer"] },
+    rss: {
+      keywords: [
+        "copilot", "cursor", "claude code", "codex", "vibe coding", "vibe-cod",
+        "coding assistant", "code assistant", "ai coding", "pair program",
+        "code generation", "ide",
+      ],
+    },
+    youtube: { q: "vibe coding" },
+    github: { q: "coding agent" },
+    papers: { keywords: ["code generation", "program synthesis", "software engineer", "coding"] },
+    x: { keywords: ["coding", "cursor", "copilot", "claude code", "codex", "vibe", "built", "shipped"] },
   },
   research: {
     label: "Research",
     reddit: { subs: "MachineLearning+mlscaling+reinforcementlearning" },
     hackernews: { q: "AI research" },
     bluesky: { q: "arxiv" },
-    mastodon: { tags: ["machinelearning", "airesearch", "arxiv"] },
     fourchan: {
       board: "g",
       keywords: ["paper", "arxiv", "benchmark", "sota", "research", "training"],
+      aiGate: true,
     },
-    rss: { keywords: ["research", "paper", "study", "benchmark", "arxiv", "breakthrough"] },
+    rss: {
+      keywords: [
+        "research", "paper", "study", "benchmark", "arxiv", "breakthrough",
+        "dataset", "scaling", "reasoning", "training",
+      ],
+    },
+    youtube: { q: "AI research paper" },
+    github: { q: "machine learning" },
+    papers: { keywords: [] },
+    x: { keywords: ["paper", "research", "arxiv", "benchmark", "dataset", "training", "reasoning"] },
   },
   industry: {
     label: "Industry",
     // Note: the real subreddit name is spelled with one 'l'.
-    reddit: { subs: "ArtificialInteligence+OpenAI+singularity+technology" },
+    reddit: {
+      subs: "ArtificialInteligence+OpenAI+singularity+technology",
+      gateSubs: ["technology"],
+      gateTerms: AI_TERMS,
+    },
     hackernews: { q: "AI startup" },
     bluesky: { q: "OpenAI" },
-    mastodon: { tags: ["ai", "technology", "openai"] },
     fourchan: {
       board: "g",
       keywords: ["openai", "anthropic", "google", "meta", "nvidia", "altman", "funding", "lawsuit", "microsoft", "xai"],
+      aiGate: true,
     },
     rss: {
       keywords: [
-        "funding", "acquisition", "launch", "partnership", "lawsuit", "regulation",
-        "revenue", "valuation", "openai", "anthropic", "nvidia",
+        "funding", "acquisition", "launch", "partnership", "lawsuit",
+        "regulation", "revenue", "valuation", "openai", "anthropic", "nvidia",
+        "investment", "ipo", "billion", "startup", "antitrust", "chip",
+      ],
+    },
+    youtube: { q: "AI industry news" },
+    github: { q: "ai" },
+    papers: { keywords: ["efficient", "deployment", "production", "cost"] },
+    x: {
+      keywords: [
+        "openai", "anthropic", "google", "funding", "launch", "announce",
+        "release", "valuation", "acquisition", "partnership", "nvidia",
       ],
     },
   },
@@ -112,29 +212,51 @@ export function resolveParams(
 ): Record<string, string> {
   const def = CATEGORIES[category];
   switch (source) {
-    case "reddit":
-      return { subs: sp.get("sub") ?? def.reddit.subs };
+    case "reddit": {
+      const sub = sp.get("sub");
+      if (sub) return { subs: sub }; // custom feeds: no category gates
+      return {
+        subs: def.reddit.subs,
+        gateSubs: (def.reddit.gateSubs ?? []).join(","),
+        gateTerms: (def.reddit.gateTerms ?? []).join(","),
+        gate2Subs: (def.reddit.gate2Subs ?? []).join(","),
+        gate2Terms: (def.reddit.gate2Terms ?? []).join(","),
+      };
+    }
     case "hackernews":
       return { q: sp.get("q") ?? def.hackernews.q };
     case "bluesky":
       return { q: sp.get("q") ?? def.bluesky.q };
-    case "mastodon":
-      return {
-        tags: sp.get("tag") ?? def.mastodon.tags.join(","),
-        instance: sp.get("instance") ?? "mastodon.social",
-      };
     case "fourchan": {
       const board = sp.get("board");
       // Custom boards get no default AI keyword filter (top threads by replies)
       // unless the custom feed provides its own comma-separated `q` keywords.
-      if (board) return { board, keywords: sp.get("q") ?? "" };
-      return { board: def.fourchan.board, keywords: def.fourchan.keywords.join(",") };
+      if (board) return { board, keywords: sp.get("q") ?? "", aiGate: "" };
+      return {
+        board: def.fourchan.board,
+        keywords: def.fourchan.keywords.join(","),
+        aiGate: def.fourchan.aiGate ? "1" : "",
+      };
     }
     case "rss": {
       const url = sp.get("url");
       // A custom RSS feed is shown unfiltered; the curated bundle gets category keywords.
       if (url) return { url, keywords: "" };
       return { url: "", keywords: def.rss.keywords.join(",") };
+    }
+    case "youtube": {
+      const channel = sp.get("channel");
+      if (channel) return { channel, q: "" };
+      return { channel: "", q: def.youtube.q };
+    }
+    case "github":
+      return { q: sp.get("q") ?? def.github.q };
+    case "papers":
+      return { keywords: def.papers.keywords.join(",") };
+    case "x": {
+      const handle = sp.get("handle");
+      if (handle) return { handle, keywords: "" };
+      return { handle: "", keywords: def.x.keywords.join(",") };
     }
   }
 }

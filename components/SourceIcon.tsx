@@ -1,10 +1,13 @@
 import {
   si4chan,
   siBluesky,
-  siMastodon,
+  siGithub,
+  siHuggingface,
   siReddit,
   siRss,
+  siX,
   siYcombinator,
+  siYoutube,
 } from "simple-icons";
 import { SOURCE_COLORS } from "@/lib/feeds";
 import type { SourceId } from "@/lib/types";
@@ -12,10 +15,13 @@ import type { SourceId } from "@/lib/types";
 const ICONS: Partial<Record<SourceId, { path: string }>> = {
   reddit: siReddit,
   bluesky: siBluesky,
-  mastodon: siMastodon,
   fourchan: si4chan,
   rss: siRss,
   hackernews: siYcombinator,
+  youtube: siYoutube,
+  github: siGithub,
+  papers: siHuggingface,
+  x: siX,
 };
 
 export default function SourceIcon({
@@ -39,7 +45,7 @@ export default function SourceIcon({
     <svg
       viewBox="0 0 24 24"
       className={`shrink-0 ${className}`}
-      fill={SOURCE_COLORS[source]}
+      style={{ fill: SOURCE_COLORS[source] }}
       aria-hidden
     >
       <path d={icon.path} />
