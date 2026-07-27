@@ -43,7 +43,41 @@ export const RSS_FEEDS: RssFeedDef[] = [
   { label: "Dark Reading", url: "https://www.darkreading.com/rss.xml", keywords: AI_TERMS, categories: ["security"] },
 ];
 
-const parser = new Parser();
+// Custom fields expose media thumbnails (attrs land under `$` in rss-parser).
+const parser = new Parser({
+  customFields: {
+    item: [
+      ["media:content", "mediaContent", { keepArray: true }],
+      ["media:thumbnail", "mediaThumbnail"],
+    ],
+  },
+});
+
+interface MediaAttrs {
+  $?: { url?: string; medium?: string; type?: string };
+}
+
+function extractThumbnail(item: {
+  enclosure?: { url?: string; type?: string };
+  mediaThumbnail?: MediaAttrs;
+  mediaContent?: MediaAttrs[];
+}): string | undefined {
+  const candidates: Array<string | undefined> = [];
+  const enc = item.enclosure;
+  if (
+    enc?.url &&
+    (enc.type?.startsWith("image/") || /\.(jpe?g|png|webp|gif)(\?|$)/i.test(enc.url))
+  ) {
+    candidates.push(enc.url);
+  }
+  candidates.push(item.mediaThumbnail?.$?.url);
+  for (const mc of item.mediaContent ?? []) {
+    if (mc?.$?.medium === "image" || mc?.$?.type?.startsWith("image/")) {
+      candidates.push(mc.$.url);
+    }
+  }
+  return candidates.find((c) => typeof c === "string" && c.startsWith("https://"));
+}
 
 export async function fetchRss(
   {
@@ -86,6 +120,7 @@ export async function fetchRss(
             source: "rss" as const,
             title: (item.title ?? "").trim(),
             url: item.link as string,
+            thumbnail: extractThumbnail(item as Parameters<typeof extractThumbnail>[0]),
             author: item.creator ?? undefined,
             timestamp: ts || new Date(0).toISOString(),
             excerpt: excerpt ? truncate(excerpt, 280) : undefined,

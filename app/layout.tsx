@@ -27,6 +27,10 @@ export const viewport: Viewport = {
 const THEME_SCRIPT =
   "(function(){try{if(localStorage.getItem('gcdsignal:theme')==='light')document.documentElement.classList.remove('dark')}catch(e){}})()";
 
+// Same pre-paint trick for the text-size scale (md is the attribute-less default).
+const TEXT_SCRIPT =
+  "(function(){try{var t=JSON.parse(localStorage.getItem('gcdsignal:prefs')||'{}').textScale;if(t==='sm'||t==='lg')document.documentElement.setAttribute('data-text',t)}catch(e){}})()";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -40,6 +44,7 @@ export default function RootLayout({
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: TEXT_SCRIPT }} />
       </head>
       <body className="h-dvh overflow-hidden flex flex-col font-sans text-zinc-800 dark:text-zinc-200">
         {children}

@@ -3,20 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BUILT_IN_FEEDS } from "@/lib/feeds";
 import { usePrefs } from "@/lib/use-prefs";
-import type { CategoryId, SourceId } from "@/lib/types";
+import type { CategoryId, VisibleFeed } from "@/lib/types";
 import AddFeedDialog from "./AddFeedDialog";
 import ColumnDeck from "./ColumnDeck";
+import ForYouFeed from "./ForYouFeed";
 import Header from "./Header";
 import NewsletterDialog from "./NewsletterDialog";
+import SavedDrawer from "./SavedDrawer";
 import SettingsDrawer from "./SettingsDrawer";
-
-export interface VisibleFeed {
-  id: string;
-  source: SourceId;
-  label: string;
-  params?: Record<string, string>;
-  isCustom: boolean;
-}
 
 export default function Dashboard() {
   const { prefs, setPrefs, ready } = usePrefs();
@@ -26,6 +20,22 @@ export default function Dashboard() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addFeedOpen, setAddFeedOpen] = useState(false);
   const [newsletterOpen, setNewsletterOpen] = useState(false);
+  const [savedOpen, setSavedOpen] = useState(false);
+
+  // Session-only search query, debounced so columns don't filter per keystroke.
+  const [queryInput, setQueryInput] = useState("");
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setQuery(queryInput.trim()), 150);
+    return () => clearTimeout(id);
+  }, [queryInput]);
+
+  // Text-size attribute lives on <html> (pre-paint script sets the initial one).
+  const textScale = prefs.textScale;
+  useEffect(() => {
+    if (textScale === "md") document.documentElement.removeAttribute("data-text");
+    else document.documentElement.setAttribute("data-text", textScale);
+  }, [textScale]);
 
   const bumpRefresh = useCallback(() => {
     const now = Date.now();
@@ -76,14 +86,37 @@ export default function Dashboard() {
         onRefresh={bumpRefresh}
         refreshMs={prefs.refreshMs}
         onRefreshMsChange={(ms) => setPrefs((p) => ({ ...p, refreshMs: ms }))}
+        view={prefs.view}
+        onViewChange={(view) => setPrefs((p) => ({ ...p, view }))}
+        sortMode={prefs.sortMode}
+        onSortModeChange={(sortMode) => setPrefs((p) => ({ ...p, sortMode }))}
+        textScale={prefs.textScale}
+        onTextScaleChange={(t) => setPrefs((p) => ({ ...p, textScale: t }))}
+        queryInput={queryInput}
+        onQueryInputChange={setQueryInput}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenNewsletter={() => setNewsletterOpen(true)}
+        onOpenSaved={() => setSavedOpen(true)}
       />
 
-      {ready ? (
-        <ColumnDeck feeds={visibleFeeds} category={prefs.category} refreshKey={refresh.key} />
-      ) : (
+      {!ready ? (
         <DeckPlaceholder />
+      ) : prefs.view === "foryou" ? (
+        <ForYouFeed
+          feeds={visibleFeeds}
+          category={prefs.category}
+          refreshKey={refresh.key}
+          sortMode={prefs.sortMode}
+          query={query}
+        />
+      ) : (
+        <ColumnDeck
+          feeds={visibleFeeds}
+          category={prefs.category}
+          refreshKey={refresh.key}
+          sortMode={prefs.sortMode}
+          query={query}
+        />
       )}
 
       <SettingsDrawer
@@ -102,6 +135,7 @@ export default function Dashboard() {
         onAdd={(feed) => setPrefs((p) => ({ ...p, custom: [...p.custom, feed] }))}
       />
       <NewsletterDialog open={newsletterOpen} onClose={() => setNewsletterOpen(false)} />
+      <SavedDrawer open={savedOpen} onClose={() => setSavedOpen(false)} />
     </>
   );
 }

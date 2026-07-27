@@ -16,11 +16,17 @@ export type CategoryId =
   | "research"
   | "industry";
 
+export type TextScale = "sm" | "md" | "lg";
+export type SortMode = "hot" | "new" | "top" | "discussed";
+export type ViewMode = "deck" | "foryou";
+
 export interface FeedItem {
   id: string;
   source: SourceId;
   /** Plain text — entities decoded, tags stripped. */
   title: string;
+  /** Absolute https URL only. */
+  thumbnail?: string;
   /** Discussion permalink (reddit comments, HN item, bsky post, 4chan thread, article). */
   url: string;
   /** Outbound article link when distinct from the discussion (reddit link posts, HN story URL). */
@@ -51,11 +57,23 @@ export interface CustomFeed {
 }
 
 export interface Prefs {
-  v: 3;
+  v: 4;
   category: CategoryId;
   /** Hidden feed ids (built-in SourceIds or custom ids). */
   hidden: string[];
   custom: CustomFeed[];
   /** Auto-refresh cadence in ms; 0 disables. Must be one of REFRESH_OPTIONS. */
   refreshMs: number;
+  textScale: TextScale;
+  sortMode: SortMode;
+  view: ViewMode;
+}
+
+/** A feed rendered on the dashboard (built-in or custom). */
+export interface VisibleFeed {
+  id: string;
+  source: SourceId;
+  label: string;
+  params?: Record<string, string>;
+  isCustom: boolean;
 }

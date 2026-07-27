@@ -23,6 +23,8 @@ interface RedditPost {
   selftext?: string;
   subreddit_name_prefixed: string;
   stickied: boolean;
+  /** Real URL for link posts; "self"/"default"/"nsfw" placeholders otherwise. */
+  thumbnail?: string;
 }
 
 interface RedditListing {
@@ -210,6 +212,7 @@ function mapListing(listing: RedditListing): FeedItem[] {
         title: d.title,
         url: `https://www.reddit.com${d.permalink}`,
         externalUrl: !d.is_self && d.url?.startsWith("http") ? d.url : undefined,
+        thumbnail: d.thumbnail?.startsWith("https://") ? d.thumbnail : undefined,
         score: d.score,
         comments: d.num_comments,
         author: d.author,
@@ -264,6 +267,15 @@ async function fetchViaHtml(subs: string, t: string, revalidate?: number): Promi
     const title = titleMatch ? stripHtml(titleMatch[1]) : "";
     if (!title || !attrs["data-permalink"]) continue;
 
+    // Thumbnail img inside the thing block; src is protocol-relative.
+    const thumbMatch = /<a[^>]*\bclass="[^"]*\bthumbnail\b[^"]*"[^>]*>\s*<img[^>]*\bsrc="([^"]+)"/.exec(block);
+    const rawThumb = thumbMatch?.[1];
+    const thumbnail = rawThumb?.startsWith("//")
+      ? `https:${rawThumb}`
+      : rawThumb?.startsWith("https://")
+        ? rawThumb
+        : undefined;
+
     const dataUrl = attrs["data-url"] ?? "";
     items.push({
       id: `reddit:${fullname.slice(3)}`,
@@ -271,6 +283,7 @@ async function fetchViaHtml(subs: string, t: string, revalidate?: number): Promi
       title,
       url: `https://www.reddit.com${attrs["data-permalink"]}`,
       externalUrl: dataUrl.startsWith("http") ? dataUrl : undefined,
+      thumbnail,
       score: Number(attrs["data-score"]) || 0,
       comments: Number(attrs["data-comments-count"]) || 0,
       author: attrs["data-author"] || undefined,
