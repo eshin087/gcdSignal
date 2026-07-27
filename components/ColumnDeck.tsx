@@ -1,19 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { CategoryId } from "@/lib/types";
+import type { CategoryId, SortMode, VisibleFeed } from "@/lib/types";
 import FeedColumn from "./FeedColumn";
 import SourceIcon from "./SourceIcon";
-import type { VisibleFeed } from "./Dashboard";
 
 export default function ColumnDeck({
   feeds,
   category,
   refreshKey,
+  sortMode,
+  query,
 }: {
   feeds: VisibleFeed[];
   category: CategoryId;
   refreshKey: number;
+  sortMode: SortMode;
+  query: string;
 }) {
   const deckRef = useRef<HTMLDivElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -82,7 +85,14 @@ export default function ColumnDeck({
       >
         <div className="mx-auto flex h-full min-w-max gap-0 md:gap-3 md:px-3 md:py-3">
           {feeds.map((feed) => (
-            <FeedColumn key={feed.id} feed={feed} category={category} refreshKey={refreshKey} />
+            <FeedColumn
+              key={feed.id}
+              feed={feed}
+              category={category}
+              refreshKey={refreshKey}
+              sortMode={sortMode}
+              query={query}
+            />
           ))}
         </div>
       </div>

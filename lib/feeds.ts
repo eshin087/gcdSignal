@@ -12,9 +12,10 @@ export const BUILT_IN_FEEDS: BuiltInFeed[] = [
   { id: "rss", source: "rss", label: "AI News" },
   { id: "youtube", source: "youtube", label: "YouTube" },
   { id: "bluesky", source: "bluesky", label: "Bluesky" },
-  { id: "github", source: "github", label: "GitHub" },
   { id: "hackernews", source: "hackernews", label: "Hacker News" },
   { id: "papers", source: "papers", label: "Papers" },
+  { id: "github", source: "github", label: "GitHub" },
+  // Last so it sits far right when visible.
   { id: "fourchan", source: "fourchan", label: "4chan /g/" },
 ];
 

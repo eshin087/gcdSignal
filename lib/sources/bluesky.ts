@@ -5,10 +5,24 @@ interface BskyPost {
   uri: string;
   author: { handle: string; displayName?: string };
   record?: { text?: string; createdAt?: string };
+  embed?: {
+    $type?: string;
+    images?: Array<{ thumb?: string }>;
+    external?: { thumb?: string };
+  };
   replyCount?: number;
   repostCount?: number;
   likeCount?: number;
   indexedAt: string;
+}
+
+/** Embed view shapes vary (images / external / recordWithMedia…) — degrade to
+ *  no thumbnail on anything unexpected, never throw. */
+function bskyThumb(p: BskyPost): string | undefined {
+  const candidate = p.embed?.images?.[0]?.thumb ?? p.embed?.external?.thumb;
+  return typeof candidate === "string" && candidate.startsWith("https://")
+    ? candidate
+    : undefined;
 }
 
 // Bluesky's public AppView WAF-blocks many networks and datacenter ranges.
@@ -80,6 +94,7 @@ function mapPosts(posts: BskyPost[]): FeedItem[] {
       source: "bluesky" as const,
       title: truncate(text, 140) || "(media post)",
       url: `https://bsky.app/profile/${p.author.handle}/post/${rkey}`,
+      thumbnail: bskyThumb(p),
       score: (p.likeCount ?? 0) + (p.repostCount ?? 0),
       comments: p.replyCount ?? 0,
       author: `@${p.author.handle}`,

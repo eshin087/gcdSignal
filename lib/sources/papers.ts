@@ -13,6 +13,7 @@ interface HfPaper {
   };
   publishedAt?: string;
   numComments?: number;
+  thumbnail?: string;
 }
 
 /**
@@ -59,12 +60,17 @@ async function fetchHf(revalidate?: number): Promise<FeedItem[]> {
       title: p.paper!.title as string,
       url: `https://huggingface.co/papers/${p.paper!.id}`,
       externalUrl: `https://arxiv.org/abs/${p.paper!.id}`,
+      thumbnail:
+        typeof p.thumbnail === "string" && p.thumbnail.startsWith("https://")
+          ? p.thumbnail
+          : undefined,
       score: p.paper!.upvotes ?? 0,
       comments: p.numComments ?? 0,
       author: p.paper!.organization ?? p.paper!.authors?.[0]?.name,
       timestamp: p.publishedAt ?? new Date().toISOString(),
       excerpt: p.paper!.summary ? truncate(p.paper!.summary.replace(/\s+/g, " "), 240) : undefined,
-      sourceMeta: "HF Papers",
+      // These are all arXiv papers — HF just supplies the community engagement.
+      sourceMeta: "arXiv",
     }))
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 }

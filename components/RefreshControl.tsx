@@ -58,11 +58,11 @@ export default function RefreshControl({
       >
         <RefreshIcon className="h-3.5 w-3.5" />
         {lastRefreshAt && (
-          <span className="hidden text-[11px] tabular-nums sm:inline">
+          <span className="hidden text-[11px] tabular-nums xl:inline">
             {timeAgo(new Date(lastRefreshAt).toISOString())}
           </span>
         )}
-        <span className="hidden text-[10px] text-zinc-400 sm:inline dark:text-zinc-600">
+        <span className="hidden text-[10px] text-zinc-400 xl:inline dark:text-zinc-600">
           {activeLabel === "Off" ? "auto off" : `auto ${activeLabel}`}
         </span>
       </button>

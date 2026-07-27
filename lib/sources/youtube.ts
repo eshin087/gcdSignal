@@ -31,9 +31,19 @@ interface SearchItem {
 
 interface VideoItem {
   id: string;
-  snippet?: { title?: string; channelTitle?: string; publishedAt?: string; description?: string };
+  snippet?: {
+    title?: string;
+    channelTitle?: string;
+    publishedAt?: string;
+    description?: string;
+    thumbnails?: { medium?: { url?: string } };
+  };
   statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
 }
+
+// The user's API key is HTTP-referrer-restricted to the production domain;
+// sending the referer ourselves makes server-side calls pass (verified live).
+const YT_HEADERS = { Referer: "https://gcdsignal.vercel.app/" };
 
 interface RssVideo {
   item: FeedItem;
@@ -91,11 +101,14 @@ function rankVideos(items: FeedItem[]): FeedItem[] {
 
 async function searchApi(q: string, key: string, revalidate?: number): Promise<FeedItem[]> {
   const publishedAfter = new Date(Date.now() - 7 * 86400_000).toISOString();
+  // relevance + Science & Technology (28) keeps AI-slop shorts and phone ads
+  // out (verified: viewCount ordering surfaces viral junk); the videos.list
+  // hydration below re-ranks the relevant set by views.
   const search = await fetchJson<{ items?: SearchItem[] }>(
-    `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&order=viewCount` +
-      `&publishedAfter=${encodeURIComponent(publishedAfter)}&maxResults=50` +
+    `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&order=relevance` +
+      `&videoCategoryId=28&publishedAfter=${encodeURIComponent(publishedAfter)}&maxResults=50` +
       `&q=${encodeURIComponent(q)}&relevanceLanguage=en&key=${key}`,
-    { revalidate }
+    { revalidate, headers: YT_HEADERS }
   );
   const ids = (search.items ?? [])
     .map((i) => i.id?.videoId)
@@ -104,7 +117,7 @@ async function searchApi(q: string, key: string, revalidate?: number): Promise<F
 
   const videos = await fetchJson<{ items?: VideoItem[] }>(
     `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${ids.join(",")}&key=${key}`,
-    { revalidate }
+    { revalidate, headers: YT_HEADERS }
   );
   return (videos.items ?? [])
     .filter((v) => v.snippet?.title)
@@ -113,6 +126,9 @@ async function searchApi(q: string, key: string, revalidate?: number): Promise<F
       source: "youtube" as const,
       title: v.snippet!.title as string,
       url: `https://www.youtube.com/watch?v=${v.id}`,
+      thumbnail: v.snippet?.thumbnails?.medium?.url?.startsWith("https://")
+        ? v.snippet.thumbnails.medium.url
+        : undefined,
       score: Number(v.statistics?.viewCount) || 0,
       comments: Number(v.statistics?.commentCount) || undefined,
       author: v.snippet?.channelTitle,
@@ -156,6 +172,7 @@ async function fetchChannelRss(
               source: "youtube" as const,
               title,
               url: `https://www.youtube.com/watch?v=${videoId}`,
+              thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
               score: Number(views) || 0,
               author: ch.name || feedTitle,
               timestamp: published,

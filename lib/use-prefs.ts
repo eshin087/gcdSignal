@@ -4,19 +4,26 @@ import { useSyncExternalStore } from "react";
 import { CATEGORIES } from "./categories";
 import { SOURCE_IDS } from "./feeds";
 import { DEFAULT_REFRESH_MS, isValidRefreshMs } from "./refresh";
+import { isSortMode } from "./sort";
 import type { CustomFeed, Prefs } from "./types";
 
 const KEY = "gcdsignal:prefs";
 
+/** The v1-era default-hidden list, frozen for the migration path. */
+const V1_DEFAULT_HIDDEN = ["fourchan", "papers"];
+
 /** Built-ins that start hidden — full coverage is one Settings toggle away. */
-const DEFAULT_HIDDEN: string[] = ["fourchan", "papers"];
+const DEFAULT_HIDDEN: string[] = ["github", "papers"];
 
 export const DEFAULT_PREFS: Prefs = {
-  v: 3,
+  v: 4,
   category: "trending",
   hidden: DEFAULT_HIDDEN,
   custom: [],
   refreshMs: DEFAULT_REFRESH_MS,
+  textScale: "md",
+  sortMode: "hot",
+  view: "deck",
 };
 
 function isCustomFeed(x: unknown): x is CustomFeed {
@@ -38,22 +45,27 @@ function load(): Prefs {
     const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULT_PREFS;
     const p = JSON.parse(raw) as Omit<Partial<Prefs>, "v"> & { v?: number };
-    if (p?.v !== 1 && p?.v !== 2 && p?.v !== 3) return DEFAULT_PREFS;
+    if (p?.v !== 1 && p?.v !== 2 && p?.v !== 3 && p?.v !== 4) return DEFAULT_PREFS;
     let hidden = Array.isArray(p.hidden)
       ? p.hidden.filter((x): x is string => typeof x === "string")
       : [];
-    // v1 → hide the sources that ship default-hidden; the user's own hides and
-    // custom feeds are preserved through every migration.
-    if (p.v === 1) hidden = [...new Set([...hidden, ...DEFAULT_HIDDEN])];
+    // v1 → hide the sources that shipped default-hidden AT THE TIME; the user's
+    // own hides and custom feeds are preserved through every migration.
+    if (p.v === 1) hidden = [...new Set([...hidden, ...V1_DEFAULT_HIDDEN])];
     // v2 → v3: Hacker News was hidden only by OUR v2 default (X occupied its
     // deck slot); with X gone, unhide it. Prune the removed "x" id too.
     if (p.v === 1 || p.v === 2) hidden = hidden.filter((h) => h !== "hackernews" && h !== "x");
+    // v3 → v4: 4chan enters the default deck (far right), GitHub leaves.
+    if (p.v <= 3) hidden = [...new Set([...hidden.filter((h) => h !== "fourchan"), "github"])];
     return {
-      v: 3,
+      v: 4,
       category: typeof p.category === "string" && p.category in CATEGORIES ? p.category : "trending",
       hidden,
       custom: Array.isArray(p.custom) ? p.custom.filter(isCustomFeed) : [],
       refreshMs: isValidRefreshMs(p.refreshMs) ? p.refreshMs : DEFAULT_REFRESH_MS,
+      textScale: p.textScale === "sm" || p.textScale === "lg" ? p.textScale : "md",
+      sortMode: isSortMode(p.sortMode) ? p.sortMode : "hot",
+      view: p.view === "foryou" ? "foryou" : "deck",
     };
   } catch {
     return DEFAULT_PREFS;
