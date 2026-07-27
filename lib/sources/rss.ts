@@ -1,11 +1,20 @@
 import Parser from "rss-parser";
-import { fetchText, keywordMatcher, stripHtml, truncate } from "../fetch-helpers";
-import type { FeedItem } from "../types";
+import { fetchText, makeMatcher, stripHtml, truncate } from "../fetch-helpers";
+import { AI_TERMS } from "../categories";
+import type { CategoryId, FeedItem } from "../types";
 
-export const RSS_FEEDS: Array<{ label: string; url: string; keywords?: string[] }> = [
+export interface RssFeedDef {
+  label: string;
+  url: string;
+  /** Per-feed gate (title-or-2-body). */
+  keywords?: string[];
+  /** Restrict this feed to specific categories; absent = all categories. */
+  categories?: CategoryId[];
+}
+
+export const RSS_FEEDS: RssFeedDef[] = [
   { label: "TechCrunch AI", url: "https://techcrunch.com/category/artificial-intelligence/feed/" },
   { label: "The Verge AI", url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml" },
-  { label: "VentureBeat AI", url: "https://venturebeat.com/category/ai/feed/" },
   { label: "Ars Technica AI", url: "https://arstechnica.com/ai/feed/" },
   { label: "MIT Tech Review", url: "https://www.technologyreview.com/topic/artificial-intelligence/feed" },
   { label: "The Decoder", url: "https://the-decoder.com/feed/" },
@@ -26,31 +35,48 @@ export const RSS_FEEDS: Array<{ label: string; url: string; keywords?: string[] 
     ],
   },
   { label: "TechRadar AI", url: "https://www.techradar.com/feeds/tag/artificial-intelligence" },
+  // Security-category bonus outlets — site-wide feeds, so each is AI-gated.
+  { label: "The Hacker News", url: "https://feeds.feedburner.com/TheHackersNews", keywords: AI_TERMS, categories: ["security"] },
+  { label: "BleepingComputer", url: "https://www.bleepingcomputer.com/feed/", keywords: AI_TERMS, categories: ["security"] },
+  { label: "Krebs on Security", url: "https://krebsonsecurity.com/feed/", keywords: AI_TERMS, categories: ["security"] },
+  { label: "Schneier", url: "https://www.schneier.com/feed/atom/", keywords: AI_TERMS, categories: ["security"] },
+  { label: "Dark Reading", url: "https://www.darkreading.com/rss.xml", keywords: AI_TERMS, categories: ["security"] },
 ];
 
 const parser = new Parser();
 
-export async function fetchRss({
-  url,
-  keywords,
-}: {
-  url?: string;
-  keywords: string[];
-}): Promise<FeedItem[]> {
-  const feeds = url ? [{ label: "", url }] : RSS_FEEDS;
+export async function fetchRss(
+  {
+    url,
+    keywords,
+    category,
+  }: {
+    url?: string;
+    keywords: string[];
+    category?: string;
+  },
+  fresh = false
+): Promise<FeedItem[]> {
+  const feeds: RssFeedDef[] = url
+    ? [{ label: "", url }]
+    : RSS_FEEDS.filter((f) => !f.categories || (category && f.categories.includes(category as CategoryId)));
   const results = await Promise.allSettled(
     feeds.map(async (f): Promise<FeedItem[]> => {
       // Fetch ourselves (Next data cache + timeout), then parse — parseURL would bypass both.
       const xml = await fetchText(f.url, {
         timeoutMs: 6000,
+        revalidate: fresh ? 0 : undefined,
         headers: { Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, */*" },
       });
       const parsed = await parser.parseString(xml);
       const feedLabel = f.label || parsed.title || new URL(f.url).hostname;
-      const feedFilter = keywordMatcher("keywords" in f && f.keywords ? f.keywords : []);
+      const feedFilter = makeMatcher(f.keywords ?? []);
       return (parsed.items ?? [])
         .filter((item) => item.title && item.link?.startsWith("http"))
-        .filter((item) => feedFilter(`${item.title} ${item.contentSnippet ?? ""}`))
+        .filter((item) => feedFilter(item.title ?? "", item.contentSnippet ?? ""))
+        // Sort by date BEFORE capping — some feeds return hundreds of items in
+        // arbitrary document order.
+        .sort((a, b) => Date.parse(b.isoDate ?? b.pubDate ?? "") - Date.parse(a.isoDate ?? a.pubDate ?? ""))
         .slice(0, 8)
         .map((item) => {
           const excerpt = stripHtml(item.contentSnippet ?? item.content ?? "");
@@ -78,15 +104,43 @@ export async function fetchRss({
     );
   }
 
-  const matches = keywordMatcher(keywords);
+  const matches = makeMatcher(keywords);
   const seen = new Set<string>();
-  return fulfilled
+  const floor = Date.now() - 7 * 86400_000; // recency floor — round-robin must not resurrect stale posts
+  const candidates = fulfilled
     .flatMap((r) => r.value)
     .filter((item) => {
       if (seen.has(item.url)) return false;
       seen.add(item.url);
-      return matches(`${item.title} ${item.excerpt ?? ""}`);
-    })
-    .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))
-    .slice(0, 40);
+      return Date.parse(item.timestamp) > floor && matches(item.title, item.excerpt ?? "");
+    });
+
+  // Round-robin by outlet so high-frequency publishers can't crowd out the
+  // rest: pass N takes each outlet's Nth-freshest, outlets within a pass
+  // ordered by that item's recency.
+  const groups = new Map<string, FeedItem[]>();
+  for (const item of candidates) {
+    const key = item.sourceMeta ?? "";
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+  for (const group of groups.values()) {
+    group.sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+  }
+
+  const out: FeedItem[] = [];
+  for (let round = 0; out.length < 100; round++) {
+    const pass: FeedItem[] = [];
+    for (const group of groups.values()) {
+      if (group[round]) pass.push(group[round]);
+    }
+    if (!pass.length) break;
+    pass.sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+    for (const item of pass) {
+      out.push(item);
+      if (out.length >= 100) break;
+    }
+  }
+  return out;
 }

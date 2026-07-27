@@ -66,21 +66,42 @@ export function truncate(s: string, max: number): string {
   return s.slice(0, max - 1).trimEnd() + "…";
 }
 
-/**
- * Word-boundary keyword matching: short keywords ("ai", "llm") must match whole
- * words so "ai" doesn't hit "Daily"; longer ones stay open-ended as prefixes so
- * "vulnerabilit" matches "vulnerability/vulnerabilities".
- */
-export function keywordMatcher(keywords: string[]): (text: string) => boolean {
-  const patterns = keywords
+function compileKeywords(keywords: string[]): RegExp[] {
+  // Word-boundary matching: short keywords ("ai", "llm") must match whole words
+  // so "ai" doesn't hit "Daily"; longer ones stay open-ended as prefixes so
+  // "vulnerabilit" matches "vulnerability/vulnerabilities".
+  return keywords
     .map((k) => k.trim().toLowerCase())
     .filter(Boolean)
     .map((k) => {
       const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       return new RegExp(`\\b${escaped}${k.length <= 4 ? "\\b" : ""}`, "i");
     });
+}
+
+/** Simple any-keyword match against a single text blob. */
+export function keywordMatcher(keywords: string[]): (text: string) => boolean {
+  const patterns = compileKeywords(keywords);
   if (!patterns.length) return () => true;
   return (text) => patterns.some((re) => re.test(text));
+}
+
+/**
+ * Title-weighted topical matching: passes on any headline hit, but body-only
+ * mentions need two distinct keywords — kills the "matched `security` in a
+ * passing excerpt sentence" class of false positive.
+ */
+export function makeMatcher(keywords: string[]): (title: string, body?: string) => boolean {
+  const patterns = compileKeywords(keywords);
+  if (!patterns.length) return () => true;
+  return (title, body = "") => {
+    if (patterns.some((re) => re.test(title))) return true;
+    let hits = 0;
+    for (const re of patterns) {
+      if (re.test(body) && ++hits >= 2) return true;
+    }
+    return false;
+  };
 }
 
 export function timeAgo(iso: string): string {

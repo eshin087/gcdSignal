@@ -1,10 +1,11 @@
 # gcd signal
 
 A glass-dark, TweetDeck-style dashboard for trending AI content. One column per
-source — Reddit (top of day), curated AI news from ~15 outlets, Bluesky,
-Mastodon (instance trending + tags), and 4chan /g/ — with a category switcher,
-custom feeds (including Hacker News searches), configurable auto-refresh,
-dark/light themes, and an optional daily email digest.
+source — Reddit (top of day with real vote counts), curated AI news from ~14
+outlets, YouTube, X, Bluesky, GitHub trending repos, Hacker News, research
+papers (Hugging Face + arXiv), and 4chan /g/ — with a category switcher,
+custom feeds, per-column and configurable auto-refresh, dark/light themes, and
+an optional daily email digest.
 
 ## Quick start
 
@@ -38,25 +39,32 @@ theme) live in the browser's localStorage — no accounts, no database.
 All upstream fetching happens in the server route `/api/feeds/[source]` with
 ~5-minute caching, so browser CORS and upstream rate limits are non-issues.
 
-- **Reddit** — anonymous JSON is blocked from many networks/datacenter IPs.
-  The adapter falls back to Reddit's public Atom feed automatically (posts
-  still hot-ranked, but no vote counts). For full data, add free API
-  credentials (`REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` in `.env.local`,
-  see `.env.example`) — create a "script" app at
-  https://www.reddit.com/prefs/apps.
-- **Bluesky** — uses the public AppView (`public.api.bsky.app`). Bluesky
-  IP-blocks some networks/regions; if the column shows a 403 locally it will
-  generally still work once deployed.
-- **4chan** — read-only catalog API, text only, filtered to AI-related threads
-  by keywords. Content is unmoderated; keywords are in
-  [lib/categories.ts](lib/categories.ts).
-- **AI News (RSS)** — curated list in [lib/sources/rss.ts](lib/sources/rss.ts):
-  TechCrunch, The Verge, VentureBeat, Ars Technica, MIT Tech Review, The
-  Decoder, Simon Willison, Wired, The Register, ZDNet, IEEE Spectrum, Hugging
-  Face, Google AI, 404 Media, TechRadar — capped per site so no outlet
-  dominates.
-- **Mastodon** — blends the instance's trending posts (keyword-filtered) with
-  hashtag timelines, ranked by engagement.
+- **Reddit** — Reddit no longer offers free API access, and anonymous JSON is
+  blocked. Scores + comment counts come from parsing the legacy multireddit
+  HTML (`www.reddit.com/r/a+b+c/top/`), which still carries exact `data-score`
+  attributes; if Reddit ever blocks that, the column silently falls back to
+  the public Atom feed (titles, no scores). Posts are interleaved per
+  subreddit so one sub can't flood the column.
+- **X** — unofficial embed/syndication endpoints (no free API exists): account
+  timelines from ~8 major AI accounts, hydrated per-tweet for like/reply
+  counts. Rate-limited upstream; the column caches the last good batch and
+  shows an unavailable state if discovery fails cold. Least durable source by
+  design.
+- **YouTube** — with a free `YOUTUBE_API_KEY`: per-category video search with
+  view/comment counts. Without: curated AI channels via keyless RSS (also has
+  real view counts).
+- **GitHub** — recently-pushed AI repos ranked by stars (unauthenticated
+  search API).
+- **Papers** — Hugging Face daily papers (community upvotes + comments) merged
+  with recent arXiv cs.AI/LG/CL; arXiv is best-effort (aggressive rate
+  limits).
+- **Bluesky** — public AppView with host fallback (`public.api.bsky.app` →
+  `api.bsky.app`); optional app-password auth as a last resort.
+- **4chan** — read-only catalog API, text only, AI-keyword filtered, ranked by
+  replies decayed by thread age so perennial generals don't pin the top.
+- **AI News (RSS)** — ~14 outlets in [lib/sources/rss.ts](lib/sources/rss.ts),
+  round-robin interleaved by outlet with a 7-day recency floor so no single
+  publisher dominates and every outlet gets seen.
 
 ## Newsletter setup (Resend)
 

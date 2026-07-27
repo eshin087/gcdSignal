@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "gcd signal — trending AI, one dashboard",
   description:
-    "The most popular AI posts and news from Reddit, Hacker News, Bluesky, Mastodon, 4chan, and major tech sites — in one minimal deck.",
+    "The most trending AI content from Reddit, X, YouTube, Bluesky, GitHub, Hacker News, research papers, and major tech sites — in one deck.",
 };
 
 export const viewport: Viewport = {

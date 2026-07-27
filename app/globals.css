@@ -9,10 +9,21 @@
 
 :root {
   color-scheme: light;
+  /* Per-source brand colors; near-black brands get light values in dark mode. */
+  --src-reddit: #ff4500;
+  --src-hackernews: #ff6600;
+  --src-rss: #f59e0b;
+  --src-bluesky: #0085ff;
+  --src-fourchan: #789922;
+  --src-youtube: #ff0000;
+  --src-github: #24292f;
+  --src-papers: #ca8a04;
 }
 
 .dark {
   color-scheme: dark;
+  --src-github: #e6edf3;
+  --src-papers: #ffd21e;
 }
 
 /* Ambient glow — brightest at the top so the glass header and translucent

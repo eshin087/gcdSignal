@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { BUILT_IN_FEEDS } from "@/lib/feeds";
+import { clearSeen, useSeenCount } from "@/lib/use-seen";
 import type { Prefs } from "@/lib/types";
 import { PlusIcon, XIcon } from "./icons";
 import SourceIcon from "./SourceIcon";
@@ -27,6 +28,8 @@ export default function SettingsDrawer({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  const seenCount = useSeenCount();
 
   const toggleHidden = (id: string) =>
     setPrefs((p) => ({
@@ -126,6 +129,21 @@ export default function SettingsDrawer({
           >
             <PlusIcon className="h-3.5 w-3.5" />
             Add feed
+          </button>
+
+          <p className="mb-2 mt-6 text-[11px] font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-600">
+            Reading history
+          </p>
+          <p className="mb-2 px-2 text-xs leading-relaxed text-zinc-500">
+            Items you scroll past are hidden on the next refresh so feeds stay
+            fresh. History is kept for 7 days, in this browser only.
+          </p>
+          <button
+            onClick={clearSeen}
+            disabled={seenCount === 0}
+            className="w-full rounded-lg border border-black/15 px-3 py-2 text-xs font-medium text-zinc-500 transition-colors hover:border-cyan-500/50 hover:text-cyan-600 disabled:opacity-40 dark:border-white/15 dark:hover:border-cyan-400/50 dark:hover:text-cyan-300"
+          >
+            Clear seen history ({seenCount})
           </button>
         </div>
       </aside>

@@ -11,12 +11,12 @@ interface AlgoliaHit {
   created_at_i: number;
 }
 
-export async function fetchHackerNews({ q }: { q: string }): Promise<FeedItem[]> {
+export async function fetchHackerNews({ q }: { q: string }, fresh = false): Promise<FeedItem[]> {
   const since = Math.floor(Date.now() / 1000) - 7 * 86400;
   const u =
     `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(q)}` +
-    `&tags=story&hitsPerPage=25&numericFilters=created_at_i>${since}`;
-  const data = await fetchJson<{ hits: AlgoliaHit[] }>(u);
+    `&tags=story&hitsPerPage=50&numericFilters=created_at_i>${since}`;
+  const data = await fetchJson<{ hits: AlgoliaHit[] }>(u, { revalidate: fresh ? 0 : undefined });
   return data.hits
     .filter((h) => h.title)
     .map((h) => ({
