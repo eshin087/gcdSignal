@@ -24,22 +24,17 @@ export interface PanelDef {
   label: string;
 }
 
-export const PANELS: PanelDef[] = [
-  { id: "top10", label: "Daily Top 10" },
-  { id: "momentum", label: "Momentum" },
-];
+export const PANELS: PanelDef[] = [{ id: "top10", label: "Daily Top 10" }];
 
 export const PANEL_LABELS: Record<PanelId, string> = {
   top10: "Daily Top 10",
-  momentum: "Momentum",
 };
 
 export function isPanelId(v: string): v is PanelId {
-  return v === "top10" || v === "momentum";
+  return v === "top10";
 }
 
-/** Default deck order: Top 10 far left, Momentum after the core feeds,
- *  default-hidden sources trailing. */
+/** Default deck order: Top 10 far left, default-hidden sources trailing. */
 export const DEFAULT_ORDER: string[] = [
   "top10",
   "reddit",
@@ -47,7 +42,6 @@ export const DEFAULT_ORDER: string[] = [
   "youtube",
   "bluesky",
   "hackernews",
-  "momentum",
   "papers",
   "github",
   "fourchan",

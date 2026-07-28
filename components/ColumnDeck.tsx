@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CategoryId, DeckItem, SortMode } from "@/lib/types";
 import FeedColumn from "./FeedColumn";
-import { PulseIcon, TrophyIcon } from "./icons";
-import MomentumColumn from "./MomentumColumn";
+import { TrophyIcon } from "./icons";
 import SourceIcon from "./SourceIcon";
 import TopTenColumn from "./TopTenColumn";
 
@@ -16,11 +15,7 @@ function itemLabel(it: DeckItem): string {
 
 function ItemIcon({ it, className = "h-3 w-3" }: { it: DeckItem; className?: string }) {
   if (it.kind === "feed") return <SourceIcon source={it.feed.source} className={className} />;
-  return it.id === "top10" ? (
-    <TrophyIcon className={className} />
-  ) : (
-    <PulseIcon className={className} />
-  );
+  return <TrophyIcon className={className} />;
 }
 
 export default function ColumnDeck({
@@ -29,19 +24,14 @@ export default function ColumnDeck({
   refreshKey,
   sortMode,
   query,
-  activeTopic,
   onReorder,
-  onTopicSearch,
 }: {
   items: DeckItem[];
   category: CategoryId;
   refreshKey: number;
   sortMode: SortMode;
   query: string;
-  /** Raw header search text — lets the momentum panel toggle its filter off. */
-  activeTopic: string;
   onReorder: (dragId: string, targetId: string, side: DropSide) => void;
-  onTopicSearch: (topic: string) => void;
 }) {
   const deckRef = useRef<HTMLDivElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -177,16 +167,7 @@ export default function ColumnDeck({
                   />
                 )}
                 {it.kind === "panel" ? (
-                  it.id === "top10" ? (
-                    <TopTenColumn refreshKey={refreshKey} dragHandleProps={dragHandleProps(it.id)} />
-                  ) : (
-                    <MomentumColumn
-                      refreshKey={refreshKey}
-                      activeTopic={activeTopic}
-                      onTopicSearch={onTopicSearch}
-                      dragHandleProps={dragHandleProps(it.id)}
-                    />
-                  )
+                  <TopTenColumn refreshKey={refreshKey} dragHandleProps={dragHandleProps(it.id)} />
                 ) : (
                   <FeedColumn
                     feed={it.feed}

@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BriefResponse } from "./types";
 
-// Both panels (Top 10 + Momentum) read the same payload — dedupe concurrent
-// identical requests at module level so mounting them costs one fetch.
+// Dedupe concurrent identical requests at module level so remounts and
+// StrictMode double-effects cost one fetch.
 const inflight = new Map<string, Promise<BriefResponse>>();
 
 function load(dedupeKey: string, fresh: boolean): Promise<BriefResponse> {
@@ -13,7 +13,7 @@ function load(dedupeKey: string, fresh: boolean): Promise<BriefResponse> {
   const p = (async () => {
     const res = await fetch(`/api/brief${fresh ? "?fresh=1" : ""}`);
     const data = (await res.json()) as Partial<BriefResponse> & { error?: string };
-    if (!res.ok || !Array.isArray(data.top10) || !Array.isArray(data.momentum)) {
+    if (!res.ok || !Array.isArray(data.top10)) {
       throw new Error(data.error ?? `HTTP ${res.status}`);
     }
     return data as BriefResponse;

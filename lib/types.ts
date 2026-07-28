@@ -88,8 +88,8 @@ export interface VisibleFeed {
   isCustom: boolean;
 }
 
-/** Non-source deck columns (Daily Top 10, Momentum). */
-export type PanelId = "top10" | "momentum";
+/** Non-source deck columns (Daily Top 10). */
+export type PanelId = "top10";
 
 /** One deck slot: a fetchable feed column or a computed panel. */
 export type DeckItem =
@@ -115,30 +115,8 @@ export interface BriefStory {
   thumbnail?: string;
 }
 
-export type MomentumStatus = "emerging" | "peaking" | "steady" | "fading";
-
-export interface MomentumTopic {
-  topic: string;
-  status: MomentumStatus;
-  /** Mentions across the whole window. */
-  mentions: number;
-  /** Share-of-conversation per bucket, oldest → newest, 0..1. */
-  spark: number[];
-  /** Currently on X's trending list (via trends24 scrape). */
-  xTrending?: boolean;
-  /** Auto-extracted (not from the curated list). */
-  auto?: boolean;
-  /** The topic's loudest current story — "why is this moving?" */
-  top?: { title: string; url: string };
-  /** Share change, last 24h vs the day before, in percent; null = no base ("new"). */
-  changePct: number | null;
-  /** Positions climbed (+) or dropped (−) vs the prior day's ranking. */
-  rankDelta?: number;
-}
-
 export interface BriefResponse {
   top10: BriefStory[];
-  momentum: MomentumTopic[];
   fetchedAt: string;
   stale?: boolean;
 }

@@ -2,15 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildTop10 } from "@/lib/brief";
 import { resolveParams } from "@/lib/categories";
 import { recallGood, rememberGood } from "@/lib/last-good";
-import { buildMomentum } from "@/lib/momentum";
 import { SOURCES } from "@/lib/sources";
 import type { BriefResponse, FeedItem, SourceId } from "@/lib/types";
 
 /**
- * One aggregation pass feeding both the Daily Top 10 and Momentum panels.
- * Always global (trending category) — a single definitive daily list. The
- * adapters hit the same upstream URLs as the deck columns, so the Next data
- * cache makes this nearly free when columns are already loaded.
+ * Aggregation pass feeding the Daily Top 10 panel. Always global (trending
+ * category) — a single definitive daily list. The adapters hit the same
+ * upstream URLs as the deck columns, so the Next data cache makes this
+ * nearly free when columns are already loaded.
  */
 
 const BRIEF_SOURCES: SourceId[] = ["reddit", "rss", "hackernews", "bluesky", "youtube", "papers"];
@@ -39,7 +38,6 @@ export async function GET(req: NextRequest) {
     }
     const body: BriefResponse = {
       top10: buildTop10(items),
-      momentum: await buildMomentum(items, fresh),
       fetchedAt: new Date().toISOString(),
     };
     rememberGood(CACHE_KEY, body);

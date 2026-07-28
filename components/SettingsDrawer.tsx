@@ -10,14 +10,14 @@ import {
 } from "@/lib/feeds";
 import { clearSeen, useSeenCount } from "@/lib/use-seen";
 import type { Prefs, SourceId } from "@/lib/types";
-import { ChevronDownIcon, ChevronUpIcon, PlusIcon, PulseIcon, TrophyIcon, XIcon } from "./icons";
+import { ChevronDownIcon, ChevronUpIcon, PlusIcon, TrophyIcon, XIcon } from "./icons";
 import SourceIcon from "./SourceIcon";
 
 interface Row {
   id: string;
   label: string;
   source?: SourceId;
-  panel?: "top10" | "momentum";
+  panel?: "top10";
   isCustom: boolean;
 }
 
@@ -120,10 +120,8 @@ export default function SettingsDrawer({
               >
                 {row.source ? (
                   <SourceIcon source={row.source} />
-                ) : row.panel === "top10" ? (
-                  <TrophyIcon className="h-4 w-4 text-amber-500" />
                 ) : (
-                  <PulseIcon className="h-4 w-4 text-cyan-500" />
+                  <TrophyIcon className="h-4 w-4 text-amber-500" />
                 )}
                 <span className="min-w-0 flex-1 truncate text-[13px]" title={row.label}>
                   {row.label}
