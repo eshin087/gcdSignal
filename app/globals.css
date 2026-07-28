@@ -45,6 +45,13 @@
   --fs-chip: 12px;
 }
 
+[data-text="xl"] {
+  --fs-title: 18px;
+  --fs-excerpt: 15px;
+  --fs-meta: 14px;
+  --fs-chip: 12px;
+}
+
 /* Ambient glow — brightest at the top so the glass header and translucent
    columns pick up a subtle color wash. */
 body {

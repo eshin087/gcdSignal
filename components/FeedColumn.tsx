@@ -1,17 +1,19 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
+import { timeAgo } from "@/lib/fetch-helpers";
 import { SOURCE_COLORS } from "@/lib/feeds";
 import { sortItems } from "@/lib/sort";
 import { useFeed } from "@/lib/use-feed";
+import { usePullToRefresh } from "@/lib/use-pull";
 import { useMarkObserver, useProgressiveReveal } from "@/lib/use-reveal";
 import type { CategoryId, FeedItem, SortMode, VisibleFeed } from "@/lib/types";
+import { COLUMN_HEADER, COLUMN_SHELL } from "./column-shell";
 import FeedCard from "./FeedCard";
 import { RefreshIcon } from "./icons";
 import SourceIcon from "./SourceIcon";
 
 const MANUAL_COOLDOWN_MS = 10_000;
-const PULL_THRESHOLD_PX = 70;
 const PAGE = 25;
 
 export default function FeedColumn({
@@ -20,17 +22,19 @@ export default function FeedColumn({
   refreshKey,
   sortMode,
   query,
+  dragHandleProps,
 }: {
   feed: VisibleFeed;
   category: CategoryId;
   refreshKey: number;
   sortMode: SortMode;
   query: string;
+  dragHandleProps?: React.HTMLAttributes<HTMLElement>;
 }) {
   // Custom feeds are pinned: their explicit params override the category anyway,
   // so a fixed category keeps their cache key stable across tab switches.
   const effectiveCategory = feed.isCustom ? "trending" : category;
-  const { unseen, seenTail, status, error, refetch, requestKey } = useFeed(
+  const { unseen, seenTail, status, error, stale, fetchedAt, refetch, requestKey } = useFeed(
     feed.source,
     feed.params,
     effectiveCategory,
@@ -80,36 +84,15 @@ export default function FeedColumn({
   // Searching is hunting, not doomscrolling — don't mark results as seen.
   useMarkObserver(scrollRef, !searching, shownUnseen, shownSeen);
 
-  // Bottom pull-to-refresh (mobile) — armed only once the pool is exhausted,
-  // so it never fights the reveal sentinel.
-  const pullStartY = useRef<number | null>(null);
-  const [pullArmed, setPullArmed] = useState(false);
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    const el = scrollRef.current;
-    pullStartY.current =
-      showAll && el && el.scrollTop + el.clientHeight >= el.scrollHeight - 4
-        ? e.touches[0].clientY
-        : null;
-  };
-  const onTouchMove = (e: React.TouchEvent) => {
-    if (pullStartY.current === null) return;
-    setPullArmed(pullStartY.current - e.touches[0].clientY > PULL_THRESHOLD_PX);
-  };
-  const onTouchEnd = () => {
-    if (pullArmed) manualRefresh();
-    setPullArmed(false);
-    pullStartY.current = null;
-  };
+  // Mobile pull-to-refresh: down from the very top always; up past the end
+  // only once the pool is exhausted, so it never fights the reveal sentinel.
+  const { pull, handlers: pullHandlers } = usePullToRefresh(scrollRef, manualRefresh, showAll);
 
   const color = SOURCE_COLORS[feed.source];
   const networkBlocked = error !== null && /\b(403|429|blocked|rate limited)\b/i.test(error);
 
   return (
-    <section
-      data-feed-id={feed.id}
-      className="flex min-h-0 w-[88vw] max-w-[380px] flex-none snap-center flex-col overflow-hidden border-r border-black/[0.06] bg-white first:border-l md:w-[340px] md:rounded-xl md:border md:border-black/[0.07] md:shadow-[0_1px_2px_rgba(0,0,0,0.04)] md:transition-colors md:hover:border-black/[0.12] xl:w-[360px] dark:border-white/[0.07] dark:bg-[#111114]/80 dark:md:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] dark:md:hover:border-white/[0.13]"
-    >
+    <section className={COLUMN_SHELL}>
       {/* Per-source accent strip */}
       <div
         aria-hidden
@@ -119,7 +102,10 @@ export default function FeedColumn({
         }}
       />
 
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-black/[0.06] px-3 dark:border-white/[0.06]">
+      <header
+        {...dragHandleProps}
+        className={`${COLUMN_HEADER} ${dragHandleProps ? "select-none md:cursor-grab md:active:cursor-grabbing" : ""}`}
+      >
         <SourceIcon source={feed.source} />
         <h2 className="truncate text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
           {feed.label}
@@ -142,6 +128,7 @@ export default function FeedColumn({
             onClick={manualRefresh}
             aria-label={`Refresh ${feed.label}`}
             title={`Refresh ${feed.label}`}
+            draggable={false}
             className="rounded p-1 text-zinc-400 transition-colors hover:bg-black/[0.05] hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:text-zinc-600 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300"
           >
             <RefreshIcon className={`h-3 w-3 ${status === "loading" ? "animate-spin" : ""}`} />
@@ -149,13 +136,29 @@ export default function FeedColumn({
         </span>
       </header>
 
+      {status === "ok" && stale && (
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-amber-500/20 bg-amber-500/[0.07] px-3 py-1.5 text-[10px] leading-tight text-amber-700 dark:border-amber-400/15 dark:text-amber-300/90">
+          <span>Live fetch failed — cached {fetchedAt ? timeAgo(fetchedAt) : "earlier"}</span>
+          <button
+            onClick={() => refetch(true)}
+            className="shrink-0 font-semibold underline-offset-2 hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       <div
         ref={scrollRef}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
+        {...pullHandlers}
         className="feed-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain"
       >
+        {pull?.dir === "top" && (
+          <div className="py-2.5 text-center text-[10px] font-medium text-cyan-600 md:hidden dark:text-cyan-300">
+            {pull.armed ? "Release to refresh ↻" : "Pull down to refresh ↓"}
+          </div>
+        )}
+
         {status === "loading" && <ColumnSkeleton />}
 
         {status === "error" && (
@@ -217,7 +220,7 @@ export default function FeedColumn({
 
         {status === "ok" && total > 0 && showAll && !searching && (
           <div className="py-3 text-center text-[10px] text-zinc-400 md:hidden dark:text-zinc-600">
-            {pullArmed ? "Release to refresh ↻" : "Pull up to refresh"}
+            {pull?.dir === "bottom" && pull.armed ? "Release to refresh ↻" : "Pull up to refresh"}
           </div>
         )}
       </div>

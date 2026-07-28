@@ -1,11 +1,25 @@
 "use client";
 
 import { useEffect } from "react";
-import { BUILT_IN_FEEDS } from "@/lib/feeds";
+import {
+  BUILT_IN_FEEDS,
+  deckKnownIds,
+  effectiveOrder,
+  isPanelId,
+  PANEL_LABELS,
+} from "@/lib/feeds";
 import { clearSeen, useSeenCount } from "@/lib/use-seen";
-import type { Prefs } from "@/lib/types";
-import { PlusIcon, XIcon } from "./icons";
+import type { Prefs, SourceId } from "@/lib/types";
+import { ChevronDownIcon, ChevronUpIcon, PlusIcon, PulseIcon, TrophyIcon, XIcon } from "./icons";
 import SourceIcon from "./SourceIcon";
+
+interface Row {
+  id: string;
+  label: string;
+  source?: SourceId;
+  panel?: "top10" | "momentum";
+  isCustom: boolean;
+}
 
 export default function SettingsDrawer({
   open,
@@ -31,6 +45,16 @@ export default function SettingsDrawer({
 
   const seenCount = useSeenCount();
 
+  const orderedIds = effectiveOrder(prefs.order, deckKnownIds(prefs.custom));
+  const rows: Row[] = orderedIds.flatMap((id): Row[] => {
+    if (isPanelId(id)) return [{ id, label: PANEL_LABELS[id], panel: id, isCustom: false }];
+    const builtIn = BUILT_IN_FEEDS.find((f) => f.id === id);
+    if (builtIn) return [{ id, label: builtIn.label, source: builtIn.source, isCustom: false }];
+    const custom = prefs.custom.find((c) => c.id === id);
+    if (custom) return [{ id, label: custom.label, source: custom.source, isCustom: true }];
+    return [];
+  });
+
   const toggleHidden = (id: string) =>
     setPrefs((p) => ({
       ...p,
@@ -42,7 +66,18 @@ export default function SettingsDrawer({
       ...p,
       custom: p.custom.filter((c) => c.id !== id),
       hidden: p.hidden.filter((x) => x !== id),
+      order: p.order.filter((x) => x !== id),
     }));
+
+  const move = (id: string, delta: -1 | 1) =>
+    setPrefs((p) => {
+      const ids = effectiveOrder(p.order, deckKnownIds(p.custom));
+      const i = ids.indexOf(id);
+      const j = i + delta;
+      if (i === -1 || j < 0 || j >= ids.length) return p;
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+      return { ...p, order: ids };
+    });
 
   return (
     <div className={open ? "fixed inset-0 z-40" : "pointer-events-none fixed inset-0 z-40"}>
@@ -70,55 +105,68 @@ export default function SettingsDrawer({
         </header>
 
         <div className="feed-scroll h-[calc(100%-3rem)] overflow-y-auto p-4">
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-600">
-            Built-in
+          <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-600">
+            Columns
           </p>
-          <ul className="mb-5 space-y-1">
-            {BUILT_IN_FEEDS.map((f) => (
-              <li key={f.id} className="flex items-center gap-2.5 rounded px-2 py-1.5 hover:bg-black/[0.03] dark:hover:bg-white/[0.04]">
-                <SourceIcon source={f.source} />
-                <span className="flex-1 text-[13px]">{f.label}</span>
-                <input
-                  type="checkbox"
-                  checked={!prefs.hidden.includes(f.id)}
-                  onChange={() => toggleHidden(f.id)}
-                  aria-label={`Show ${f.label}`}
-                  className="h-3.5 w-3.5 accent-cyan-500"
-                />
-              </li>
-            ))}
-          </ul>
-
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-600">
-            Custom
+          <p className="mb-2 px-2 text-[11px] leading-relaxed text-zinc-500">
+            The list mirrors the deck left → right. Use the arrows to reorder —
+            on desktop you can also drag column headers.
           </p>
-          {prefs.custom.length === 0 && (
-            <p className="mb-3 px-2 text-xs text-zinc-500">
-              No custom feeds yet — add a subreddit, RSS URL, search, hashtag, or board.
-            </p>
-          )}
           <ul className="mb-4 space-y-1">
-            {prefs.custom.map((c) => (
-              <li key={c.id} className="flex items-center gap-2.5 rounded px-2 py-1.5 hover:bg-black/[0.03] dark:hover:bg-white/[0.04]">
-                <SourceIcon source={c.source} />
-                <span className="flex-1 truncate text-[13px]" title={c.label}>
-                  {c.label}
+            {rows.map((row, i) => (
+              <li
+                key={row.id}
+                className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+              >
+                {row.source ? (
+                  <SourceIcon source={row.source} />
+                ) : row.panel === "top10" ? (
+                  <TrophyIcon className="h-4 w-4 text-amber-500" />
+                ) : (
+                  <PulseIcon className="h-4 w-4 text-cyan-500" />
+                )}
+                <span className="min-w-0 flex-1 truncate text-[13px]" title={row.label}>
+                  {row.label}
+                </span>
+                <span className="flex items-center">
+                  <button
+                    onClick={() => move(row.id, -1)}
+                    disabled={i === 0}
+                    aria-label={`Move ${row.label} left`}
+                    title="Move left in deck"
+                    className="rounded p-0.5 text-zinc-400 hover:text-cyan-600 disabled:opacity-25 dark:hover:text-cyan-300"
+                  >
+                    <ChevronUpIcon />
+                  </button>
+                  <button
+                    onClick={() => move(row.id, 1)}
+                    disabled={i === rows.length - 1}
+                    aria-label={`Move ${row.label} right`}
+                    title="Move right in deck"
+                    className="rounded p-0.5 text-zinc-400 hover:text-cyan-600 disabled:opacity-25 dark:hover:text-cyan-300"
+                  >
+                    <ChevronDownIcon />
+                  </button>
                 </span>
                 <input
                   type="checkbox"
-                  checked={!prefs.hidden.includes(c.id)}
-                  onChange={() => toggleHidden(c.id)}
-                  aria-label={`Show ${c.label}`}
+                  checked={!prefs.hidden.includes(row.id)}
+                  onChange={() => toggleHidden(row.id)}
+                  aria-label={`Show ${row.label}`}
                   className="h-3.5 w-3.5 accent-cyan-500"
                 />
-                <button
-                  onClick={() => removeCustom(c.id)}
-                  aria-label={`Remove ${c.label}`}
-                  title="Remove"
-                  className="rounded p-0.5 text-zinc-400 hover:text-red-500"
-                >
-                  <XIcon className="h-3.5 w-3.5" />
-                </button>
+                {row.isCustom ? (
+                  <button
+                    onClick={() => removeCustom(row.id)}
+                    aria-label={`Remove ${row.label}`}
+                    title="Remove"
+                    className="rounded p-0.5 text-zinc-400 hover:text-red-500"
+                  >
+                    <XIcon className="h-3.5 w-3.5" />
+                  </button>
+                ) : (
+                  <span className="w-[22px]" aria-hidden />
+                )}
               </li>
             ))}
           </ul>

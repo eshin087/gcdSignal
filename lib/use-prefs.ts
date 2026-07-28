@@ -2,10 +2,10 @@
 
 import { useSyncExternalStore } from "react";
 import { CATEGORIES } from "./categories";
-import { SOURCE_IDS } from "./feeds";
+import { DEFAULT_ORDER, SOURCE_IDS } from "./feeds";
 import { DEFAULT_REFRESH_MS, isValidRefreshMs } from "./refresh";
 import { isSortMode } from "./sort";
-import type { CustomFeed, Prefs } from "./types";
+import type { CustomFeed, Prefs, TextScale } from "./types";
 
 const KEY = "gcdsignal:prefs";
 
@@ -13,10 +13,13 @@ const KEY = "gcdsignal:prefs";
 const V1_DEFAULT_HIDDEN = ["fourchan", "papers"];
 
 /** Built-ins that start hidden — full coverage is one Settings toggle away. */
-const DEFAULT_HIDDEN: string[] = ["github", "papers"];
+const DEFAULT_HIDDEN: string[] = ["github", "papers", "fourchan"];
+
+const isTextScale = (v: unknown): v is TextScale =>
+  v === "sm" || v === "md" || v === "lg" || v === "xl";
 
 export const DEFAULT_PREFS: Prefs = {
-  v: 4,
+  v: 5,
   category: "trending",
   hidden: DEFAULT_HIDDEN,
   custom: [],
@@ -24,6 +27,8 @@ export const DEFAULT_PREFS: Prefs = {
   textScale: "md",
   sortMode: "hot",
   view: "deck",
+  order: DEFAULT_ORDER,
+  density: "comfortable",
 };
 
 function isCustomFeed(x: unknown): x is CustomFeed {
@@ -45,7 +50,7 @@ function load(): Prefs {
     const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULT_PREFS;
     const p = JSON.parse(raw) as Omit<Partial<Prefs>, "v"> & { v?: number };
-    if (p?.v !== 1 && p?.v !== 2 && p?.v !== 3 && p?.v !== 4) return DEFAULT_PREFS;
+    if (typeof p?.v !== "number" || p.v < 1 || p.v > 5) return DEFAULT_PREFS;
     let hidden = Array.isArray(p.hidden)
       ? p.hidden.filter((x): x is string => typeof x === "string")
       : [];
@@ -57,15 +62,21 @@ function load(): Prefs {
     if (p.v === 1 || p.v === 2) hidden = hidden.filter((h) => h !== "hackernews" && h !== "x");
     // v3 → v4: 4chan enters the default deck (far right), GitHub leaves.
     if (p.v <= 3) hidden = [...new Set([...hidden.filter((h) => h !== "fourchan"), "github"])];
+    // v4 → v5: 4chan leaves the default deck again (Momentum takes its slot).
+    if (p.v <= 4) hidden = [...new Set([...hidden, "fourchan"])];
     return {
-      v: 4,
+      v: 5,
       category: typeof p.category === "string" && p.category in CATEGORIES ? p.category : "trending",
       hidden,
       custom: Array.isArray(p.custom) ? p.custom.filter(isCustomFeed) : [],
       refreshMs: isValidRefreshMs(p.refreshMs) ? p.refreshMs : DEFAULT_REFRESH_MS,
-      textScale: p.textScale === "sm" || p.textScale === "lg" ? p.textScale : "md",
+      textScale: isTextScale(p.textScale) ? p.textScale : "md",
       sortMode: isSortMode(p.sortMode) ? p.sortMode : "hot",
       view: p.view === "foryou" ? "foryou" : "deck",
+      order: Array.isArray(p.order)
+        ? p.order.filter((x): x is string => typeof x === "string")
+        : DEFAULT_ORDER,
+      density: p.density === "compact" ? "compact" : "comfortable",
     };
   } catch {
     return DEFAULT_PREFS;

@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { timeAgo } from "@/lib/fetch-helpers";
-import { SOURCE_COLORS } from "@/lib/feeds";
+import { SOURCE_COLORS, SOURCE_LABELS } from "@/lib/feeds";
+import { usePrefs } from "@/lib/use-prefs";
 import { seenKey } from "@/lib/use-seen";
 import { toggleSaved, useSavedKeys } from "@/lib/use-saved";
 import type { FeedItem, SourceId } from "@/lib/types";
-import { BookmarkIcon, CommentIcon } from "./icons";
+import { BookmarkIcon, CheckIcon, ClockIcon, CommentIcon, ShareIcon } from "./icons";
+import SourceIcon from "./SourceIcon";
 
 const SCORE_GLYPH: Record<SourceId, string> = {
   reddit: "▲",
@@ -24,6 +26,15 @@ function formatCount(n: number): string {
   if (n >= 10_000) return `${Math.round(n / 1000)}k`;
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
   return String(n);
+}
+
+function formatDuration(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  return h > 0
+    ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+    : `${m}:${String(s).padStart(2, "0")}`;
 }
 
 const safeHref = (href: string | undefined) =>
@@ -57,7 +68,7 @@ function Favicon({ host, color }: { host: string; color: string }) {
   );
 }
 
-function Thumb({ src }: { src: string }) {
+function Thumb({ src, compact }: { src: string; compact: boolean }) {
   const [failed, setFailed] = useState(false);
   if (failed) return null;
   return (
@@ -65,26 +76,50 @@ function Thumb({ src }: { src: string }) {
     <img
       src={src}
       alt=""
-      width={72}
-      height={54}
+      width={compact ? 48 : 72}
+      height={compact ? 36 : 54}
       loading="lazy"
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
-      className="h-[54px] w-[72px] flex-none rounded-md object-cover"
+      className={`flex-none rounded-md object-cover ${
+        compact ? "h-9 w-12" : "h-[54px] w-[72px]"
+      }`}
     />
   );
 }
 
-export default function FeedCard({ item }: { item: FeedItem }) {
+export default function FeedCard({
+  item,
+  showSource = false,
+}: {
+  item: FeedItem;
+  /** Show which feed the card came from (used in the mixed For You stream). */
+  showSource?: boolean;
+}) {
   const savedKeys = useSavedKeys();
+  const { prefs } = usePrefs();
+  const compact = prefs.density === "compact";
   const itemKey = seenKey(item);
   const saved = savedKeys.has(itemKey);
+  const [copied, setCopied] = useState(false);
 
   const titleHref = safeHref(item.externalUrl) ?? safeHref(item.url);
   const discussHref = safeHref(item.url);
   const ago = timeAgo(item.timestamp);
   const color = SOURCE_COLORS[item.source];
   const thumb = item.thumbnail?.startsWith("https://") ? item.thumbnail : undefined;
+
+  const shareHref = titleHref ?? discussHref;
+  const copyLink = async () => {
+    if (!shareHref) return;
+    try {
+      await navigator.clipboard.writeText(shareHref);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard unavailable (permissions/insecure context) — ignore.
+    }
+  };
 
   let host: string | null = null;
   if (item.source === "rss") {
@@ -116,7 +151,9 @@ export default function FeedCard({ item }: { item: FeedItem }) {
   return (
     <article
       data-item-key={itemKey}
-      className="group border-b border-black/[0.05] px-3 py-2.5 transition-colors last:border-b-0 hover:bg-black/[0.03] dark:border-white/[0.05] dark:hover:bg-white/[0.035]"
+      className={`group border-b border-black/[0.05] px-3 transition-colors last:border-b-0 hover:bg-black/[0.03] dark:border-white/[0.05] dark:hover:bg-white/[0.035] ${
+        compact ? "py-1.5" : "py-2.5"
+      }`}
     >
       <div className="flex gap-2.5">
         <div className="min-w-0 flex-1">
@@ -135,16 +172,28 @@ export default function FeedCard({ item }: { item: FeedItem }) {
             </span>
           )}
 
-          {item.excerpt && (
+          {item.excerpt && !compact && (
             <p className="mt-1 line-clamp-2 text-[length:var(--fs-excerpt)] leading-relaxed text-zinc-500">
               {item.excerpt}
             </p>
           )}
         </div>
-        {thumb && <Thumb src={thumb} />}
+        {thumb && <Thumb src={thumb} compact={compact} />}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[length:var(--fs-meta)]">
+      <div
+        className={`flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[length:var(--fs-meta)] ${
+          compact ? "mt-1" : "mt-2"
+        }`}
+      >
+        {showSource && (
+          <span className="inline-flex items-center gap-1">
+            <SourceIcon source={item.source} className="h-3 w-3" />
+            <span className="font-medium" style={{ color }}>
+              {SOURCE_LABELS[item.source]}
+            </span>
+          </span>
+        )}
         {chips &&
           (discussHref ? (
             <a
@@ -162,6 +211,18 @@ export default function FeedCard({ item }: { item: FeedItem }) {
         {ago && (
           <span className="tabular-nums text-sky-600/80 dark:text-sky-400/70">{ago}</span>
         )}
+        {typeof item.durationSec === "number" && item.durationSec > 0 && (
+          <span className="inline-flex items-center gap-0.5 tabular-nums text-zinc-400 dark:text-zinc-500">
+            <ClockIcon className="h-2.5 w-2.5" />
+            {formatDuration(item.durationSec)}
+          </span>
+        )}
+        {typeof item.readMinutes === "number" && (
+          <span className="inline-flex items-center gap-0.5 text-zinc-400 dark:text-zinc-500">
+            <ClockIcon className="h-2.5 w-2.5" />
+            {item.readMinutes} min read
+          </span>
+        )}
         {item.sourceMeta && (
           <span className="inline-flex min-w-0 items-center gap-1">
             {host && <Favicon host={host} color={color} />}
@@ -170,19 +231,39 @@ export default function FeedCard({ item }: { item: FeedItem }) {
             </span>
           </span>
         )}
-        <button
-          onClick={() => toggleSaved(item)}
-          aria-label={saved ? "Remove from saved" : "Save for later"}
-          aria-pressed={saved}
-          title={saved ? "Remove from saved" : "Save for later"}
-          className={`ml-auto rounded p-0.5 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
-            saved
-              ? "text-cyan-600 dark:text-cyan-300"
-              : "text-zinc-400 hover:text-cyan-600 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 dark:text-zinc-600 dark:hover:text-cyan-300"
-          }`}
-        >
-          <BookmarkIcon className="h-3.5 w-3.5" filled={saved} />
-        </button>
+        <span className="ml-auto inline-flex items-center gap-0.5">
+          {shareHref && (
+            <button
+              onClick={copyLink}
+              aria-label={copied ? "Link copied" : "Copy link"}
+              title={copied ? "Copied!" : "Copy link"}
+              className={`rounded p-0.5 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
+                copied
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-zinc-400 hover:text-cyan-600 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 dark:text-zinc-600 dark:hover:text-cyan-300"
+              }`}
+            >
+              {copied ? (
+                <CheckIcon className="h-3.5 w-3.5" />
+              ) : (
+                <ShareIcon className="h-3.5 w-3.5" />
+              )}
+            </button>
+          )}
+          <button
+            onClick={() => toggleSaved(item)}
+            aria-label={saved ? "Remove from saved" : "Save for later"}
+            aria-pressed={saved}
+            title={saved ? "Remove from saved" : "Save for later"}
+            className={`rounded p-0.5 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
+              saved
+                ? "text-cyan-600 dark:text-cyan-300"
+                : "text-zinc-400 hover:text-cyan-600 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 dark:text-zinc-600 dark:hover:text-cyan-300"
+            }`}
+          >
+            <BookmarkIcon className="h-3.5 w-3.5" filled={saved} />
+          </button>
+        </span>
       </div>
     </article>
   );

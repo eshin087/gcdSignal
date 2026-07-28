@@ -30,6 +30,8 @@ export function useFeed(
     key: string;
     unseen: FeedItem[];
     seenTail: FeedItem[];
+    stale: boolean;
+    fetchedAt: string | null;
   } | null>(null);
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
 
@@ -45,7 +47,12 @@ export function useFeed(
         });
         if (wantFresh) qs.set("fresh", "1");
         const res = await fetch(`/api/feeds/${source}?${qs}`, { signal: ctrl.signal });
-        const data = (await res.json()) as { items?: FeedItem[]; error?: string };
+        const data = (await res.json()) as {
+          items?: FeedItem[];
+          error?: string;
+          stale?: boolean;
+          fetchedAt?: string;
+        };
         if (!res.ok || !data.items) throw new Error(data.error ?? `HTTP ${res.status}`);
         // Snapshot-at-fetch: partition once against the current seen-set.
         const seen = getSeenSnapshot();
@@ -54,7 +61,13 @@ export function useFeed(
         for (const item of data.items) {
           (seen.has(seenKey(item)) ? seenTail : unseen).push(item);
         }
-        setResult({ key: requestKey, unseen, seenTail });
+        setResult({
+          key: requestKey,
+          unseen,
+          seenTail,
+          stale: Boolean(data.stale),
+          fetchedAt: data.fetchedAt ?? null,
+        });
       } catch (e) {
         if (ctrl.signal.aborted) return;
         setFailure({ key: requestKey, message: e instanceof Error ? e.message : "Fetch failed" });
@@ -65,15 +78,18 @@ export function useFeed(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestKey]);
 
-  const unseen = result?.key === requestKey ? result.unseen : EMPTY;
-  const seenTail = result?.key === requestKey ? result.seenTail : EMPTY;
+  const current = result?.key === requestKey ? result : null;
+  const unseen = current?.unseen ?? EMPTY;
+  const seenTail = current?.seenTail ?? EMPTY;
+  const stale = current?.stale ?? false;
+  const fetchedAt = current?.fetchedAt ?? null;
   const error = failure?.key === requestKey ? failure.message : null;
-  const status: FeedStatus = error ? "error" : result?.key === requestKey ? "ok" : "loading";
+  const status: FeedStatus = error ? "error" : current ? "ok" : "loading";
 
   const refetch = useCallback((fresh = false) => {
     freshRef.current = fresh;
     setAttempt((a) => a + 1);
   }, []);
 
-  return { unseen, seenTail, status, error, refetch, requestKey };
+  return { unseen, seenTail, status, error, stale, fetchedAt, refetch, requestKey };
 }

@@ -1,4 +1,4 @@
-import type { SourceId } from "./types";
+import type { PanelId, SourceId } from "./types";
 
 export interface BuiltInFeed {
   /** Built-in feed id doubles as the source id. */
@@ -15,9 +15,63 @@ export const BUILT_IN_FEEDS: BuiltInFeed[] = [
   { id: "hackernews", source: "hackernews", label: "Hacker News" },
   { id: "papers", source: "papers", label: "Papers" },
   { id: "github", source: "github", label: "GitHub" },
-  // Last so it sits far right when visible.
   { id: "fourchan", source: "fourchan", label: "4chan /g/" },
 ];
+
+/** Computed deck columns that aren't fetchable sources. */
+export interface PanelDef {
+  id: PanelId;
+  label: string;
+}
+
+export const PANELS: PanelDef[] = [
+  { id: "top10", label: "Daily Top 10" },
+  { id: "momentum", label: "Momentum" },
+];
+
+export const PANEL_LABELS: Record<PanelId, string> = {
+  top10: "Daily Top 10",
+  momentum: "Momentum",
+};
+
+export function isPanelId(v: string): v is PanelId {
+  return v === "top10" || v === "momentum";
+}
+
+/** Default deck order: Top 10 far left, Momentum after the core feeds,
+ *  default-hidden sources trailing. */
+export const DEFAULT_ORDER: string[] = [
+  "top10",
+  "reddit",
+  "rss",
+  "youtube",
+  "bluesky",
+  "hackernews",
+  "momentum",
+  "papers",
+  "github",
+  "fourchan",
+];
+
+/** Every orderable deck id for a given custom-feed list (panels + built-ins + customs). */
+export function deckKnownIds(custom: Array<{ id: string }>): string[] {
+  return [...DEFAULT_ORDER, ...custom.map((c) => c.id)];
+}
+
+/**
+ * Stored order → render order: keep the user's known ids in their order, then
+ * append anything new/unknown-to-the-stored-list (new built-ins, newly added
+ * custom feeds) at the end. Pure derivation — stored order is never pruned.
+ */
+export function effectiveOrder(stored: string[], knownIds: string[]): string[] {
+  const known = new Set(knownIds);
+  const out = stored.filter((id) => known.has(id));
+  const placed = new Set(out);
+  for (const id of knownIds) {
+    if (!placed.has(id)) out.push(id);
+  }
+  return out;
+}
 
 /**
  * Every valid source id — deliberately NOT derived from BUILT_IN_FEEDS, since

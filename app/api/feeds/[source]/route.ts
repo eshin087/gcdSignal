@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isCategoryId, resolveParams } from "@/lib/categories";
+import { recallGood, rememberGood } from "@/lib/last-good";
 import { isSourceId, SOURCES } from "@/lib/sources";
-import type { FeedResponse } from "@/lib/types";
+import type { FeedItem, FeedResponse } from "@/lib/types";
 
 const SUB_RE = /^[A-Za-z0-9_+]{1,160}$/;
 const BOARD_RE = /^[a-z0-9]{1,10}$/;
@@ -60,8 +61,11 @@ export async function GET(
   // and the CDN cache (no-store below) — otherwise "refresh" replays 5-min-old data.
   const fresh = sp.get("fresh") === "1";
 
+  const params = resolveParams(source, category, sp);
+  const cacheKey = `${source}|${category}|${JSON.stringify(params)}`;
   try {
-    const items = await SOURCES[source](resolveParams(source, category, sp), fresh);
+    const items = await SOURCES[source](params, fresh);
+    rememberGood(cacheKey, items);
     const body: FeedResponse = { source, items, fetchedAt: new Date().toISOString() };
     return NextResponse.json(body, {
       headers: {
@@ -71,6 +75,21 @@ export async function GET(
       },
     });
   } catch (e) {
+    // Upstream down or rate-limiting (Reddit 429s): serve the last good result
+    // for this exact feed, flagged stale, rather than an error card. Short CDN
+    // TTL so recovery is retried soon.
+    const cached = recallGood<FeedItem[]>(cacheKey);
+    if (cached) {
+      const body: FeedResponse = {
+        source,
+        items: cached.value,
+        fetchedAt: new Date(cached.at).toISOString(),
+        stale: true,
+      };
+      return NextResponse.json(body, {
+        headers: { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300" },
+      });
+    }
     const message = e instanceof Error ? e.message : "Upstream fetch failed";
     return NextResponse.json(
       { error: message },

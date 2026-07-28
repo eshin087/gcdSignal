@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useSavedKeys } from "@/lib/use-saved";
-import type { CategoryId, SortMode, TextScale, ViewMode } from "@/lib/types";
+import type { CategoryId, Density, SortMode, TextScale, ViewMode } from "@/lib/types";
 import CategoryTabs from "./CategoryTabs";
+import DisplayControl from "./DisplayControl";
 import {
   BookmarkIcon,
   ColumnsIcon,
@@ -15,7 +16,6 @@ import {
 } from "./icons";
 import RefreshControl from "./RefreshControl";
 import SortControl from "./SortControl";
-import TextSizeControl from "./TextSizeControl";
 import ThemeToggle from "./ThemeToggle";
 
 const ICON_BTN =
@@ -37,6 +37,8 @@ export default function Header({
   onSortModeChange,
   textScale,
   onTextScaleChange,
+  density,
+  onDensityChange,
   queryInput,
   onQueryInputChange,
   onOpenSettings,
@@ -55,6 +57,8 @@ export default function Header({
   onSortModeChange: (m: SortMode) => void;
   textScale: TextScale;
   onTextScaleChange: (t: TextScale) => void;
+  density: Density;
+  onDensityChange: (d: Density) => void;
   queryInput: string;
   onQueryInputChange: (q: string) => void;
   onOpenSettings: () => void;
@@ -140,7 +144,12 @@ export default function Header({
           <span className="mx-1 hidden h-4 w-px bg-black/10 sm:block dark:bg-white/10" />
 
           <SortControl sortMode={sortMode} onChange={onSortModeChange} />
-          <TextSizeControl textScale={textScale} onChange={onTextScaleChange} />
+          <DisplayControl
+            textScale={textScale}
+            onTextScaleChange={onTextScaleChange}
+            density={density}
+            onDensityChange={onDensityChange}
+          />
           <RefreshControl
             lastRefreshAt={lastRefreshAt}
             onRefresh={onRefresh}
@@ -178,8 +187,9 @@ export default function Header({
         </div>
       </div>
 
-      {/* Expanded search row (below lg) */}
-      {searchOpen && (
+      {/* Expanded search row (below lg) — also opens when a query arrives from
+          elsewhere (momentum topic tap) so the active filter stays visible. */}
+      {(searchOpen || queryInput !== "") && (
         <div className="flex items-center gap-2 px-3 pb-2 lg:hidden">
           <input
             type="search"

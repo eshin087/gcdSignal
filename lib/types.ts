@@ -16,9 +16,10 @@ export type CategoryId =
   | "research"
   | "industry";
 
-export type TextScale = "sm" | "md" | "lg";
+export type TextScale = "sm" | "md" | "lg" | "xl";
 export type SortMode = "hot" | "new" | "top" | "discussed";
 export type ViewMode = "deck" | "foryou";
+export type Density = "comfortable" | "compact";
 
 export interface FeedItem {
   id: string;
@@ -40,12 +41,18 @@ export interface FeedItem {
   excerpt?: string;
   /** e.g. "r/LocalLLaMA", "/g/", "The Verge", "#ai" */
   sourceMeta?: string;
+  /** Estimated article reading time — only set when full content was available. */
+  readMinutes?: number;
+  /** Video length in seconds (YouTube API path only). */
+  durationSec?: number;
 }
 
 export interface FeedResponse {
   source: SourceId;
   items: FeedItem[];
   fetchedAt: string;
+  /** True when the live fetch failed and this is a remembered last-good result. */
+  stale?: boolean;
 }
 
 export interface CustomFeed {
@@ -57,9 +64,9 @@ export interface CustomFeed {
 }
 
 export interface Prefs {
-  v: 4;
+  v: 5;
   category: CategoryId;
-  /** Hidden feed ids (built-in SourceIds or custom ids). */
+  /** Hidden feed ids (built-in SourceIds, panel ids, or custom ids). */
   hidden: string[];
   custom: CustomFeed[];
   /** Auto-refresh cadence in ms; 0 disables. Must be one of REFRESH_OPTIONS. */
@@ -67,6 +74,9 @@ export interface Prefs {
   textScale: TextScale;
   sortMode: SortMode;
   view: ViewMode;
+  /** Deck order over feed + panel ids — includes hidden ids so toggles don't lose position. */
+  order: string[];
+  density: Density;
 }
 
 /** A feed rendered on the dashboard (built-in or custom). */
@@ -76,4 +86,53 @@ export interface VisibleFeed {
   label: string;
   params?: Record<string, string>;
   isCustom: boolean;
+}
+
+/** Non-source deck columns (Daily Top 10, Momentum). */
+export type PanelId = "top10" | "momentum";
+
+/** One deck slot: a fetchable feed column or a computed panel. */
+export type DeckItem =
+  | { kind: "feed"; id: string; feed: VisibleFeed }
+  | { kind: "panel"; id: PanelId; label: string };
+
+/* ---------------- /api/brief payload ---------------- */
+
+/** A cross-source story cluster for the Daily Top 10. */
+export interface BriefStory {
+  id: string;
+  title: string;
+  /** Best outbound link (representative member's external URL when present). */
+  url: string;
+  /** Representative discussion permalink when distinct from url. */
+  discussUrl?: string;
+  /** Distinct sources covering the story, loudest first. */
+  sources: SourceId[];
+  /** Total comments across members (comparable-ish across sources). */
+  comments?: number;
+  /** Newest member timestamp (ISO). */
+  timestamp: string;
+  thumbnail?: string;
+}
+
+export type MomentumStatus = "emerging" | "peaking" | "steady" | "fading";
+
+export interface MomentumTopic {
+  topic: string;
+  status: MomentumStatus;
+  /** Mentions across the whole window. */
+  mentions: number;
+  /** Share-of-conversation per bucket, oldest → newest, 0..1. */
+  spark: number[];
+  /** Currently on X's trending list (via trends24 scrape). */
+  xTrending?: boolean;
+  /** Auto-extracted (not from the curated list). */
+  auto?: boolean;
+}
+
+export interface BriefResponse {
+  top10: BriefStory[];
+  momentum: MomentumTopic[];
+  fetchedAt: string;
+  stale?: boolean;
 }
