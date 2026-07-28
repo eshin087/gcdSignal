@@ -3,11 +3,13 @@
 import { useMemo, useRef } from "react";
 import { sortItems } from "@/lib/sort";
 import { useForYou } from "@/lib/use-foryou";
+import { usePullToRefresh } from "@/lib/use-pull";
 import { useMarkObserver, useProgressiveReveal } from "@/lib/use-reveal";
 import type { CategoryId, FeedItem, SortMode, VisibleFeed } from "@/lib/types";
 import FeedCard from "./FeedCard";
 
 const PAGE = 30;
+const MANUAL_COOLDOWN_MS = 10_000;
 
 /** Round-robin drain preserving each list's internal order. */
 function roundRobin(lists: FeedItem[][]): FeedItem[] {
@@ -38,7 +40,18 @@ export default function ForYouFeed({
   sortMode: SortMode;
   query: string;
 }) {
-  const { perSource, failures, status, requestKey } = useForYou(feeds, category, refreshKey);
+  const { perSource, failures, staleLabels, status, refetch, requestKey } = useForYou(
+    feeds,
+    category,
+    refreshKey
+  );
+
+  const cooldownRef = useRef(0);
+  const manualRefresh = () => {
+    if (Date.now() < cooldownRef.current || status === "loading") return;
+    cooldownRef.current = Date.now() + MANUAL_COOLDOWN_MS;
+    refetch(true);
+  };
 
   const q = query.trim().toLowerCase();
   const searching = q !== "";
@@ -79,10 +92,21 @@ export default function ForYouFeed({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useMarkObserver(scrollRef, !searching, shownUnseen, shownSeen);
+  const { pull, handlers: pullHandlers } = usePullToRefresh(scrollRef, manualRefresh, showAll);
 
   return (
-    <div ref={scrollRef} className="feed-scroll min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-2xl md:px-4 md:py-3">
+    <div
+      ref={scrollRef}
+      {...pullHandlers}
+      className="feed-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain"
+    >
+      <div className="foryou-scale mx-auto w-full max-w-2xl md:px-4 md:py-3">
+        {pull?.dir === "top" && (
+          <div className="py-2.5 text-center text-[10px] font-medium text-cyan-600 md:hidden dark:text-cyan-300">
+            {pull.armed ? "Release to refresh ↻" : "Pull down to refresh ↓"}
+          </div>
+        )}
+
         <div className="overflow-hidden bg-white md:rounded-xl md:border md:border-black/[0.07] dark:bg-[#111114]/80 dark:md:border-white/[0.07]">
           {status === "loading" && (
             <div className="space-y-4 p-4" aria-label="Loading">
@@ -111,6 +135,12 @@ export default function ForYouFeed({
             </p>
           )}
 
+          {status === "ok" && staleLabels.length > 0 && (
+            <p className="border-b border-amber-500/15 bg-amber-500/[0.06] px-4 py-2 text-[11px] text-amber-700 dark:text-amber-300/90">
+              Showing cached results for: {staleLabels.join(", ")}
+            </p>
+          )}
+
           {status === "ok" && total === 0 && (
             <p className="px-4 py-12 text-center text-xs text-zinc-500">
               {searching ? "No matches." : "Nothing new right now — try refreshing."}
@@ -128,7 +158,8 @@ export default function ForYouFeed({
             </div>
           )}
 
-          {status === "ok" && shownUnseen.map((item) => <FeedCard key={item.id} item={item} />)}
+          {status === "ok" &&
+            shownUnseen.map((item) => <FeedCard key={item.id} item={item} showSource />)}
 
           {status === "ok" && shownUnseen.length > 0 && shownSeen.length > 0 && (
             <div className="flex items-center gap-2 px-3 py-2" aria-label="Previously seen items">
@@ -140,9 +171,16 @@ export default function ForYouFeed({
             </div>
           )}
 
-          {status === "ok" && shownSeen.map((item) => <FeedCard key={item.id} item={item} />)}
+          {status === "ok" &&
+            shownSeen.map((item) => <FeedCard key={item.id} item={item} showSource />)}
 
           {status === "ok" && !showAll && <div ref={sentinelRef} className="h-px" />}
+
+          {status === "ok" && total > 0 && showAll && !searching && (
+            <div className="py-3 text-center text-[10px] text-zinc-400 md:hidden dark:text-zinc-600">
+              {pull?.dir === "bottom" && pull.armed ? "Release to refresh ↻" : "Pull up to refresh"}
+            </div>
+          )}
         </div>
       </div>
     </div>

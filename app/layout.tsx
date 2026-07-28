@@ -29,7 +29,7 @@ const THEME_SCRIPT =
 
 // Same pre-paint trick for the text-size scale (md is the attribute-less default).
 const TEXT_SCRIPT =
-  "(function(){try{var t=JSON.parse(localStorage.getItem('gcdsignal:prefs')||'{}').textScale;if(t==='sm'||t==='lg')document.documentElement.setAttribute('data-text',t)}catch(e){}})()";
+  "(function(){try{var t=JSON.parse(localStorage.getItem('gcdsignal:prefs')||'{}').textScale;if(t==='sm'||t==='lg'||t==='xl')document.documentElement.setAttribute('data-text',t)}catch(e){}})()";
 
 export default function RootLayout({
   children,

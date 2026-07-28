@@ -18,6 +18,7 @@ export interface ForYouFailure {
 
 const EMPTY_SOURCES: ForYouSource[] = [];
 const EMPTY_FAILURES: ForYouFailure[] = [];
+const EMPTY_STALE: string[] = [];
 
 /**
  * Fetches every visible feed itself (same CDN-cached routes the deck uses, so
@@ -36,6 +37,7 @@ export function useForYou(feeds: VisibleFeed[], category: CategoryId, refreshKey
     key: string;
     perSource: ForYouSource[];
     failures: ForYouFailure[];
+    staleLabels: string[];
   } | null>(null);
 
   useEffect(() => {
@@ -55,9 +57,13 @@ export function useForYou(feeds: VisibleFeed[], category: CategoryId, refreshKey
           });
           if (wantFresh) qs.set("fresh", "1");
           const res = await fetch(`/api/feeds/${source}?${qs}`, { signal: ctrl.signal });
-          const data = (await res.json()) as { items?: FeedItem[]; error?: string };
+          const data = (await res.json()) as {
+            items?: FeedItem[];
+            error?: string;
+            stale?: boolean;
+          };
           if (!res.ok || !data.items) throw new Error(data.error ?? `HTTP ${res.status}`);
-          return { id, label, items: data.items };
+          return { id, label, items: data.items, stale: Boolean(data.stale) };
         })
       );
       if (ctrl.signal.aborted) return;
@@ -65,6 +71,7 @@ export function useForYou(feeds: VisibleFeed[], category: CategoryId, refreshKey
       const seen = getSeenSnapshot();
       const perSource: ForYouSource[] = [];
       const failures: ForYouFailure[] = [];
+      const staleLabels: string[] = [];
       settled.forEach((r, i) => {
         if (r.status === "fulfilled") {
           const unseen: FeedItem[] = [];
@@ -73,6 +80,7 @@ export function useForYou(feeds: VisibleFeed[], category: CategoryId, refreshKey
             (seen.has(seenKey(item)) ? seenTail : unseen).push(item);
           }
           perSource.push({ feedId: r.value.id, label: r.value.label, unseen, seenTail });
+          if (r.value.stale) staleLabels.push(r.value.label);
         } else {
           failures.push({
             label: feedList[i][2],
@@ -80,7 +88,7 @@ export function useForYou(feeds: VisibleFeed[], category: CategoryId, refreshKey
           });
         }
       });
-      setResult({ key: requestKey, perSource, failures });
+      setResult({ key: requestKey, perSource, failures, staleLabels });
     })();
     return () => ctrl.abort();
     // requestKey encodes every input.
@@ -90,6 +98,7 @@ export function useForYou(feeds: VisibleFeed[], category: CategoryId, refreshKey
   const current = result?.key === requestKey ? result : null;
   const perSource = current?.perSource ?? EMPTY_SOURCES;
   const failures = current?.failures ?? EMPTY_FAILURES;
+  const staleLabels = current?.staleLabels ?? EMPTY_STALE;
   const status: "loading" | "ok" | "error" = !current
     ? "loading"
     : perSource.length
@@ -101,5 +110,5 @@ export function useForYou(feeds: VisibleFeed[], category: CategoryId, refreshKey
     setAttempt((a) => a + 1);
   }, []);
 
-  return { perSource, failures, status, refetch, requestKey };
+  return { perSource, failures, staleLabels, status, refetch, requestKey };
 }

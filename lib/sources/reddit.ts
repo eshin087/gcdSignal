@@ -132,7 +132,10 @@ async function fetchOneMulti(subs: string, t: string, rv?: number): Promise<Feed
       try {
         return await fetchViaHtml(subs, t, rv);
       } catch (e) {
-        htmlBlockedUntil = Date.now() + 30 * 60_000;
+        // A 429 is IP-level rate limiting that persists — back off harder than
+        // for a parse failure or transient error.
+        const is429 = e instanceof Error && /\b429\b/.test(e.message);
+        htmlBlockedUntil = Date.now() + (is429 ? 60 : 30) * 60_000;
         throw e;
       }
     });
@@ -231,10 +234,12 @@ function mapListing(listing: RedditListing): FeedItem[] {
  */
 async function fetchViaHtml(subs: string, t: string, revalidate?: number): Promise<FeedItem[]> {
   const multi = subs.includes("+") ? subs : `${subs}+${subs}`;
+  // Default cache is longer than other sources (600 vs 300) — halves the
+  // request pressure on Reddit's per-IP rate limits.
   const html = await fetchText(`https://www.reddit.com/r/${multi}/top/?t=${t}&limit=100`, {
     headers: ANON_HEADERS,
     timeoutMs: 12_000,
-    revalidate,
+    revalidate: revalidate ?? 600,
   });
   // Both the bot challenge and the login wall return HTTP 200 — detect by body.
   if (/Please wait for verification/i.test(html) || /\/login\/\?reason=/.test(html)) {
@@ -300,7 +305,7 @@ async function fetchViaHtml(subs: string, t: string, revalidate?: number): Promi
 async function fetchViaRss(subs: string, t: string, revalidate?: number): Promise<FeedItem[]> {
   const xml = await fetchText(`https://www.reddit.com/r/${subs}/top.rss?t=${t}&limit=100`, {
     headers: { ...ANON_HEADERS, Accept: "application/rss+xml, application/atom+xml, */*" },
-    revalidate,
+    revalidate: revalidate ?? 600,
   });
   const parsed = await new Parser().parseString(xml);
   return (parsed.items ?? [])

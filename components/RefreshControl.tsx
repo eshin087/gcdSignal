@@ -56,13 +56,13 @@ export default function RefreshControl({
         title="Refresh options"
         className="flex items-center gap-1.5 rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-black/[0.05] hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300"
       >
-        <RefreshIcon className="h-3.5 w-3.5" />
+        <RefreshIcon className="h-[18px] w-[18px]" />
         {lastRefreshAt && (
-          <span className="hidden text-[11px] tabular-nums xl:inline">
+          <span className="hidden text-[length:var(--fs-ui-sm)] tabular-nums xl:inline">
             {timeAgo(new Date(lastRefreshAt).toISOString())}
           </span>
         )}
-        <span className="hidden text-[10px] text-zinc-400 xl:inline dark:text-zinc-600">
+        <span className="hidden text-[length:var(--fs-ui-sm)] text-zinc-400 xl:inline dark:text-zinc-600">
           {activeLabel === "Off" ? "auto off" : `auto ${activeLabel}`}
         </span>
       </button>

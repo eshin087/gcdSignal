@@ -43,15 +43,30 @@ export const RSS_FEEDS: RssFeedDef[] = [
   { label: "Dark Reading", url: "https://www.darkreading.com/rss.xml", keywords: AI_TERMS, categories: ["security"] },
 ];
 
-// Custom fields expose media thumbnails (attrs land under `$` in rss-parser).
+// Custom fields expose media thumbnails (attrs land under `$` in rss-parser)
+// and full article bodies (content:encoded) for read-time estimation.
 const parser = new Parser({
   customFields: {
     item: [
       ["media:content", "mediaContent", { keepArray: true }],
       ["media:thumbnail", "mediaThumbnail"],
+      ["content:encoded", "contentEncoded"],
     ],
   },
 });
+
+const READ_WPM = 225;
+/** Below this the feed only carries a summary — a read-time would be a lie. */
+const MIN_FULLTEXT_WORDS = 120;
+
+function estimateReadMinutes(item: { contentEncoded?: string; content?: string }): number | undefined {
+  const enc = item.contentEncoded ?? "";
+  const raw = enc.length > (item.content ?? "").length ? enc : (item.content ?? "");
+  if (!raw) return undefined;
+  const words = stripHtml(raw).split(/\s+/).filter(Boolean).length;
+  if (words < MIN_FULLTEXT_WORDS) return undefined;
+  return Math.max(1, Math.round(words / READ_WPM));
+}
 
 interface MediaAttrs {
   $?: { url?: string; medium?: string; type?: string };
@@ -125,6 +140,7 @@ export async function fetchRss(
             timestamp: ts || new Date(0).toISOString(),
             excerpt: excerpt ? truncate(excerpt, 280) : undefined,
             sourceMeta: feedLabel,
+            readMinutes: estimateReadMinutes(item as { contentEncoded?: string; content?: string }),
           };
         });
     })

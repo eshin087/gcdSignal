@@ -1,9 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BUILT_IN_FEEDS } from "@/lib/feeds";
+import {
+  BUILT_IN_FEEDS,
+  deckKnownIds,
+  effectiveOrder,
+  isPanelId,
+  PANEL_LABELS,
+} from "@/lib/feeds";
 import { usePrefs } from "@/lib/use-prefs";
-import type { CategoryId, VisibleFeed } from "@/lib/types";
+import type { CategoryId, DeckItem, VisibleFeed } from "@/lib/types";
 import AddFeedDialog from "./AddFeedDialog";
 import ColumnDeck from "./ColumnDeck";
 import ForYouFeed from "./ForYouFeed";
@@ -65,17 +71,36 @@ export default function Dashboard() {
 
   const setCategory = (category: CategoryId) => setPrefs((p) => ({ ...p, category }));
 
-  const visibleFeeds: VisibleFeed[] = [
-    ...BUILT_IN_FEEDS.filter((f) => !prefs.hidden.includes(f.id)).map((f) => ({
-      id: f.id as string,
-      source: f.source,
-      label: f.label,
-      isCustom: false,
-    })),
-    ...prefs.custom
-      .filter((c) => !prefs.hidden.includes(c.id))
-      .map((c) => ({ id: c.id, source: c.source, label: c.label, params: c.params, isCustom: true })),
-  ];
+  // Deck slots resolved through the user's stored order (hidden ids filtered
+  // at the end so toggling visibility never loses a column's position).
+  const feedById = new Map<string, VisibleFeed>();
+  for (const f of BUILT_IN_FEEDS) {
+    feedById.set(f.id, { id: f.id, source: f.source, label: f.label, isCustom: false });
+  }
+  for (const c of prefs.custom) {
+    feedById.set(c.id, { id: c.id, source: c.source, label: c.label, params: c.params, isCustom: true });
+  }
+  const orderedIds = effectiveOrder(prefs.order, deckKnownIds(prefs.custom));
+  const deckItems: DeckItem[] = [];
+  for (const id of orderedIds) {
+    if (prefs.hidden.includes(id)) continue;
+    if (isPanelId(id)) {
+      deckItems.push({ kind: "panel", id, label: PANEL_LABELS[id] });
+    } else {
+      const feed = feedById.get(id);
+      if (feed) deckItems.push({ kind: "feed", id, feed });
+    }
+  }
+  const visibleFeeds = deckItems.flatMap((it) => (it.kind === "feed" ? [it.feed] : []));
+
+  const handleReorder = (dragId: string, targetId: string, side: "before" | "after") =>
+    setPrefs((p) => {
+      const ids = effectiveOrder(p.order, deckKnownIds(p.custom)).filter((id) => id !== dragId);
+      const idx = ids.indexOf(targetId);
+      if (idx === -1) return p;
+      ids.splice(side === "before" ? idx : idx + 1, 0, dragId);
+      return { ...p, order: ids };
+    });
 
   return (
     <>
@@ -92,6 +117,8 @@ export default function Dashboard() {
         onSortModeChange={(sortMode) => setPrefs((p) => ({ ...p, sortMode }))}
         textScale={prefs.textScale}
         onTextScaleChange={(t) => setPrefs((p) => ({ ...p, textScale: t }))}
+        density={prefs.density}
+        onDensityChange={(d) => setPrefs((p) => ({ ...p, density: d }))}
         queryInput={queryInput}
         onQueryInputChange={setQueryInput}
         onOpenSettings={() => setSettingsOpen(true)}
@@ -111,11 +138,12 @@ export default function Dashboard() {
         />
       ) : (
         <ColumnDeck
-          feeds={visibleFeeds}
+          items={deckItems}
           category={prefs.category}
           refreshKey={refresh.key}
           sortMode={prefs.sortMode}
           query={query}
+          onReorder={handleReorder}
         />
       )}
 
@@ -149,7 +177,7 @@ function DeckPlaceholder() {
         {Array.from({ length: 6 }, (_, i) => (
           <div
             key={i}
-            className="w-[88vw] max-w-[380px] flex-none overflow-hidden border-r border-black/[0.06] bg-white p-3 first:border-l md:w-[340px] md:rounded-xl md:border md:border-black/[0.07] xl:w-[360px] dark:border-white/[0.07] dark:bg-[#111114]/80"
+            className="w-screen flex-none overflow-hidden bg-white p-3 md:w-[340px] md:rounded-xl md:border md:border-black/[0.07] xl:w-[360px] dark:bg-[#111114]/80"
           >
             <div className="skeleton mb-5 h-3 w-24" />
             {Array.from({ length: 6 }, (_, j) => (

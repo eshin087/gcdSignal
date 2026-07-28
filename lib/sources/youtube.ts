@@ -39,6 +39,16 @@ interface VideoItem {
     thumbnails?: { medium?: { url?: string } };
   };
   statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
+  contentDetails?: { duration?: string };
+}
+
+/** ISO-8601 duration (PT#H#M#S) → seconds. */
+function parseDuration(iso?: string): number | undefined {
+  if (!iso) return undefined;
+  const m = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(iso);
+  if (!m) return undefined;
+  const sec = Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0);
+  return sec > 0 ? sec : undefined;
 }
 
 // The user's API key is HTTP-referrer-restricted to the production domain;
@@ -116,7 +126,7 @@ async function searchApi(q: string, key: string, revalidate?: number): Promise<F
   if (!ids.length) return [];
 
   const videos = await fetchJson<{ items?: VideoItem[] }>(
-    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${ids.join(",")}&key=${key}`,
+    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${ids.join(",")}&key=${key}`,
     { revalidate, headers: YT_HEADERS }
   );
   return (videos.items ?? [])
@@ -137,6 +147,7 @@ async function searchApi(q: string, key: string, revalidate?: number): Promise<F
         ? truncate(v.snippet.description.replace(/\s+/g, " "), 200)
         : undefined,
       sourceMeta: v.snippet?.channelTitle,
+      durationSec: parseDuration(v.contentDetails?.duration),
     }))
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 }
