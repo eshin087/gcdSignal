@@ -63,8 +63,15 @@ export async function GET(
 
   const params = resolveParams(source, category, sp);
   const cacheKey = `${source}|${category}|${JSON.stringify(params)}`;
+  // Built-in Trending must feel current: cap it at 72h. Custom feeds always
+  // send explicit params (sub/url/q/...) and are exempt, as are other tabs.
+  const isBuiltIn = ![...sp.keys()].some((k) => k !== "category" && k !== "fresh");
   try {
-    const items = await SOURCES[source](params, fresh);
+    let items = await SOURCES[source](params, fresh);
+    if (category === "trending" && isBuiltIn) {
+      const floor = Date.now() - 72 * 3600_000;
+      items = items.filter((it) => Date.parse(it.timestamp) > floor);
+    }
     rememberGood(cacheKey, items);
     const body: FeedResponse = { source, items, fetchedAt: new Date().toISOString() };
     return NextResponse.json(body, {

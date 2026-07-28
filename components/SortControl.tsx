@@ -45,8 +45,8 @@ export default function SortControl({
         title="Sort items"
         className="flex items-center gap-1.5 rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-black/[0.05] hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300"
       >
-        <SortIcon className="h-3.5 w-3.5" />
-        <span className="hidden text-[11px] font-medium xl:inline">{active?.label}</span>
+        <SortIcon className="h-4 w-4" />
+        <span className="hidden text-[length:var(--fs-ui-sm)] font-medium xl:inline">{active?.label}</span>
       </button>
       {open && (
         <div

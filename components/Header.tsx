@@ -21,8 +21,10 @@ import ThemeToggle from "./ThemeToggle";
 const ICON_BTN =
   "rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-black/[0.05] hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300";
 
+const HEADER_ICON = "h-[18px] w-[18px]";
+
 const INPUT_CLS =
-  "rounded-lg border border-black/10 bg-black/[0.02] px-2.5 py-1 text-xs outline-none placeholder:text-zinc-400 focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/15 dark:bg-white/[0.03] dark:placeholder:text-zinc-600";
+  "rounded-lg border border-black/10 bg-black/[0.02] px-2.5 py-1 text-[length:var(--fs-ui)] outline-none placeholder:text-zinc-400 focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/15 dark:bg-white/[0.03] dark:placeholder:text-zinc-600 [&::-webkit-search-cancel-button]:appearance-none";
 
 export default function Header({
   category,
@@ -76,11 +78,17 @@ export default function Header({
   return (
     <header className="relative z-30 shrink-0 border-b border-black/[0.06] bg-white/65 backdrop-blur-xl dark:border-white/[0.07] dark:bg-[#0a0a0b]/60">
       <div className="flex h-12 items-center gap-3 px-3 md:px-4">
-        <h1 className="shrink-0 text-[15px] font-bold tracking-tight">
-          gcd
-          <span className="text-cyan-600 dark:bg-gradient-to-r dark:from-cyan-400 dark:to-sky-400 dark:bg-clip-text dark:text-transparent">
-            signal
-          </span>
+        <h1 className="shrink-0">
+          <button
+            onClick={() => window.location.reload()}
+            title="Refresh and reset the view"
+            className="rounded text-[18px] font-bold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40"
+          >
+            gcd
+            <span className="text-cyan-600 dark:bg-gradient-to-r dark:from-cyan-400 dark:to-sky-400 dark:bg-clip-text dark:text-transparent">
+              signal
+            </span>
+          </button>
         </h1>
 
         {/* View toggle */}
@@ -89,26 +97,26 @@ export default function Header({
             onClick={() => onViewChange("deck")}
             aria-pressed={view === "deck"}
             title="Deck view"
-            className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors ${
+            className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[length:var(--fs-ui-sm)] font-medium transition-colors ${
               view === "deck"
                 ? "bg-cyan-500/[0.12] text-cyan-700 dark:bg-cyan-400/10 dark:text-cyan-300"
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
             }`}
           >
-            <ColumnsIcon className="h-3.5 w-3.5" />
+            <ColumnsIcon className="h-4 w-4" />
             <span className="hidden lg:inline">Deck</span>
           </button>
           <button
             onClick={() => onViewChange("foryou")}
             aria-pressed={view === "foryou"}
             title="For You feed"
-            className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors ${
+            className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[length:var(--fs-ui-sm)] font-medium transition-colors ${
               view === "foryou"
                 ? "bg-cyan-500/[0.12] text-cyan-700 dark:bg-cyan-400/10 dark:text-cyan-300"
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
             }`}
           >
-            <StreamIcon className="h-3.5 w-3.5" />
+            <StreamIcon className="h-4 w-4" />
             <span className="hidden lg:inline">For You</span>
           </button>
         </div>
@@ -119,26 +127,38 @@ export default function Header({
 
         <div className="ml-auto flex items-center gap-0.5">
           {/* Search: inline at lg+, icon below */}
-          <input
-            type="search"
-            value={queryInput}
-            onChange={(e) => onQueryInputChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                onQueryInputChange("");
-                (e.target as HTMLInputElement).blur();
-              }
-            }}
-            placeholder="Search feeds…"
-            className={`hidden w-36 transition-all focus:w-52 lg:block ${INPUT_CLS}`}
-          />
+          <span className="relative hidden lg:block">
+            <input
+              type="search"
+              value={queryInput}
+              onChange={(e) => onQueryInputChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  onQueryInputChange("");
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              placeholder="Search feeds…"
+              className={`w-40 transition-all focus:w-56 ${queryInput ? "pr-7" : ""} ${INPUT_CLS}`}
+            />
+            {queryInput !== "" && (
+              <button
+                onClick={() => onQueryInputChange("")}
+                aria-label="Clear filter"
+                title="Clear filter"
+                className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-400 transition-colors hover:text-zinc-700 dark:hover:text-zinc-200"
+              >
+                <XIcon className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </span>
           <button
             onClick={() => setSearchOpen((o) => !o)}
             aria-label="Search"
             aria-expanded={searchOpen}
             className={`lg:hidden ${ICON_BTN} ${queryInput ? "text-cyan-600 dark:text-cyan-300" : ""}`}
           >
-            <SearchIcon />
+            <SearchIcon className={HEADER_ICON} />
           </button>
 
           <span className="mx-1 hidden h-4 w-px bg-black/10 sm:block dark:bg-white/10" />
@@ -165,7 +185,7 @@ export default function Header({
             title="Saved items"
             className={`relative ${ICON_BTN}`}
           >
-            <BookmarkIcon className="h-4 w-4" />
+            <BookmarkIcon className={HEADER_ICON} />
             {savedCount > 0 && (
               <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-cyan-500 px-0.5 text-[9px] font-bold text-white dark:bg-cyan-400 dark:text-cyan-950">
                 {savedCount > 99 ? "99+" : savedCount}
@@ -178,11 +198,11 @@ export default function Header({
             title="Daily email digest"
             className={`flex items-center gap-1.5 ${ICON_BTN}`}
           >
-            <MailIcon className="h-4 w-4" />
-            <span className="hidden text-xs font-medium xl:inline">Subscribe</span>
+            <MailIcon className={HEADER_ICON} />
+            <span className="hidden text-[length:var(--fs-ui)] font-medium xl:inline">Subscribe</span>
           </button>
           <button onClick={onOpenSettings} aria-label="Feed settings" title="Feeds" className={ICON_BTN}>
-            <GearIcon />
+            <GearIcon className={HEADER_ICON} />
           </button>
         </div>
       </div>

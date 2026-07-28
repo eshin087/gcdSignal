@@ -128,6 +128,8 @@ export interface MomentumTopic {
   xTrending?: boolean;
   /** Auto-extracted (not from the curated list). */
   auto?: boolean;
+  /** The topic's loudest current story — "why is this moving?" */
+  top?: { title: string; url: string };
 }
 
 export interface BriefResponse {

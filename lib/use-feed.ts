@@ -15,6 +15,9 @@ const EMPTY: FeedItem[] = [];
  * the updated seen-set: that is the "seen items disappear on refresh" rule.
  * `refetch(true)` does a cache-busting fetch (fresh=1).
  */
+const AUTO_RETRY_MAX = 2;
+const AUTO_RETRY_BASE_MS = 8000;
+
 export function useFeed(
   source: SourceId,
   params: Record<string, string> | undefined,
@@ -24,7 +27,12 @@ export function useFeed(
   const paramsKey = JSON.stringify(params ?? {});
   const [attempt, setAttempt] = useState(0);
   const freshRef = useRef(false);
-  const requestKey = `${source}|${paramsKey}|${category}|${refreshKey}|${attempt}`;
+  // Silent-retry budget, reset whenever the real inputs (not the attempt
+  // counter) change — so a Reddit blip self-heals without a manual refresh,
+  // but a persistently dead feed stops after two tries.
+  const generation = `${source}|${paramsKey}|${category}|${refreshKey}`;
+  const autoRetryRef = useRef({ generation: "", used: 0 });
+  const requestKey = `${generation}|${attempt}`;
 
   const [result, setResult] = useState<{
     key: string;
@@ -37,8 +45,12 @@ export function useFeed(
 
   useEffect(() => {
     const ctrl = new AbortController();
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const wantFresh = freshRef.current;
     freshRef.current = false;
+    if (autoRetryRef.current.generation !== generation) {
+      autoRetryRef.current = { generation, used: 0 };
+    }
     (async () => {
       try {
         const qs = new URLSearchParams({
@@ -71,9 +83,22 @@ export function useFeed(
       } catch (e) {
         if (ctrl.signal.aborted) return;
         setFailure({ key: requestKey, message: e instanceof Error ? e.message : "Fetch failed" });
+        // Transient upstream blips (Reddit 429s) usually clear in seconds —
+        // retry silently through the cheap CDN path before making the user act.
+        const retry = autoRetryRef.current;
+        if (retry.used < AUTO_RETRY_MAX) {
+          retryTimer = setTimeout(() => {
+            if (document.hidden) return;
+            retry.used++;
+            setAttempt((a) => a + 1);
+          }, AUTO_RETRY_BASE_MS * (retry.used + 1));
+        }
       }
     })();
-    return () => ctrl.abort();
+    return () => {
+      ctrl.abort();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
     // requestKey encodes every input below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestKey]);

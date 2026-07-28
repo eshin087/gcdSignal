@@ -142,7 +142,7 @@ export default function FeedCard({
     </span>
   );
   const chips = (scoreChip || commentChip) && (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-2">
       {scoreChip}
       {commentChip}
     </span>
@@ -182,12 +182,12 @@ export default function FeedCard({
       </div>
 
       <div
-        className={`flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[length:var(--fs-meta)] ${
+        className={`flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[length:var(--fs-meta)] ${
           compact ? "mt-1" : "mt-2"
         }`}
       >
         {showSource && (
-          <span className="inline-flex items-center gap-1">
+          <span className="mr-0.5 inline-flex items-center gap-1">
             <SourceIcon source={item.source} className="h-3 w-3" />
             <span className="font-medium" style={{ color }}>
               {SOURCE_LABELS[item.source]}
@@ -201,7 +201,7 @@ export default function FeedCard({
               target="_blank"
               rel="noopener noreferrer"
               title="Open discussion"
-              className="inline-flex items-center gap-1.5"
+              className="inline-flex items-center gap-2"
             >
               {chips}
             </a>

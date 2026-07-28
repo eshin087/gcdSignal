@@ -77,7 +77,10 @@ const AUTO_EXCLUDE = new Set([
 interface PoolItem {
   text: string;
   title: string;
+  url: string;
   bucket: number; // 0 = newest 12h
+  /** Engagement blended with recency — picks each topic's "why" headline. */
+  weight: number;
 }
 
 const bucketOf = (now: number, ts: number): number =>
@@ -99,10 +102,14 @@ export async function buildMomentum(items: FeedItem[], fresh = false): Promise<M
     if (!Number.isFinite(ts) || now - ts >= horizon || ts > now + 3600_000) continue;
     const bucket = bucketOf(now, ts);
     totals[bucket]++;
+    const ageH = Math.max(0, (now - ts) / 3600_000);
     pool.push({
       text: `${it.title} ${it.excerpt ?? ""}`,
       title: it.title,
+      url: it.externalUrl ?? it.url,
       bucket,
+      // +1 keeps scoreless rss headlines rankable by pure recency.
+      weight: ((it.score ?? 0) + 2 * (it.comments ?? 0) + 1) * Math.exp(-ageH / 24),
     });
   }
   if (!pool.length) return [];
@@ -115,15 +122,25 @@ export async function buildMomentum(items: FeedItem[], fresh = false): Promise<M
 
   const xTrends = await fetchXTrends(fresh);
 
-  const topics: Array<MomentumTopic & { recent: number }> = [];
+  const topics: Array<MomentumTopic & { recent: number; candidates: PoolItem[] }> = [];
   for (const def of defs) {
     const matches = keywordMatcher(def.terms);
     const counts = new Array<number>(BUCKETS).fill(0);
     let mentions = 0;
+    // Top two matching stories — the runner-up steps in when one viral
+    // roundup video would otherwise headline half the topics.
+    let best: PoolItem | null = null;
+    let second: PoolItem | null = null;
     for (const p of pool) {
       if (matches(p.text)) {
         counts[p.bucket]++;
         mentions++;
+        if (!best || p.weight > best.weight) {
+          second = best;
+          best = p;
+        } else if (!second || p.weight > second.weight) {
+          second = p;
+        }
       }
     }
     if (mentions < (def.auto ? MIN_AUTO_MENTIONS : MIN_MENTIONS)) continue;
@@ -148,6 +165,9 @@ export async function buildMomentum(items: FeedItem[], fresh = false): Promise<M
       spark: spark.map((s) => Number(s.toFixed(4))),
       xTrending: matchesTrend(def, xTrends) || undefined,
       auto: def.auto || undefined,
+      candidates: [best, second].filter(
+        (p): p is PoolItem => p !== null && p.url.startsWith("http")
+      ),
       recent,
     });
   }
@@ -161,17 +181,26 @@ export async function buildMomentum(items: FeedItem[], fresh = false): Promise<M
   }
 
   const rank: Record<MomentumStatus, number> = { emerging: 0, peaking: 1, steady: 2, fading: 3 };
-  return topics
+  const shown = topics
     .sort((a, b) => rank[a.status] - rank[b.status] || b.recent - a.recent || b.mentions - a.mentions)
-    .slice(0, MAX_TOPICS)
-    .map((t) => ({
+    .slice(0, MAX_TOPICS);
+
+  // Headline dedupe: one viral video can be the loudest match for half the
+  // topics — give later topics their runner-up story instead of a repeat.
+  const usedUrls = new Set<string>();
+  return shown.map((t) => {
+    const pick = t.candidates.find((c) => !usedUrls.has(c.url)) ?? t.candidates[0];
+    if (pick) usedUrls.add(pick.url);
+    return {
       topic: t.topic,
       status: t.status,
       mentions: t.mentions,
       spark: t.spark,
       xTrending: t.xTrending,
       auto: t.auto,
-    }));
+      top: pick ? { title: pick.title, url: pick.url } : undefined,
+    };
+  });
 }
 
 /**

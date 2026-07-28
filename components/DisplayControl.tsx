@@ -57,7 +57,7 @@ export default function DisplayControl({
         aria-haspopup="menu"
         aria-expanded={open}
         title="Text size & density"
-        className="rounded-md p-1.5 text-xs font-semibold text-zinc-500 transition-colors hover:bg-black/[0.05] hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300"
+        className="rounded-md p-1.5 text-[length:var(--fs-ui)] font-semibold text-zinc-500 transition-colors hover:bg-black/[0.05] hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300"
       >
         Aa
       </button>

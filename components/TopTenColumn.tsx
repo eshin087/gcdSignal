@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { timeAgo } from "@/lib/fetch-helpers";
 import { useBrief } from "@/lib/use-brief";
 import { COLUMN_HEADER, COLUMN_SHELL } from "./column-shell";
@@ -12,6 +12,24 @@ const MANUAL_COOLDOWN_MS = 30_000;
 function formatCount(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
   return String(n);
+}
+
+function StoryThumb({ src }: { src: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      width={64}
+      height={48}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+      className="h-12 w-16 flex-none rounded-md object-cover"
+    />
+  );
 }
 
 export default function TopTenColumn({
@@ -52,10 +70,10 @@ export default function TopTenColumn({
         className={`${COLUMN_HEADER} ${dragHandleProps ? "select-none md:cursor-grab md:active:cursor-grabbing" : ""}`}
       >
         <TrophyIcon className="h-4 w-4 text-amber-500" />
-        <h2 className="truncate text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+        <h2 className="truncate text-[length:var(--fs-colhead)] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
           Daily Top 10
         </h2>
-        <span className="text-[10px] text-zinc-400 dark:text-zinc-600">{dateLabel}</span>
+        <span className="text-[length:var(--fs-ui-sm)] text-zinc-400 dark:text-zinc-600">{dateLabel}</span>
         <span className="ml-auto flex items-center gap-1">
           <button
             onClick={manualRefresh}
@@ -64,7 +82,7 @@ export default function TopTenColumn({
             draggable={false}
             className="rounded p-1 text-zinc-400 transition-colors hover:bg-black/[0.05] hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:text-zinc-600 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300"
           >
-            <RefreshIcon className={`h-3 w-3 ${status === "loading" ? "animate-spin" : ""}`} />
+            <RefreshIcon className={`h-3.5 w-3.5 ${status === "loading" ? "animate-spin" : ""}`} />
           </button>
         </span>
       </header>
@@ -113,12 +131,12 @@ export default function TopTenColumn({
           stories.map((story, i) => (
             <article
               key={story.id}
-              className="group border-b border-black/[0.05] px-3 py-2.5 transition-colors last:border-b-0 hover:bg-black/[0.03] dark:border-white/[0.05] dark:hover:bg-white/[0.035]"
+              className="group border-b border-black/[0.05] px-3 py-3 transition-colors last:border-b-0 hover:bg-black/[0.03] dark:border-white/[0.05] dark:hover:bg-white/[0.035]"
             >
               <div className="flex gap-2.5">
                 <span
-                  className={`w-5 shrink-0 pt-px text-right text-[15px] font-bold tabular-nums ${
-                    i < 3 ? "text-amber-500" : "text-zinc-300 dark:text-zinc-600"
+                  className={`w-5 shrink-0 pt-px text-right text-[15px] tabular-nums text-amber-500 ${
+                    i < 3 ? "font-extrabold" : "font-bold"
                   }`}
                 >
                   {i + 1}
@@ -132,9 +150,9 @@ export default function TopTenColumn({
                   >
                     {story.title}
                   </a>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[length:var(--fs-meta)]">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[length:var(--fs-meta)]">
                     <span
-                      className="inline-flex items-center gap-1"
+                      className="inline-flex items-center gap-1.5"
                       title={`Covered by ${story.sources.length} source${story.sources.length > 1 ? "s" : ""}`}
                     >
                       {story.sources.map((s) => (
@@ -158,6 +176,7 @@ export default function TopTenColumn({
                     </span>
                   </div>
                 </div>
+                {story.thumbnail?.startsWith("https://") && <StoryThumb src={story.thumbnail} />}
               </div>
             </article>
           ))}

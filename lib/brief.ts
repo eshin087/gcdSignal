@@ -118,13 +118,24 @@ export function buildTop10(items: FeedItem[], now = Date.now()): BriefStory[] {
     else clusters.push([m]);
   }
 
-  // A story only ONE source carries must come from a news-carrying source and
-  // have a substantive title — kills meme posts and niche one-offs while still
-  // letting bluesky/papers/4chan corroborate multi-source stories.
-  const SINGLE_SOURCE_OK = new Set<SourceId>(["reddit", "rss", "hackernews", "youtube"]);
+  // A story only ONE source carries must come from a news-carrying source,
+  // have a substantive title, AND clear an absolute engagement bar — a top-10
+  // slot anchored to a 50-comment reddit thread doesn't read as "top 10".
+  // rss is exempt (editorial outlets carry no metrics). Multi-source clusters
+  // are exempt from all of it — corroboration is the signal.
+  const SINGLE_SOURCE_FLOOR: Partial<Record<SourceId, number>> = {
+    reddit: 300,
+    hackernews: 300,
+    youtube: 25_000,
+    rss: 0,
+  };
   const eligible = clusters.filter((c) => {
     if (new Set(c.map((m) => m.item.source)).size > 1) return true;
-    return SINGLE_SOURCE_OK.has(c[0].item.source) && c[0].tokens.size >= 2;
+    const only = c[0];
+    const floor = SINGLE_SOURCE_FLOOR[only.item.source];
+    if (floor === undefined || only.tokens.size < 2) return false;
+    const engagement = (only.item.score ?? 0) + 2 * (only.item.comments ?? 0);
+    return engagement >= floor;
   });
 
   const scored = eligible

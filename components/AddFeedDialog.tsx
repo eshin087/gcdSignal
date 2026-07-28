@@ -157,10 +157,16 @@ export default function AddFeedDialog({
               setSource(e.target.value as SourceId);
               setError(null);
             }}
-            className={INPUT_CLS}
+            // Explicit colors + color-scheme: the OS-rendered option list doesn't
+            // inherit the page theme, which left light text on a white popup.
+            className={`${INPUT_CLS} text-zinc-900 [color-scheme:light] dark:text-zinc-100 dark:[color-scheme:dark]`}
           >
             {SOURCE_OPTIONS.map((o) => (
-              <option key={o.id} value={o.id}>
+              <option
+                key={o.id}
+                value={o.id}
+                className="bg-white text-zinc-900 dark:bg-[#141416] dark:text-zinc-100"
+              >
                 {o.label}
               </option>
             ))}

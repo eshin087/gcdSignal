@@ -104,7 +104,7 @@ export default function ColumnDeck({
           <button
             key={it.id}
             onClick={() => jumpTo(it.id)}
-            className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+            className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[length:var(--fs-ui-sm)] font-medium transition-colors ${
               activeId === it.id
                 ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
                 : "border-black/10 text-zinc-500 dark:border-white/15"

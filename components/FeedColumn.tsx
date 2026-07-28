@@ -107,18 +107,18 @@ export default function FeedColumn({
         className={`${COLUMN_HEADER} ${dragHandleProps ? "select-none md:cursor-grab md:active:cursor-grabbing" : ""}`}
       >
         <SourceIcon source={feed.source} />
-        <h2 className="truncate text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+        <h2 className="truncate text-[length:var(--fs-colhead)] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
           {feed.label}
         </h2>
         {feed.isCustom && (
-          <span className="rounded bg-black/[0.05] px-1 py-px text-[10px] text-zinc-500 dark:bg-white/[0.07]">
+          <span className="rounded bg-black/[0.05] px-1 py-px text-[length:var(--fs-ui-sm)] text-zinc-500 dark:bg-white/[0.07]">
             custom
           </span>
         )}
         <span className="ml-auto flex items-center gap-1">
           {status === "ok" && (
             <span
-              className="rounded-full bg-black/[0.04] px-1.5 py-px text-[10px] tabular-nums text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400"
+              className="rounded-full bg-black/[0.04] px-2 py-px text-[length:var(--fs-ui-sm)] tabular-nums text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400"
               title={searching ? `${total} matches` : `${unseen.length} new · ${unseen.length + seenTail.length} total`}
             >
               {searching ? total : unseen.length}
@@ -131,7 +131,7 @@ export default function FeedColumn({
             draggable={false}
             className="rounded p-1 text-zinc-400 transition-colors hover:bg-black/[0.05] hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:text-zinc-600 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300"
           >
-            <RefreshIcon className={`h-3 w-3 ${status === "loading" ? "animate-spin" : ""}`} />
+            <RefreshIcon className={`h-3.5 w-3.5 ${status === "loading" ? "animate-spin" : ""}`} />
           </button>
         </span>
       </header>
