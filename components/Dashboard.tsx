@@ -143,6 +143,7 @@ export default function Dashboard() {
           refreshKey={refresh.key}
           sortMode={prefs.sortMode}
           query={query}
+          activeTopic={queryInput}
           onReorder={handleReorder}
           onTopicSearch={setQueryInput}
         />

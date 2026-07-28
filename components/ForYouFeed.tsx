@@ -100,7 +100,7 @@ export default function ForYouFeed({
       {...pullHandlers}
       className="feed-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain"
     >
-      <div className="mx-auto w-full max-w-2xl md:px-4 md:py-3">
+      <div className="foryou-scale mx-auto w-full max-w-2xl md:px-4 md:py-3">
         {pull?.dir === "top" && (
           <div className="py-2.5 text-center text-[10px] font-medium text-cyan-600 md:hidden dark:text-cyan-300">
             {pull.armed ? "Release to refresh ↻" : "Pull down to refresh ↓"}

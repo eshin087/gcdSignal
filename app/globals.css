@@ -16,8 +16,8 @@
   --fs-chip: 11px;
   /* Chrome/UI scale (header controls, tabs, column headers) — follows the
      same data-text switch as the cards. */
-  --fs-ui: 13px;
-  --fs-ui-sm: 11.5px;
+  --fs-ui: 14px;
+  --fs-ui-sm: 12px;
   --fs-colhead: 12px;
   /* Per-source brand colors; near-black brands get light values in dark mode. */
   --src-reddit: #ff4500;
@@ -41,8 +41,8 @@
   --fs-excerpt: 12px;
   --fs-meta: 11px;
   --fs-chip: 10px;
-  --fs-ui: 12px;
-  --fs-ui-sm: 10.5px;
+  --fs-ui: 13px;
+  --fs-ui-sm: 11.5px;
   --fs-colhead: 11px;
 }
 
@@ -51,8 +51,8 @@
   --fs-excerpt: 14px;
   --fs-meta: 13px;
   --fs-chip: 12px;
-  --fs-ui: 14px;
-  --fs-ui-sm: 12.5px;
+  --fs-ui: 15px;
+  --fs-ui-sm: 13px;
   --fs-colhead: 13px;
 }
 
@@ -61,9 +61,38 @@
   --fs-excerpt: 15px;
   --fs-meta: 14px;
   --fs-chip: 12px;
-  --fs-ui: 15px;
-  --fs-ui-sm: 13px;
+  --fs-ui: 16px;
+  --fs-ui-sm: 13.5px;
   --fs-colhead: 14px;
+}
+
+/* The single-lane For You stream reads best a notch larger than the deck. */
+.foryou-scale {
+  --fs-title: 15px;
+  --fs-excerpt: 14px;
+  --fs-meta: 13px;
+  --fs-chip: 12px;
+}
+
+[data-text="sm"] .foryou-scale {
+  --fs-title: 14px;
+  --fs-excerpt: 13px;
+  --fs-meta: 12px;
+  --fs-chip: 11px;
+}
+
+[data-text="lg"] .foryou-scale {
+  --fs-title: 17px;
+  --fs-excerpt: 15px;
+  --fs-meta: 14px;
+  --fs-chip: 13px;
+}
+
+[data-text="xl"] .foryou-scale {
+  --fs-title: 19px;
+  --fs-excerpt: 16px;
+  --fs-meta: 15px;
+  --fs-chip: 13px;
 }
 
 /* Ambient glow — brightest at the top so the glass header and translucent

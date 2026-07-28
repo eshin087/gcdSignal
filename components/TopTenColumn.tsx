@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { timeAgo } from "@/lib/fetch-helpers";
 import { useBrief } from "@/lib/use-brief";
 import { COLUMN_HEADER, COLUMN_SHELL } from "./column-shell";
@@ -12,24 +12,6 @@ const MANUAL_COOLDOWN_MS = 30_000;
 function formatCount(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
   return String(n);
-}
-
-function StoryThumb({ src }: { src: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) return null;
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt=""
-      width={64}
-      height={48}
-      loading="lazy"
-      referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
-      className="h-12 w-16 flex-none rounded-md object-cover"
-    />
-  );
 }
 
 export default function TopTenColumn({
@@ -176,7 +158,6 @@ export default function TopTenColumn({
                     </span>
                   </div>
                 </div>
-                {story.thumbnail?.startsWith("https://") && <StoryThumb src={story.thumbnail} />}
               </div>
             </article>
           ))}

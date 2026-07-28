@@ -1,9 +1,12 @@
 import { decodeEntities, fetchText, keywordMatcher } from "./fetch-helpers";
 import type { FeedItem, MomentumStatus, MomentumTopic } from "./types";
 
-/** 6 × 12h buckets = 72h of conversation history. */
-const BUCKET_H = 12;
-const BUCKETS = 6;
+/** 12 × 6h buckets = 72h of conversation history (12 bars in the chart). */
+const BUCKET_H = 6;
+const BUCKETS = 12;
+/** Spark indices (oldest→newest): last 24h vs the 24h before it. */
+const RECENT_FROM = BUCKETS - 4;
+const PREV_FROM = BUCKETS - 8;
 /** Minimum mentions across the window for a topic to appear at all. */
 const MIN_MENTIONS = 4;
 /** Auto-detected terms need a bit more evidence than curated ones. */
@@ -122,7 +125,9 @@ export async function buildMomentum(items: FeedItem[], fresh = false): Promise<M
 
   const xTrends = await fetchXTrends(fresh);
 
-  const topics: Array<MomentumTopic & { recent: number; candidates: PoolItem[] }> = [];
+  const topics: Array<
+    MomentumTopic & { recent: number; prevDay: number; candidates: PoolItem[] }
+  > = [];
   for (const def of defs) {
     const matches = keywordMatcher(def.terms);
     const counts = new Array<number>(BUCKETS).fill(0);
@@ -150,13 +155,21 @@ export async function buildMomentum(items: FeedItem[], fresh = false): Promise<M
     for (let b = BUCKETS - 1; b >= 0; b--) {
       spark.push(totals[b] > 0 ? counts[b] / totals[b] : 0);
     }
-    const recent = (spark[BUCKETS - 1] + spark[BUCKETS - 2]) / 2;
-    const earlier = (spark[0] + spark[1] + spark[2] + spark[3]) / 4;
+    const avg = (arr: number[]) => arr.reduce((s, v) => s + v, 0) / Math.max(1, arr.length);
+    const recent = avg(spark.slice(RECENT_FROM));
+    const prevDay = avg(spark.slice(PREV_FROM, RECENT_FROM));
+    const earlier = avg(spark.slice(0, RECENT_FROM));
 
     let status: MomentumStatus;
     if (recent >= 2 * earlier && recent > 0.02) status = "emerging";
     else if (recent <= 0.6 * earlier) status = "fading";
     else status = "steady";
+
+    // Day-over-day share change — the ticker number. No base → "new".
+    const changePct =
+      prevDay > 0.001
+        ? Math.max(-999, Math.min(999, Math.round(((recent - prevDay) / prevDay) * 100)))
+        : null;
 
     topics.push({
       topic: def.label,
@@ -165,10 +178,12 @@ export async function buildMomentum(items: FeedItem[], fresh = false): Promise<M
       spark: spark.map((s) => Number(s.toFixed(4))),
       xTrending: matchesTrend(def, xTrends) || undefined,
       auto: def.auto || undefined,
+      changePct,
       candidates: [best, second].filter(
         (p): p is PoolItem => p !== null && p.url.startsWith("http")
       ),
       recent,
+      prevDay,
     });
   }
 
@@ -185,12 +200,21 @@ export async function buildMomentum(items: FeedItem[], fresh = false): Promise<M
     .sort((a, b) => rank[a.status] - rank[b.status] || b.recent - a.recent || b.mentions - a.mentions)
     .slice(0, MAX_TOPICS);
 
+  // Rank movement within the shown set: today's activity order vs yesterday's.
+  const idxBy = (key: "recent" | "prevDay") => {
+    const order = [...shown].sort((a, b) => b[key] - a[key]);
+    return new Map(order.map((t, i) => [t.topic, i]));
+  };
+  const curIdx = idxBy("recent");
+  const prevIdx = idxBy("prevDay");
+
   // Headline dedupe: one viral video can be the loudest match for half the
   // topics — give later topics their runner-up story instead of a repeat.
   const usedUrls = new Set<string>();
   return shown.map((t) => {
     const pick = t.candidates.find((c) => !usedUrls.has(c.url)) ?? t.candidates[0];
     if (pick) usedUrls.add(pick.url);
+    const delta = (prevIdx.get(t.topic) ?? 0) - (curIdx.get(t.topic) ?? 0);
     return {
       topic: t.topic,
       status: t.status,
@@ -198,6 +222,8 @@ export async function buildMomentum(items: FeedItem[], fresh = false): Promise<M
       spark: t.spark,
       xTrending: t.xTrending,
       auto: t.auto,
+      changePct: t.changePct,
+      rankDelta: delta !== 0 && t.prevDay > 0 ? delta : undefined,
       top: pick ? { title: pick.title, url: pick.url } : undefined,
     };
   });
@@ -229,7 +255,7 @@ function autoTopics(
     if (curatedMatch(clean)) return;
     const cand = cands.get(lower) ?? { count: 0, recent: 0, earlier: 0, casings: new Map() };
     cand.count++;
-    if (bucket <= 1) cand.recent++;
+    if (bucket <= 3) cand.recent++; // newest 24h at 6h buckets
     else cand.earlier++;
     cand.casings.set(clean, (cand.casings.get(clean) ?? 0) + 1);
     cands.set(lower, cand);

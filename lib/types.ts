@@ -130,6 +130,10 @@ export interface MomentumTopic {
   auto?: boolean;
   /** The topic's loudest current story — "why is this moving?" */
   top?: { title: string; url: string };
+  /** Share change, last 24h vs the day before, in percent; null = no base ("new"). */
+  changePct: number | null;
+  /** Positions climbed (+) or dropped (−) vs the prior day's ranking. */
+  rankDelta?: number;
 }
 
 export interface BriefResponse {

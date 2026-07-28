@@ -19,9 +19,9 @@ import SortControl from "./SortControl";
 import ThemeToggle from "./ThemeToggle";
 
 const ICON_BTN =
-  "rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-black/[0.05] hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300";
+  "rounded-md p-2 text-zinc-500 transition-colors hover:bg-black/[0.05] hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300";
 
-const HEADER_ICON = "h-[18px] w-[18px]";
+const HEADER_ICON = "h-5 w-5";
 
 const INPUT_CLS =
   "rounded-lg border border-black/10 bg-black/[0.02] px-2.5 py-1 text-[length:var(--fs-ui)] outline-none placeholder:text-zinc-400 focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/15 dark:bg-white/[0.03] dark:placeholder:text-zinc-600 [&::-webkit-search-cancel-button]:appearance-none";
@@ -103,7 +103,7 @@ export default function Header({
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
             }`}
           >
-            <ColumnsIcon className="h-4 w-4" />
+            <ColumnsIcon className="h-[18px] w-[18px]" />
             <span className="hidden lg:inline">Deck</span>
           </button>
           <button
@@ -116,7 +116,7 @@ export default function Header({
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
             }`}
           >
-            <StreamIcon className="h-4 w-4" />
+            <StreamIcon className="h-[18px] w-[18px]" />
             <span className="hidden lg:inline">For You</span>
           </button>
         </div>

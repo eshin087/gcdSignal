@@ -29,6 +29,7 @@ export default function ColumnDeck({
   refreshKey,
   sortMode,
   query,
+  activeTopic,
   onReorder,
   onTopicSearch,
 }: {
@@ -37,6 +38,8 @@ export default function ColumnDeck({
   refreshKey: number;
   sortMode: SortMode;
   query: string;
+  /** Raw header search text — lets the momentum panel toggle its filter off. */
+  activeTopic: string;
   onReorder: (dragId: string, targetId: string, side: DropSide) => void;
   onTopicSearch: (topic: string) => void;
 }) {
@@ -76,6 +79,19 @@ export default function ColumnDeck({
   const clearDrag = () => {
     setDragId(null);
     setDropTarget(null);
+  };
+
+  // Wheel on the empty side gutters (centered deck on wide screens) scrolls
+  // every column in lockstep — a "scroll the whole wall" gesture. Wheel over
+  // a column keeps its normal single-column behavior.
+  const onGutterWheel = (e: React.WheelEvent) => {
+    if (!e.deltaY) return;
+    if ((e.target as Element).closest("[data-feed-id]")) return;
+    const deck = deckRef.current;
+    if (!deck) return;
+    for (const el of deck.querySelectorAll<HTMLElement>(".feed-scroll")) {
+      el.scrollTop += e.deltaY;
+    }
   };
 
   const dragHandleProps = (id: string): React.HTMLAttributes<HTMLElement> => ({
@@ -120,6 +136,7 @@ export default function ColumnDeck({
           fits and collapses to normal flow when it overflows. */}
       <div
         ref={deckRef}
+        onWheel={onGutterWheel}
         className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto scroll-smooth md:snap-none"
       >
         <div className="mx-auto flex h-full min-w-max gap-0 md:gap-3 md:px-3 md:py-3">
@@ -165,6 +182,7 @@ export default function ColumnDeck({
                   ) : (
                     <MomentumColumn
                       refreshKey={refreshKey}
+                      activeTopic={activeTopic}
                       onTopicSearch={onTopicSearch}
                       dragHandleProps={dragHandleProps(it.id)}
                     />

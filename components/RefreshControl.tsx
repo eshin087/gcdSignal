@@ -56,7 +56,7 @@ export default function RefreshControl({
         title="Refresh options"
         className="flex items-center gap-1.5 rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-black/[0.05] hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300"
       >
-        <RefreshIcon className="h-4 w-4" />
+        <RefreshIcon className="h-[18px] w-[18px]" />
         {lastRefreshAt && (
           <span className="hidden text-[length:var(--fs-ui-sm)] tabular-nums xl:inline">
             {timeAgo(new Date(lastRefreshAt).toISOString())}
