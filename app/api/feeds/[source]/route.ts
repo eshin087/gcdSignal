@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isCategoryId, resolveParams } from "@/lib/categories";
 import { recallGood, rememberGood } from "@/lib/last-good";
+import { applyRelevance } from "@/lib/relevance";
 import { isSourceId, SOURCES } from "@/lib/sources";
 import type { FeedItem, FeedResponse } from "@/lib/types";
+
+// Vercel strips s-maxage/stale-while-revalidate before the browser, so the
+// small max-age is what stops clients re-requesting on every navigation.
+const CACHE_FRESH = "public, max-age=60, s-maxage=300, stale-while-revalidate=1800";
+const CACHE_STALE = "public, max-age=30, s-maxage=120, stale-while-revalidate=300";
+// Failures are served as a cacheable 200 (empty items + error) — a dead
+// source used to be a no-store 502 that invoked the lambda on every load.
+const CACHE_ERROR = "public, max-age=30, s-maxage=60";
 
 const SUB_RE = /^[A-Za-z0-9_+]{1,160}$/;
 const BOARD_RE = /^[a-z0-9]{1,10}$/;
@@ -68,6 +77,8 @@ export async function GET(
   const isBuiltIn = ![...sp.keys()].some((k) => k !== "category" && k !== "fresh");
   try {
     let items = await SOURCES[source](params, fresh);
+    // Source-aware AI-relevance gate; custom feeds are the user's call.
+    items = applyRelevance(source, items, { custom: !isBuiltIn });
     if (category === "trending" && isBuiltIn) {
       const floor = Date.now() - 72 * 3600_000;
       items = items.filter((it) => Date.parse(it.timestamp) > floor);
@@ -75,11 +86,7 @@ export async function GET(
     rememberGood(cacheKey, items);
     const body: FeedResponse = { source, items, fetchedAt: new Date().toISOString() };
     return NextResponse.json(body, {
-      headers: {
-        "Cache-Control": fresh
-          ? "no-store"
-          : "public, s-maxage=300, stale-while-revalidate=600",
-      },
+      headers: { "Cache-Control": fresh ? "no-store" : CACHE_FRESH },
     });
   } catch (e) {
     // Upstream down or rate-limiting (Reddit 429s): serve the last good result
@@ -93,14 +100,15 @@ export async function GET(
         fetchedAt: new Date(cached.at).toISOString(),
         stale: true,
       };
-      return NextResponse.json(body, {
-        headers: { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300" },
-      });
+      return NextResponse.json(body, { headers: { "Cache-Control": CACHE_STALE } });
     }
     const message = e instanceof Error ? e.message : "Upstream fetch failed";
-    return NextResponse.json(
-      { error: message },
-      { status: 502, headers: { "Cache-Control": "no-store" } }
-    );
+    const body: FeedResponse = {
+      source,
+      items: [],
+      fetchedAt: new Date().toISOString(),
+      error: message,
+    };
+    return NextResponse.json(body, { headers: { "Cache-Control": CACHE_ERROR } });
   }
 }

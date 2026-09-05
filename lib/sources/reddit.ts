@@ -3,7 +3,7 @@ import {
   decodeEntities,
   fetchJson,
   fetchText,
-  keywordMatcher,
+  makeMatcher,
   stripHtml,
   truncate,
   USER_AGENT,
@@ -156,20 +156,20 @@ async function fetchOneMulti(subs: string, t: string, rv?: number): Promise<Feed
 
 /**
  * Posts from gated subs must be topically relevant; ungated subs pass through.
- * Gates are coarse relevance filters, so a single keyword hit anywhere in
- * title+excerpt passes — the title-weighted matcher starved thin categories.
+ * Title hit, or two distinct hits in the body — a single incidental "AI" in a
+ * 280-char excerpt let r/cybersecurity industry-ethics threads through.
  */
 function applyGates(items: FeedItem[], gates: RedditGate[]): FeedItem[] {
   const active = gates
     .filter((g) => g.subs.length && g.terms.length)
     .map((g) => ({
       subs: new Set(g.subs.map((s) => s.toLowerCase())),
-      matches: keywordMatcher(g.terms),
+      matches: makeMatcher(g.terms),
     }));
   if (!active.length) return items;
   return items.filter((it) => {
     const sub = (it.sourceMeta ?? "").replace(/^r\//i, "").toLowerCase();
-    return active.every((g) => !g.subs.has(sub) || g.matches(`${it.title} ${it.excerpt ?? ""}`));
+    return active.every((g) => !g.subs.has(sub) || g.matches(it.title, it.excerpt ?? ""));
   });
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CATEGORIES, CATEGORY_IDS } from "@/lib/categories";
 import {
   BUILT_IN_FEEDS,
   deckKnownIds,
@@ -8,15 +9,33 @@ import {
   isPanelId,
   PANEL_LABELS,
 } from "@/lib/feeds";
+import { SORT_OPTIONS } from "@/lib/sort";
+import { useHotkeys } from "@/lib/use-hotkeys";
 import { usePrefs } from "@/lib/use-prefs";
-import type { CategoryId, DeckItem, VisibleFeed } from "@/lib/types";
+import { clearSeen } from "@/lib/use-seen";
+import type { CategoryId, DeckItem, Density, TextScale, VisibleFeed } from "@/lib/types";
 import AddFeedDialog from "./AddFeedDialog";
 import ColumnDeck from "./ColumnDeck";
+import CommandPalette, { type Command } from "./CommandPalette";
 import ForYouFeed from "./ForYouFeed";
 import Header from "./Header";
 import NewsletterDialog from "./NewsletterDialog";
 import SavedDrawer from "./SavedDrawer";
 import SettingsDrawer from "./SettingsDrawer";
+import ShortcutsOverlay from "./ShortcutsOverlay";
+import StatusBar from "./StatusBar";
+import { toggleTheme } from "./ThemeToggle";
+
+const TEXT_SIZES: Array<{ id: TextScale; label: string }> = [
+  { id: "sm", label: "Small" },
+  { id: "md", label: "Medium" },
+  { id: "lg", label: "Large" },
+  { id: "xl", label: "Extra large" },
+];
+const DENSITIES: Array<{ id: Density; label: string }> = [
+  { id: "comfortable", label: "Comfortable" },
+  { id: "compact", label: "Compact" },
+];
 
 export default function Dashboard() {
   const { prefs, setPrefs, ready } = usePrefs();
@@ -27,6 +46,8 @@ export default function Dashboard() {
   const [addFeedOpen, setAddFeedOpen] = useState(false);
   const [newsletterOpen, setNewsletterOpen] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   // Session-only search query, debounced so columns don't filter per keystroke.
   const [queryInput, setQueryInput] = useState("");
@@ -81,6 +102,8 @@ export default function Dashboard() {
     feedById.set(c.id, { id: c.id, source: c.source, label: c.label, params: c.params, isCustom: true });
   }
   const orderedIds = effectiveOrder(prefs.order, deckKnownIds(prefs.custom));
+  const labelOf = (id: string) =>
+    isPanelId(id) ? PANEL_LABELS[id] : (feedById.get(id)?.label ?? id);
   const deckItems: DeckItem[] = [];
   for (const id of orderedIds) {
     if (prefs.hidden.includes(id)) continue;
@@ -101,6 +124,91 @@ export default function Dashboard() {
       ids.splice(side === "before" ? idx : idx + 1, 0, dragId);
       return { ...p, order: ids };
     });
+
+  // Keyboard: j/k/h/l/o/s/r/? + Ctrl+K. Handlers are stable so the listener
+  // isn't re-bound every render.
+  const hotkeyHandlers = useMemo(
+    () => ({
+      onPalette: () => setPaletteOpen((o) => !o),
+      onHelp: () => setHelpOpen((o) => !o),
+      onEscape: () => {
+        setHelpOpen(false);
+        setPaletteOpen(false);
+      },
+    }),
+    []
+  );
+  useHotkeys(hotkeyHandlers);
+
+  // Command palette — built from the current state each render (cheap).
+  const commands: Command[] = [
+    ...CATEGORY_IDS.map((id) => ({
+      id: `cat:${id}`,
+      group: "category",
+      label: CATEGORIES[id].label,
+      hint: prefs.category === id ? "current" : undefined,
+      run: () => setCategory(id),
+    })),
+    {
+      id: "view:deck",
+      group: "view",
+      label: "Deck view",
+      hint: prefs.view === "deck" ? "current" : undefined,
+      run: () => setPrefs((p) => ({ ...p, view: "deck" })),
+    },
+    {
+      id: "view:foryou",
+      group: "view",
+      label: "For You feed",
+      hint: prefs.view === "foryou" ? "current" : undefined,
+      run: () => setPrefs((p) => ({ ...p, view: "foryou" })),
+    },
+    ...orderedIds.map((id) => {
+      const hidden = prefs.hidden.includes(id);
+      return {
+        id: `col:${id}`,
+        group: "columns",
+        label: `${hidden ? "Show" : "Hide"} ${labelOf(id)}`,
+        run: () =>
+          setPrefs((p) => ({
+            ...p,
+            hidden: hidden ? p.hidden.filter((x) => x !== id) : [...p.hidden, id],
+          })),
+      };
+    }),
+    ...SORT_OPTIONS.map((o) => ({
+      id: `sort:${o.id}`,
+      group: "sort",
+      label: `Sort by ${o.label.toLowerCase()}`,
+      hint: prefs.sortMode === o.id ? "current" : undefined,
+      run: () => setPrefs((p) => ({ ...p, sortMode: o.id })),
+    })),
+    ...TEXT_SIZES.map((t) => ({
+      id: `text:${t.id}`,
+      group: "display",
+      label: `Text size: ${t.label}`,
+      hint: prefs.textScale === t.id ? "current" : undefined,
+      run: () => setPrefs((p) => ({ ...p, textScale: t.id })),
+    })),
+    ...DENSITIES.map((d) => ({
+      id: `density:${d.id}`,
+      group: "display",
+      label: `Density: ${d.label}`,
+      hint: prefs.density === d.id ? "current" : undefined,
+      run: () => setPrefs((p) => ({ ...p, density: d.id })),
+    })),
+    { id: "theme", group: "display", label: "Toggle light / dark theme", run: toggleTheme },
+    { id: "refresh", group: "feeds", label: "Refresh all feeds", hint: "r = one column", run: bumpRefresh },
+    { id: "open:saved", group: "open", label: "Saved items", run: () => setSavedOpen(true) },
+    { id: "open:settings", group: "open", label: "Feed settings", run: () => setSettingsOpen(true) },
+    { id: "open:add", group: "open", label: "Add a feed", run: () => setAddFeedOpen(true) },
+    { id: "open:subscribe", group: "open", label: "Subscribe to the daily digest", run: () => setNewsletterOpen(true) },
+    { id: "open:help", group: "open", label: "Keyboard shortcuts", hint: "?", run: () => setHelpOpen(true) },
+    ...(queryInput
+      ? [{ id: "clear:search", group: "feeds", label: `Clear search filter (“${queryInput}”)`, run: () => setQueryInput("") }]
+      : []),
+    { id: "clear:seen", group: "feeds", label: "Clear seen history", run: clearSeen },
+  ];
 
   return (
     <>
@@ -147,6 +255,14 @@ export default function Dashboard() {
         />
       )}
 
+      <StatusBar
+        items={deckItems}
+        lastRefreshAt={refresh.at}
+        refreshMs={prefs.refreshMs}
+        onOpenHelp={() => setHelpOpen(true)}
+        onOpenPalette={() => setPaletteOpen(true)}
+      />
+
       <SettingsDrawer
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -164,6 +280,8 @@ export default function Dashboard() {
       />
       <NewsletterDialog open={newsletterOpen} onClose={() => setNewsletterOpen(false)} />
       <SavedDrawer open={savedOpen} onClose={() => setSavedOpen(false)} />
+      <ShortcutsOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
     </>
   );
 }

@@ -202,7 +202,8 @@ export const CATEGORIES: Record<CategoryId, CategoryDef> = {
       q: "AI industry news",
       keywords: ["openai", "anthropic", "google", "nvidia", "news", "launch", "funding", "industry"],
     },
-    github: { q: "ai" },
+    // Distinct from trending (also "ai") — the audit found the two columns identical.
+    github: { q: "ai agent" },
     papers: { keywords: ["efficient", "deployment", "production", "cost"] },
   },
 };

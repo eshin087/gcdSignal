@@ -24,6 +24,18 @@ const CHANNELS: Array<{ name: string; id: string; mixed?: boolean }> = [
 
 const RSS_WINDOW_MS = 30 * 86400_000;
 const POOL_SIZE = 60;
+/** Shorts run up to 3 minutes; the audit found short-form to be pure AI-slop. */
+const MIN_DURATION_SEC = 181;
+const MIN_CATEGORY_HITS = 8;
+
+/** Reject Shorts by tag and titles whose letters are mostly non-Latin script
+ *  (relevanceLanguage=en is only a hint to the API). */
+function isSlop(title: string): boolean {
+  if (/#shorts?\b/i.test(title)) return true;
+  const letters = title.match(/\p{L}/gu)?.length ?? 0;
+  const latin = title.match(/[A-Za-z]/g)?.length ?? 0;
+  return letters > 0 && latin / letters < 0.5;
+}
 
 interface SearchItem {
   id?: { videoId?: string };
@@ -75,7 +87,17 @@ export async function fetchYouTube(
   const key = process.env.YOUTUBE_API_KEY;
   if (key && q) {
     try {
-      return await searchApi(q, key, rv);
+      // The keyed path used to return raw API results, bypassing every keyword
+      // filter: Shorts slop, gadget reviews and non-English clickbait got in.
+      const results = (await searchApi(q, key, rv)).filter(
+        (v) => (v.durationSec === undefined || v.durationSec >= MIN_DURATION_SEC) && !isSlop(v.title)
+      );
+      if (!keywords.length) return results;
+      const catMatches = makeMatcher(keywords);
+      const inCategory = results.filter((v) => catMatches(v.title, v.excerpt ?? ""));
+      // Category words are a preference, not a hard gate — the AI-relevance
+      // gate runs at the route; don't starve a tab over phrasing.
+      return inCategory.length >= MIN_CATEGORY_HITS ? inCategory : results;
     } catch {
       // Quota/key errors → keyless channel fallback below.
     }

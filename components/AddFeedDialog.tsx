@@ -121,7 +121,7 @@ export default function AddFeedDialog({
         items?: Array<{ sourceMeta?: string }>;
         error?: string;
       };
-      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      if (!res.ok || data.error) throw new Error(data.error ?? `HTTP ${res.status}`);
       // YouTube custom feeds: replace the opaque channel-id label with the
       // channel's actual name from the test fetch.
       const label =
