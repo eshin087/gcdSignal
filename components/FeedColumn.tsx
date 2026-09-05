@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { clearHealth, reportHealth } from "@/lib/feed-health";
 import { timeAgo } from "@/lib/fetch-helpers";
 import { SOURCE_COLORS } from "@/lib/feeds";
 import { sortItems } from "@/lib/sort";
+import { useCountUp } from "@/lib/use-count-up";
 import { useFeed } from "@/lib/use-feed";
 import { usePullToRefresh } from "@/lib/use-pull";
 import { useMarkObserver, useProgressiveReveal } from "@/lib/use-reveal";
@@ -15,6 +17,8 @@ import SourceIcon from "./SourceIcon";
 
 const MANUAL_COOLDOWN_MS = 10_000;
 const PAGE = 25;
+/** Past this scroll depth an auto-refresh is held behind an "N new" pill. */
+const HOLD_SCROLL_PX = 80;
 
 export default function FeedColumn({
   feed,
@@ -31,14 +35,27 @@ export default function FeedColumn({
   query: string;
   dragHandleProps?: React.HTMLAttributes<HTMLElement>;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   // Custom feeds are pinned: their explicit params override the category anyway,
   // so a fixed category keeps their cache key stable across tab switches.
   const effectiveCategory = feed.isCustom ? "trending" : category;
-  const { unseen, seenTail, status, error, stale, fetchedAt, refetch, requestKey } = useFeed(
+  const {
+    unseen,
+    seenTail,
+    status,
+    error,
+    stale,
+    fetchedAt,
+    pendingCount,
+    apply,
+    refetch,
+    requestKey,
+  } = useFeed(
     feed.source,
     feed.params,
     effectiveCategory,
-    refreshKey
+    refreshKey,
+    () => (scrollRef.current?.scrollTop ?? 0) > HOLD_SCROLL_PX
   );
 
   const cooldownRef = useRef(0);
@@ -46,6 +63,11 @@ export default function FeedColumn({
     if (Date.now() < cooldownRef.current || status === "loading") return;
     cooldownRef.current = Date.now() + MANUAL_COOLDOWN_MS;
     refetch(true);
+  };
+
+  const applyPending = () => {
+    apply();
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // Pipeline: filter (search) → sort → reveal. Partitions never change
@@ -80,7 +102,6 @@ export default function FeedColumn({
     [sortedUnseen, sortedSeen, shownCount]
   );
 
-  const scrollRef = useRef<HTMLDivElement>(null);
   // Searching is hunting, not doomscrolling — don't mark results as seen.
   useMarkObserver(scrollRef, !searching, shownUnseen, shownSeen);
 
@@ -88,6 +109,15 @@ export default function FeedColumn({
   // only once the pool is exhausted, so it never fights the reveal sentinel.
   const { pull, handlers: pullHandlers } = usePullToRefresh(scrollRef, manualRefresh, showAll);
 
+  // Report into the status bar's health store.
+  const poolSize = unseen.length + seenTail.length;
+  const health = status === "ok" ? (stale ? "stale" : "ok") : status;
+  useEffect(() => {
+    reportHealth(feed.id, { status: health, count: poolSize });
+  }, [feed.id, health, poolSize]);
+  useEffect(() => () => clearHealth(feed.id), [feed.id]);
+
+  const badgeValue = useCountUp(searching ? total : unseen.length);
   const color = SOURCE_COLORS[feed.source];
   const networkBlocked = error !== null && /\b(403|429|blocked|rate limited)\b/i.test(error);
 
@@ -106,22 +136,24 @@ export default function FeedColumn({
         {...dragHandleProps}
         className={`${COLUMN_HEADER} ${dragHandleProps ? "select-none md:cursor-grab md:active:cursor-grabbing" : ""}`}
       >
+        <span className={`led led-${health}`} aria-label={`Status: ${health}`} />
         <SourceIcon source={feed.source} />
-        <h2 className="truncate text-[length:var(--fs-colhead)] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+        <h2 className="truncate font-mono text-[length:var(--fs-colhead)] font-semibold lowercase tracking-tight text-zinc-600 dark:text-zinc-300">
+          <span className="text-cyan-500/80 dark:text-cyan-400/80">&gt;&nbsp;</span>
           {feed.label}
         </h2>
         {feed.isCustom && (
-          <span className="rounded bg-black/[0.05] px-1 py-px text-[length:var(--fs-ui-sm)] text-zinc-500 dark:bg-white/[0.07]">
+          <span className="rounded bg-black/[0.05] px-1 py-px font-mono text-[length:var(--fs-ui-sm)] text-zinc-500 dark:bg-white/[0.07]">
             custom
           </span>
         )}
         <span className="ml-auto flex items-center gap-1">
           {status === "ok" && (
             <span
-              className="rounded-full bg-black/[0.04] px-2 py-px text-[length:var(--fs-ui-sm)] tabular-nums text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400"
-              title={searching ? `${total} matches` : `${unseen.length} new · ${unseen.length + seenTail.length} total`}
+              className="rounded-full bg-black/[0.04] px-2 py-px font-mono text-[length:var(--fs-ui-sm)] tabular-nums text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400"
+              title={searching ? `${total} matches` : `${unseen.length} new · ${poolSize} total`}
             >
-              {searching ? total : unseen.length}
+              {badgeValue}
             </span>
           )}
           <button
@@ -137,13 +169,13 @@ export default function FeedColumn({
       </header>
 
       {status === "ok" && stale && (
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-amber-500/20 bg-amber-500/[0.07] px-3 py-1.5 text-[10px] leading-tight text-amber-700 dark:border-amber-400/15 dark:text-amber-300/90">
-          <span>Live fetch failed — cached {fetchedAt ? timeAgo(fetchedAt) : "earlier"}</span>
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-amber-500/20 bg-amber-500/[0.07] px-3 py-1.5 font-mono text-[10px] leading-tight text-amber-700 dark:border-amber-400/15 dark:text-amber-300/90">
+          <span>live fetch failed — cached {fetchedAt ? timeAgo(fetchedAt) : "earlier"}</span>
           <button
             onClick={() => refetch(true)}
             className="shrink-0 font-semibold underline-offset-2 hover:underline"
           >
-            Retry
+            retry
           </button>
         </div>
       )}
@@ -151,15 +183,26 @@ export default function FeedColumn({
       <div
         ref={scrollRef}
         {...pullHandlers}
-        className="feed-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        className="feed-scroll relative min-h-0 flex-1 overflow-y-auto overscroll-contain"
       >
-        {pull?.dir === "top" && (
-          <div className="py-2.5 text-center text-[10px] font-medium text-cyan-600 md:hidden dark:text-cyan-300">
-            {pull.armed ? "Release to refresh ↻" : "Pull down to refresh ↓"}
+        {pendingCount > 0 && (
+          <div className="pointer-events-none sticky top-2 z-10 flex justify-center">
+            <button
+              onClick={applyPending}
+              className="card-enter pointer-events-auto rounded-full bg-cyan-500 px-3 py-1 font-mono text-[11px] font-semibold text-white shadow-lg shadow-cyan-500/30 transition-colors hover:bg-cyan-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 dark:bg-cyan-400 dark:text-cyan-950 dark:hover:bg-cyan-300"
+            >
+              ↑ {pendingCount} new
+            </button>
           </div>
         )}
 
-        {status === "loading" && <ColumnSkeleton />}
+        {pull?.dir === "top" && (
+          <div className="py-2.5 text-center font-mono text-[10px] font-medium text-cyan-600 md:hidden dark:text-cyan-300">
+            {pull.armed ? "release to refresh ↻" : "pull down to refresh ↓"}
+          </div>
+        )}
+
+        {status === "loading" && <ColumnSkeleton label={feed.label} />}
 
         {status === "error" && (
           <div className="mx-3 my-4 rounded-lg border border-red-500/20 bg-red-500/[0.05] p-3 text-xs leading-relaxed text-red-700 dark:border-red-400/20 dark:text-red-300/90">
@@ -207,7 +250,7 @@ export default function FeedColumn({
         {status === "ok" && shownUnseen.length > 0 && shownSeen.length > 0 && (
           <div className="flex items-center gap-2 px-3 py-2" aria-label="Previously seen items">
             <span className="h-px flex-1 bg-black/[0.06] dark:bg-white/[0.06]" />
-            <span className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-600">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-600">
               seen
             </span>
             <span className="h-px flex-1 bg-black/[0.06] dark:bg-white/[0.06]" />
@@ -219,8 +262,8 @@ export default function FeedColumn({
         {status === "ok" && !showAll && <div ref={sentinelRef} className="h-px" />}
 
         {status === "ok" && total > 0 && showAll && !searching && (
-          <div className="py-3 text-center text-[10px] text-zinc-400 md:hidden dark:text-zinc-600">
-            {pull?.dir === "bottom" && pull.armed ? "Release to refresh ↻" : "Pull up to refresh"}
+          <div className="py-3 text-center font-mono text-[10px] text-zinc-400 md:hidden dark:text-zinc-600">
+            {pull?.dir === "bottom" && pull.armed ? "release to refresh ↻" : "pull up to refresh"}
           </div>
         )}
       </div>
@@ -228,9 +271,15 @@ export default function FeedColumn({
   );
 }
 
-function ColumnSkeleton() {
+/** Terminal-style loading: a sync line with a blinking cursor, then shimmer rows. */
+export function ColumnSkeleton({ label }: { label: string }) {
   return (
     <div className="space-y-4 p-3" aria-label="Loading">
+      <p className="font-mono text-[11px] text-cyan-600/90 dark:text-cyan-400/90">
+        <span className="text-zinc-400 dark:text-zinc-600">▸ </span>
+        syncing {label.toLowerCase()}
+        <span className="cursor-blink">▍</span>
+      </p>
       {Array.from({ length: 7 }, (_, i) => (
         <div key={i} className="space-y-1.5">
           <div className="skeleton h-3 w-full" />

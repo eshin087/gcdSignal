@@ -10,6 +10,8 @@ export interface RssFeedDef {
   keywords?: string[];
   /** Restrict this feed to specific categories; absent = all categories. */
   categories?: CategoryId[];
+  /** Whole-site feed (not an AI section) — the relevance gate runs strict on these. */
+  siteWide?: boolean;
 }
 
 export const RSS_FEEDS: RssFeedDef[] = [
@@ -18,7 +20,7 @@ export const RSS_FEEDS: RssFeedDef[] = [
   { label: "Ars Technica AI", url: "https://arstechnica.com/ai/feed/" },
   { label: "MIT Tech Review", url: "https://www.technologyreview.com/topic/artificial-intelligence/feed" },
   { label: "The Decoder", url: "https://the-decoder.com/feed/" },
-  { label: "Simon Willison", url: "https://simonwillison.net/atom/everything/" },
+  { label: "Simon Willison", url: "https://simonwillison.net/atom/everything/", siteWide: true },
   { label: "Wired AI", url: "https://www.wired.com/feed/tag/ai/latest/rss" },
   { label: "The Register AI", url: "https://www.theregister.com/software/ai_ml/headlines.atom" },
   { label: "ZDNet AI", url: "https://www.zdnet.com/topic/artificial-intelligence/rss.xml" },
@@ -33,15 +35,21 @@ export const RSS_FEEDS: RssFeedDef[] = [
       "ai", "artificial intelligence", "llm", "chatbot", "openai", "anthropic",
       "machine learning", "deepfake", "model",
     ],
+    siteWide: true,
   },
   { label: "TechRadar AI", url: "https://www.techradar.com/feeds/tag/artificial-intelligence" },
   // Security-category bonus outlets — site-wide feeds, so each is AI-gated.
-  { label: "The Hacker News", url: "https://feeds.feedburner.com/TheHackersNews", keywords: AI_TERMS, categories: ["security"] },
-  { label: "BleepingComputer", url: "https://www.bleepingcomputer.com/feed/", keywords: AI_TERMS, categories: ["security"] },
-  { label: "Krebs on Security", url: "https://krebsonsecurity.com/feed/", keywords: AI_TERMS, categories: ["security"] },
-  { label: "Schneier", url: "https://www.schneier.com/feed/atom/", keywords: AI_TERMS, categories: ["security"] },
-  { label: "Dark Reading", url: "https://www.darkreading.com/rss.xml", keywords: AI_TERMS, categories: ["security"] },
+  { label: "The Hacker News", url: "https://feeds.feedburner.com/TheHackersNews", keywords: AI_TERMS, categories: ["security"], siteWide: true },
+  { label: "BleepingComputer", url: "https://www.bleepingcomputer.com/feed/", keywords: AI_TERMS, categories: ["security"], siteWide: true },
+  { label: "Krebs on Security", url: "https://krebsonsecurity.com/feed/", keywords: AI_TERMS, categories: ["security"], siteWide: true },
+  { label: "Schneier", url: "https://www.schneier.com/feed/atom/", keywords: AI_TERMS, categories: ["security"], siteWide: true },
+  { label: "Dark Reading", url: "https://www.darkreading.com/rss.xml", keywords: AI_TERMS, categories: ["security"], siteWide: true },
 ];
+
+const SITE_WIDE_LABELS = new Set(RSS_FEEDS.filter((f) => f.siteWide).map((f) => f.label));
+
+/** Whether an item's outlet label belongs to a whole-site (non-AI-section) feed. */
+export const isSiteWideOutlet = (label: string): boolean => SITE_WIDE_LABELS.has(label);
 
 // Custom fields expose media thumbnails (attrs land under `$` in rss-parser)
 // and full article bodies (content:encoded) for read-time estimation.

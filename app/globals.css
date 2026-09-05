@@ -112,6 +112,117 @@ body {
     radial-gradient(ellipse 60% 40% at 50% 112%, rgb(255 69 0 / 0.04), transparent 65%);
 }
 
+/* Terminal chrome: a faint dot-grid under everything (negative z-index keeps
+   it beneath in-flow content but above the canvas), fading out downward. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(circle, rgb(0 0 0 / 0.09) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, black 20%, transparent 95%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, black 20%, transparent 95%);
+}
+
+.dark body::before {
+  background-image: radial-gradient(circle, rgb(255 255 255 / 0.07) 1px, transparent 1.2px);
+}
+
+/* Status LEDs (column headers, status bar) */
+.led {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+  flex-shrink: 0;
+}
+
+.led-loading {
+  color: #22d3ee;
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+.led-ok {
+  color: #10b981;
+}
+
+.led-stale {
+  color: #f59e0b;
+}
+
+.led-error {
+  color: #f43f5e;
+}
+
+.led-live {
+  color: #10b981;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Keyboard-active column: cyan underline on its header */
+[data-active-col] .col-header {
+  box-shadow: inset 0 -2px 0 0 rgb(34 211 238 / 0.6);
+}
+
+/* Blinking terminal cursor */
+.cursor-blink {
+  animation: blink 1.1s steps(2, start) infinite;
+}
+
+/* New cards ease in instead of popping */
+.card-enter {
+  animation: fade-up 0.32s ease-out both;
+}
+
+/* Soft cyan glow on hover */
+.card-glow:hover {
+  box-shadow:
+    inset 2px 0 0 0 rgb(34 211 238 / 0.55),
+    0 0 18px rgb(34 211 238 / 0.08);
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 6px currentColor;
+  }
+  50% {
+    opacity: 0.45;
+    box-shadow: 0 0 2px currentColor;
+  }
+}
+
+@keyframes blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .led-loading,
+  .led-live,
+  .cursor-blink,
+  .card-enter {
+    animation: none;
+  }
+}
+
 /* Slim scrollbars inside feed columns */
 .feed-scroll {
   scrollbar-width: thin;

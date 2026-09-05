@@ -25,9 +25,16 @@ function bskyThumb(p: BskyPost): string | undefined {
     : undefined;
 }
 
-// Bluesky's public AppView WAF-blocks many networks and datacenter ranges.
-// Optional escape hatch: an app password (bsky.social account settings) lets
-// us search through the sanctioned authenticated path instead.
+// Bluesky's anonymous AppView hosts are WAF-blocked from datacenter ranges
+// and, as of 2026-09, from residential networks too. The sanctioned path is
+// an app password (bsky.social account settings) — it goes first whenever
+// credentials exist, and blocked anonymous hosts are remembered for 30 min
+// so a fetch doesn't burn two doomed round-trips before the one that works.
+const AUTH_HOST = "https://bsky.social";
+const ANON_HOSTS = ["https://public.api.bsky.app", "https://api.bsky.app"];
+const BLOCK_MS = 30 * 60_000;
+const blockedUntil = new Map<string, number>();
+
 let session: { token: string; expires: number } | null = null;
 
 async function getSession(): Promise<string | null> {
@@ -36,7 +43,7 @@ async function getSession(): Promise<string | null> {
   if (!identifier || !password) return null;
   if (session && session.expires > Date.now()) return session.token;
   try {
-    const res = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", {
+    const res = await fetch(`${AUTH_HOST}/xrpc/com.atproto.server.createSession`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "User-Agent": USER_AGENT },
       body: JSON.stringify({ identifier, password }),
@@ -55,31 +62,42 @@ async function getSession(): Promise<string | null> {
 export async function fetchBluesky({ q }: { q: string }, fresh = false): Promise<FeedItem[]> {
   const rv = fresh ? 0 : undefined;
   const since = new Date(Date.now() - 7 * 86400_000).toISOString();
+  // lang=en: "ai" is an everyday word in several languages (愛) — the audit's
+  // leak risk once the source is reachable again.
   const path =
     `/xrpc/app.bsky.feed.searchPosts` +
-    `?q=${encodeURIComponent(q)}&sort=top&limit=50&since=${encodeURIComponent(since)}`;
+    `?q=${encodeURIComponent(q)}&sort=top&limit=50&lang=en&since=${encodeURIComponent(since)}`;
 
-  const attempts: Array<() => Promise<{ posts: BskyPost[] }>> = [
-    () => fetchJson(`https://public.api.bsky.app${path}`, { revalidate: rv }),
-    () => fetchJson(`https://api.bsky.app${path}`, { revalidate: rv }),
-  ];
+  const attempts: Array<{ host: string; run: () => Promise<{ posts: BskyPost[] }> }> = [];
   const token = await getSession();
   if (token) {
-    attempts.push(() =>
-      fetchJson(`https://bsky.social${path}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        revalidate: rv,
-      })
-    );
+    attempts.push({
+      host: AUTH_HOST,
+      run: () =>
+        fetchJson(`${AUTH_HOST}${path}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          revalidate: rv,
+        }),
+    });
+  }
+  for (const host of ANON_HOSTS) {
+    if ((blockedUntil.get(host) ?? 0) > Date.now()) continue;
+    attempts.push({ host, run: () => fetchJson(`${host}${path}`, { revalidate: rv }) });
+  }
+  if (!attempts.length) {
+    throw new Error("Bluesky anonymous API is blocked and no app password is configured");
   }
 
   let lastError: unknown;
   for (const attempt of attempts) {
     try {
-      const data = await attempt();
+      const data = await attempt.run();
       return mapPosts(data.posts);
     } catch (e) {
       lastError = e;
+      if (attempt.host !== AUTH_HOST && e instanceof Error && /\b403\b/.test(e.message)) {
+        blockedUntil.set(attempt.host, Date.now() + BLOCK_MS);
+      }
     }
   }
   throw lastError instanceof Error ? lastError : new Error("Bluesky fetch failed");

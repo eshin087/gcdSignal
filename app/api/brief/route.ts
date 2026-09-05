@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildTop10 } from "@/lib/brief";
 import { resolveParams } from "@/lib/categories";
 import { recallGood, rememberGood } from "@/lib/last-good";
+import { applyRelevance } from "@/lib/relevance";
 import { SOURCES } from "@/lib/sources";
 import type { BriefResponse, FeedItem, SourceId } from "@/lib/types";
 
@@ -23,9 +24,9 @@ export async function GET(req: NextRequest) {
       SOURCES[s](resolveParams(s, "trending", new URLSearchParams()), fresh)
     )
   );
-  const items: FeedItem[] = settled
-    .filter((r): r is PromiseFulfilledResult<FeedItem[]> => r.status === "fulfilled")
-    .flatMap((r) => r.value);
+  const items: FeedItem[] = settled.flatMap((r, i) =>
+    r.status === "fulfilled" ? applyRelevance(BRIEF_SOURCES[i], r.value) : []
+  );
 
   try {
     if (!items.length) {
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
       headers: {
         "Cache-Control": fresh
           ? "no-store"
-          : "public, s-maxage=900, stale-while-revalidate=1800",
+          : "public, max-age=120, s-maxage=900, stale-while-revalidate=3600",
       },
     });
   } catch (e) {

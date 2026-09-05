@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
+import { clearHealth, reportHealth } from "@/lib/feed-health";
 import { timeAgo } from "@/lib/fetch-helpers";
 import { useBrief } from "@/lib/use-brief";
 import { COLUMN_HEADER, COLUMN_SHELL } from "./column-shell";
@@ -36,6 +37,13 @@ export default function TopTenColumn({
     day: "numeric",
   });
 
+  const health = status === "ok" ? (data?.stale ? "stale" : "ok") : status;
+  const count = stories.length;
+  useEffect(() => {
+    reportHealth("top10", { status: health, count });
+  }, [health, count]);
+  useEffect(() => () => clearHealth("top10"), []);
+
   return (
     <section className={COLUMN_SHELL}>
       <div
@@ -51,11 +59,13 @@ export default function TopTenColumn({
         {...dragHandleProps}
         className={`${COLUMN_HEADER} ${dragHandleProps ? "select-none md:cursor-grab md:active:cursor-grabbing" : ""}`}
       >
+        <span className={`led led-${health}`} aria-label={`Status: ${health}`} />
         <TrophyIcon className="h-4 w-4 text-amber-500" />
-        <h2 className="truncate text-[length:var(--fs-colhead)] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
-          Daily Top 10
+        <h2 className="truncate font-mono text-[length:var(--fs-colhead)] font-semibold lowercase tracking-tight text-zinc-600 dark:text-zinc-300">
+          <span className="text-cyan-500/80 dark:text-cyan-400/80">&gt;&nbsp;</span>
+          daily top 10
         </h2>
-        <span className="text-[length:var(--fs-ui-sm)] text-zinc-400 dark:text-zinc-600">{dateLabel}</span>
+        <span className="font-mono text-[length:var(--fs-ui-sm)] text-zinc-400 dark:text-zinc-600">{dateLabel}</span>
         <span className="ml-auto flex items-center gap-1">
           <button
             onClick={manualRefresh}
@@ -78,6 +88,11 @@ export default function TopTenColumn({
       <div className="feed-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {status === "loading" && (
           <div className="space-y-4 p-3" aria-label="Loading">
+            <p className="font-mono text-[11px] text-cyan-600/90 dark:text-cyan-400/90">
+              <span className="text-zinc-400 dark:text-zinc-600">▸ </span>
+              clustering stories across sources
+              <span className="cursor-blink">▍</span>
+            </p>
             {Array.from({ length: 8 }, (_, i) => (
               <div key={i} className="flex gap-2.5">
                 <div className="skeleton h-4 w-5 shrink-0" />
@@ -113,7 +128,8 @@ export default function TopTenColumn({
           stories.map((story, i) => (
             <article
               key={story.id}
-              className="group border-b border-black/[0.05] px-3 py-3 transition-colors last:border-b-0 hover:bg-black/[0.03] dark:border-white/[0.05] dark:hover:bg-white/[0.035]"
+              tabIndex={-1}
+              className="card-enter card-glow group border-b border-black/[0.05] px-3 py-3 transition-[background-color,box-shadow] last:border-b-0 hover:bg-black/[0.03] focus:outline-none focus:ring-1 focus:ring-inset focus:ring-cyan-500/60 dark:border-white/[0.05] dark:hover:bg-white/[0.035]"
             >
               <div className="flex gap-2.5">
                 <span

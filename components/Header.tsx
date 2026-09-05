@@ -77,6 +77,11 @@ export default function Header({
 
   return (
     <header className="relative z-30 shrink-0 border-b border-black/[0.06] bg-white/65 backdrop-blur-xl dark:border-white/[0.07] dark:bg-[#0a0a0b]/60">
+      {/* Horizon line: a thin cyan glow along the header's bottom edge. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent shadow-[0_0_14px_rgb(34_211_238/0.45)] dark:via-cyan-400/60"
+      />
       <div className="flex h-12 items-center gap-3 px-3 md:px-4">
         <h1 className="shrink-0">
           <button
@@ -87,6 +92,12 @@ export default function Header({
             gcd
             <span className="text-cyan-600 dark:bg-gradient-to-r dark:from-cyan-400 dark:to-sky-400 dark:bg-clip-text dark:text-transparent">
               signal
+            </span>
+            <span
+              aria-hidden
+              className="cursor-blink ml-px font-mono font-normal text-cyan-500 dark:text-cyan-400"
+            >
+              _
             </span>
           </button>
         </h1>

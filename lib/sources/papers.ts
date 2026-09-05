@@ -38,15 +38,22 @@ export async function fetchPapers(
     throw reason instanceof Error ? reason : new Error("Paper sources unavailable");
   }
 
-  // Dedupe by arXiv id — HF wins (it has engagement metrics).
-  const seen = new Set(hf.map((p) => arxivKey(p.id)));
-  const merged = [...hf, ...arxiv.filter((p) => !seen.has(arxivKey(p.id)))];
+  // Dedupe by arXiv id AND normalized title — HF wins (it has engagement
+  // metrics). arXiv ids carry version suffixes (2607.24707v1) that HF omits,
+  // which is how identical papers used to appear twice.
+  const seenIds = new Set(hf.map((p) => arxivKey(p.id)));
+  const seenTitles = new Set(hf.map((p) => titleKey(p.title)));
+  const merged = [
+    ...hf,
+    ...arxiv.filter((p) => !seenIds.has(arxivKey(p.id)) && !seenTitles.has(titleKey(p.title))),
+  ];
 
   const matches = makeMatcher(keywords);
   return merged.filter((p) => matches(p.title, p.excerpt ?? "")).slice(0, 60);
 }
 
-const arxivKey = (id: string) => id.replace(/^(hf|arxiv):/, "");
+const arxivKey = (id: string) => id.replace(/^(hf|arxiv):/, "").replace(/v\d+$/, "");
+const titleKey = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 async function fetchHf(revalidate?: number): Promise<FeedItem[]> {
   const papers = await fetchJson<HfPaper[]>("https://huggingface.co/api/daily_papers?limit=50", {

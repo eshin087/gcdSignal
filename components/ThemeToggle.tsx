@@ -17,7 +17,7 @@ function subscribe(listener: () => void) {
 const getSnapshot = () => document.documentElement.classList.contains("dark");
 const getServerSnapshot = () => true; // dark is the server-rendered default
 
-function toggleTheme() {
+export function toggleTheme() {
   const isDark = document.documentElement.classList.toggle("dark");
   try {
     localStorage.setItem("gcdsignal:theme", isDark ? "dark" : "light");

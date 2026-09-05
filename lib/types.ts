@@ -53,6 +53,9 @@ export interface FeedResponse {
   fetchedAt: string;
   /** True when the live fetch failed and this is a remembered last-good result. */
   stale?: boolean;
+  /** Set (with empty items) when the fetch failed and nothing cached could stand in —
+   *  delivered as a cacheable 200 so a dead source doesn't hit the server per load. */
+  error?: string;
 }
 
 export interface CustomFeed {
