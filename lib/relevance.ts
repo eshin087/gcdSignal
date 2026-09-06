@@ -1,5 +1,4 @@
 import { AI_TERMS } from "./categories";
-import { classify } from "./curation";
 import { keywordMatcher, makeMatcher } from "./fetch-helpers";
 import { isSiteWideOutlet } from "./sources/rss";
 import type { FeedItem, SourceId } from "./types";
@@ -68,12 +67,13 @@ const AI_NATIVE_SUBS = new Set(
   ].map((s) => s.toLowerCase())
 );
 
-/** Sparse strict sources may admit two body hits, but never bypass AI relevance. */
+/** A column never empties because the lexicon missed a phrasing — below this
+ *  many survivors the gate loosens one notch and re-runs. */
 const MIN_ITEMS = 5;
 
 const LOOSER: Record<GatePolicy, GatePolicy> = {
   strict: "balanced",
-  balanced: "balanced",
+  balanced: "open",
   open: "open",
 };
 
@@ -113,7 +113,6 @@ export function applyRelevance(
   items: FeedItem[],
   { custom = false }: { custom?: boolean } = {}
 ): FeedItem[] {
-  items = items.map((item) => ({ ...item, curation: classify(item) }));
   if (custom || !items.length) return items;
   let step = 0;
   for (;;) {
@@ -122,7 +121,7 @@ export function applyRelevance(
       for (let i = 0; i < step; i++) policy = LOOSER[policy];
       return passes(it, policy);
     });
-    if (gated.length >= MIN_ITEMS || step >= 1) return gated;
+    if (gated.length >= MIN_ITEMS || step >= 2) return gated;
     step++;
   }
 }

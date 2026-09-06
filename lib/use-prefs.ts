@@ -19,17 +19,13 @@ const isTextScale = (v: unknown): v is TextScale =>
   v === "sm" || v === "md" || v === "lg" || v === "xl";
 
 export const DEFAULT_PREFS: Prefs = {
-  v: 6,
-  contentMode: "builder",
-  followedTopics: [],
-  mutedAuthors: [],
-  mutedOutlets: [],
+  v: 5,
   category: "trending",
   hidden: DEFAULT_HIDDEN,
   custom: [],
   refreshMs: DEFAULT_REFRESH_MS,
   textScale: "md",
-  sortMode: "signal",
+  sortMode: "hot",
   view: "deck",
   order: DEFAULT_ORDER,
   density: "comfortable",
@@ -54,7 +50,7 @@ function load(): Prefs {
     const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULT_PREFS;
     const p = JSON.parse(raw) as Omit<Partial<Prefs>, "v"> & { v?: number };
-    if (typeof p?.v !== "number" || p.v < 1 || p.v > 6) return DEFAULT_PREFS;
+    if (typeof p?.v !== "number" || p.v < 1 || p.v > 5) return DEFAULT_PREFS;
     let hidden = Array.isArray(p.hidden)
       ? p.hidden.filter((x): x is string => typeof x === "string")
       : [];
@@ -69,12 +65,8 @@ function load(): Prefs {
     // v4 → v5: 4chan leaves the default deck again (Momentum takes its slot).
     if (p.v <= 4) hidden = [...new Set([...hidden, "fourchan"])];
     return {
-      v: 6,
-      contentMode: p.contentMode === "broad" ? "broad" : "builder",
-      followedTopics: Array.isArray(p.followedTopics) ? [...new Set(p.followedTopics.filter((t) => typeof t === "string" && Object.hasOwn(CATEGORIES, t) && t !== "trending"))] : [],
-      mutedAuthors: Array.isArray(p.mutedAuthors) ? p.mutedAuthors.filter((s): s is string => typeof s === "string").slice(0, 200) : [],
-      mutedOutlets: Array.isArray(p.mutedOutlets) ? p.mutedOutlets.filter((s): s is string => typeof s === "string").slice(0, 200) : [],
-      category: typeof p.category === "string" && Object.hasOwn(CATEGORIES, p.category) ? p.category : "trending",
+      v: 5,
+      category: typeof p.category === "string" && p.category in CATEGORIES ? p.category : "trending",
       hidden,
       custom: Array.isArray(p.custom) ? p.custom.filter(isCustomFeed) : [],
       refreshMs: isValidRefreshMs(p.refreshMs) ? p.refreshMs : DEFAULT_REFRESH_MS,

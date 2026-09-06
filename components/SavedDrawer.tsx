@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
-import { useDialog } from "@/lib/use-dialog";
+import { useEffect, useMemo } from "react";
 import { clearSaved, useSavedItems } from "@/lib/use-saved";
 import FeedCard from "./FeedCard";
 import { XIcon } from "./icons";
@@ -13,14 +12,32 @@ export default function SavedDrawer({
   open: boolean;
   onClose: () => void;
 }) {
-  const ref = useDialog(open);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
 
   const saved = useSavedItems();
   const items = useMemo(() => [...saved].sort((a, b) => b.savedAt - a.savedAt), [saved]);
 
   return (
-    <dialog ref={ref} className="reader-dialog" aria-label="Saved items" onCancel={onClose} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="flex h-full min-h-0 flex-col">
+    <div className={open ? "fixed inset-0 z-40" : "pointer-events-none fixed inset-0 z-40"}>
+      <div
+        className={`absolute inset-0 bg-black/40 transition-opacity ${open ? "opacity-100" : "opacity-0"}`}
+        onClick={onClose}
+        aria-hidden
+      />
+      <aside
+        role="dialog"
+        aria-label="Saved items"
+        className={`absolute right-0 top-0 flex h-full w-96 max-w-[92vw] flex-col border-l border-black/10 bg-white/95 shadow-2xl backdrop-blur-xl transition-transform duration-200 dark:border-white/10 dark:bg-[#101013]/95 ${
+          open ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
         <header className="flex h-12 shrink-0 items-center justify-between border-b border-black/[0.07] px-4 dark:border-white/[0.07]">
           <h2 className="text-sm font-semibold">Saved ({items.length})</h2>
           <span className="flex items-center gap-1">
@@ -48,10 +65,10 @@ export default function SavedDrawer({
               Nothing saved yet — tap the bookmark on any card to keep it here.
             </p>
           ) : (
-            items.map((item) => <FeedCard key={`${item.source}:${item.id}`} item={item} preview={false} />)
+            items.map((item) => <FeedCard key={`${item.source}:${item.id}`} item={item} />)
           )}
         </div>
-      </div>
-    </dialog>
+      </aside>
+    </div>
   );
 }

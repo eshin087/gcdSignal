@@ -16,9 +16,8 @@ function mmss(ms: number): string {
 }
 
 const OVERALL: Record<HealthStatus, { label: string; led: string; text: string }> = {
-  idle: { label: "READY", led: "led-idle", text: "text-zinc-500" },
   loading: { label: "SYNCING", led: "led-loading", text: "text-cyan-600 dark:text-cyan-400" },
-  ok: { label: "READY", led: "led-live", text: "text-emerald-600 dark:text-emerald-400" },
+  ok: { label: "LIVE", led: "led-live", text: "text-emerald-600 dark:text-emerald-400" },
   stale: { label: "CACHED", led: "led-stale", text: "text-amber-600 dark:text-amber-400" },
   error: { label: "DEGRADED", led: "led-error", text: "text-rose-600 dark:text-rose-400" },
 };
@@ -50,19 +49,17 @@ export default function StatusBar({
   }, []);
 
   const entries = items.map((it) => ({ id: it.id, label: itemLabel(it), h: health.get(it.id) }));
-  const statuses = entries.map((e) => e.h?.status ?? "idle");
+  const statuses = entries.map((e) => e.h?.status ?? "loading");
   const overall: HealthStatus = statuses.includes("error")
     ? "error"
     : statuses.includes("loading")
       ? "loading"
       : statuses.includes("stale")
         ? "stale"
-        : okStatus(statuses);
+        : "ok";
   const meta = OVERALL[overall];
   const itemTotal = useCountUp(entries.reduce((s, e) => s + (e.h?.count ?? 0), 0));
   const okSources = statuses.filter((s) => s === "ok" || s === "stale").length;
-  const fetched = entries.map((e) => Date.parse(e.h?.fetchedAt ?? "")).filter(Number.isFinite);
-  const oldestFetch = fetched.length ? Math.min(...fetched) : null;
   const nextIn = refreshMs > 0 ? lastRefreshAt + refreshMs - now : null;
 
   return (
@@ -75,11 +72,11 @@ export default function StatusBar({
         {meta.label}
       </span>
       <span className="hidden sm:inline">
-        {okSources}/{entries.length} loaded
+        {okSources}/{entries.length} sources
       </span>
       <span className="tabular-nums">{itemTotal} items</span>
       <span className="hidden tabular-nums md:inline">
-        {oldestFetch ? `oldest fetch ${timeAgo(new Date(oldestFetch).toISOString())}` : "waiting for feeds"}
+        synced {timeAgo(new Date(lastRefreshAt).toISOString())}
       </span>
       {nextIn !== null && (
         <span className="hidden tabular-nums md:inline">next {mmss(nextIn)}</span>
@@ -89,8 +86,8 @@ export default function StatusBar({
         {entries.map((e) => (
           <span
             key={e.id}
-            title={`${e.label}: ${e.h?.status ?? "idle"}${e.h ? ` · ${e.h.count} items` : ""}`}
-            className={`led led-${e.h?.status ?? "idle"}`}
+            title={`${e.label}: ${e.h?.status ?? "loading"}${e.h ? ` · ${e.h.count} items` : ""}`}
+            className={`led led-${e.h?.status ?? "loading"}`}
           />
         ))}
       </span>
@@ -114,4 +111,3 @@ export default function StatusBar({
     </footer>
   );
 }
-function okStatus(statuses: HealthStatus[]): HealthStatus { return statuses.some((s) => s === "ok") ? "ok" : "idle"; }

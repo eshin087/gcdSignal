@@ -4,8 +4,6 @@ import { useEffect, useMemo, useRef } from "react";
 import { clearHealth, reportHealth } from "@/lib/feed-health";
 import { timeAgo } from "@/lib/fetch-helpers";
 import { SOURCE_COLORS } from "@/lib/feeds";
-import { selectItems } from "@/lib/curation";
-import { usePrefs } from "@/lib/use-prefs";
 import { sortItems } from "@/lib/sort";
 import { useCountUp } from "@/lib/use-count-up";
 import { useFeed } from "@/lib/use-feed";
@@ -37,7 +35,6 @@ export default function FeedColumn({
   query: string;
   dragHandleProps?: React.HTMLAttributes<HTMLElement>;
 }) {
-  const { prefs, setPrefs } = usePrefs();
   const scrollRef = useRef<HTMLDivElement>(null);
   // Custom feeds are pinned: their explicit params override the category anyway,
   // so a fixed category keeps their cache key stable across tab switches.
@@ -79,13 +76,14 @@ export default function FeedColumn({
   const searching = q !== "";
 
   const { filteredUnseen, filteredSeen } = useMemo(() => {
+    if (!q) return { filteredUnseen: unseen, filteredSeen: seenTail };
     const m = (it: FeedItem) =>
-      !q || `${it.title} ${it.excerpt ?? ""} ${it.sourceMeta ?? ""}`.toLowerCase().includes(q);
-    return { filteredUnseen: selectItems(unseen, prefs, category, feed.isCustom).filter(m), filteredSeen: selectItems(seenTail, prefs, category, feed.isCustom).filter(m) };
-  }, [unseen, seenTail, q, prefs, category, feed.isCustom]);
+      `${it.title} ${it.excerpt ?? ""} ${it.sourceMeta ?? ""}`.toLowerCase().includes(q);
+    return { filteredUnseen: unseen.filter(m), filteredSeen: seenTail.filter(m) };
+  }, [unseen, seenTail, q]);
 
-  const sortedUnseen = useMemo(() => sortItems(filteredUnseen, sortMode, prefs.followedTopics), [filteredUnseen, sortMode, prefs.followedTopics]);
-  const sortedSeen = useMemo(() => sortItems(filteredSeen, sortMode, prefs.followedTopics), [filteredSeen, sortMode, prefs.followedTopics]);
+  const sortedUnseen = useMemo(() => sortItems(filteredUnseen, sortMode), [filteredUnseen, sortMode]);
+  const sortedSeen = useMemo(() => sortItems(filteredSeen, sortMode), [filteredSeen, sortMode]);
   const total = sortedUnseen.length + sortedSeen.length;
 
   const { revealed, fullyRevealed, sentinelRef } = useProgressiveReveal(requestKey, total, PAGE);
@@ -115,11 +113,11 @@ export default function FeedColumn({
   const poolSize = unseen.length + seenTail.length;
   const health = status === "ok" ? (stale ? "stale" : "ok") : status;
   useEffect(() => {
-    reportHealth(feed.id, { status: health, count: poolSize, fetchedAt: fetchedAt ?? undefined });
-  }, [feed.id, health, poolSize, fetchedAt]);
+    reportHealth(feed.id, { status: health, count: poolSize });
+  }, [feed.id, health, poolSize]);
   useEffect(() => () => clearHealth(feed.id), [feed.id]);
 
-  const badgeValue = useCountUp(sortedUnseen.length);
+  const badgeValue = useCountUp(searching ? total : unseen.length);
   const color = SOURCE_COLORS[feed.source];
   const networkBlocked = error !== null && /\b(403|429|blocked|rate limited)\b/i.test(error);
 
@@ -172,7 +170,7 @@ export default function FeedColumn({
 
       {status === "ok" && stale && (
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-amber-500/20 bg-amber-500/[0.07] px-3 py-1.5 font-mono text-[10px] leading-tight text-amber-700 dark:border-amber-400/15 dark:text-amber-300/90">
-          <span>cached results — updated {fetchedAt ? timeAgo(fetchedAt) : "earlier"}</span>
+          <span>live fetch failed — cached {fetchedAt ? timeAgo(fetchedAt) : "earlier"}</span>
           <button
             onClick={() => refetch(true)}
             className="shrink-0 font-semibold underline-offset-2 hover:underline"
@@ -223,7 +221,6 @@ export default function FeedColumn({
           </div>
         )}
 
-        {status === "ok" && total < 5 && prefs.contentMode === "builder" && !feed.isCustom && !searching && <div className="px-3 py-2 text-xs text-zinc-600 dark:text-zinc-400">Fewer builder matches here. <button className="action-button" onClick={() => setPrefs((p) => ({ ...p, contentMode: "broad" }))}>Explore Broad</button></div>}
         {status === "ok" && total === 0 && (
           <div className="px-4 py-10 text-center">
             <p className="text-xs text-zinc-500">
