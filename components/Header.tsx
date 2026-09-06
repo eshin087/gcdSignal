@@ -67,6 +67,7 @@ export default function Header({
   onOpenNewsletter: () => void;
   onOpenSaved: () => void;
 }) {
+  const [moreOpen, setMoreOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const savedCount = useSavedKeys().size;
 
@@ -82,7 +83,7 @@ export default function Header({
         aria-hidden
         className="pointer-events-none absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent shadow-[0_0_14px_rgb(34_211_238/0.45)] dark:via-cyan-400/60"
       />
-      <div className="flex h-12 items-center gap-3 px-3 md:px-4">
+      <div className="flex h-12 items-center gap-1 px-2 sm:gap-3 sm:px-3 md:px-4">
         <h1 className="shrink-0">
           <button
             onClick={() => window.location.reload()}
@@ -132,7 +133,7 @@ export default function Header({
           </button>
         </div>
 
-        <div className="hidden min-w-0 md:block">
+        <div className="hidden min-w-0 2xl:block">
           <CategoryTabs category={category} onChange={onCategoryChange} />
         </div>
 
@@ -141,6 +142,7 @@ export default function Header({
           <span className="relative hidden lg:block">
             <input
               type="search"
+              aria-label="Search feeds"
               value={queryInput}
               onChange={(e) => onQueryInputChange(e.target.value)}
               onKeyDown={(e) => {
@@ -174,6 +176,7 @@ export default function Header({
 
           <span className="mx-1 hidden h-4 w-px bg-black/10 sm:block dark:bg-white/10" />
 
+          <div className="hidden items-center md:flex">
           <SortControl sortMode={sortMode} onChange={onSortModeChange} />
           <DisplayControl
             textScale={textScale}
@@ -188,8 +191,8 @@ export default function Header({
             onRefreshMsChange={onRefreshMsChange}
           />
 
-          <span className="mx-1 hidden h-4 w-px bg-black/10 sm:block dark:bg-white/10" />
 
+          </div>
           <button
             onClick={onOpenSaved}
             aria-label="Saved items"
@@ -203,20 +206,42 @@ export default function Header({
               </span>
             )}
           </button>
-          <ThemeToggle />
+          <span className="hidden md:inline-flex"><ThemeToggle /></span>
           <button
             onClick={onOpenNewsletter}
             title="Daily email digest"
-            className={`flex items-center gap-1.5 ${ICON_BTN}`}
+            className={`hidden items-center gap-1.5 md:flex ${ICON_BTN}`}
           >
             <MailIcon className={HEADER_ICON} />
             <span className="hidden text-[length:var(--fs-ui)] font-medium xl:inline">Subscribe</span>
           </button>
+          <button aria-label="More controls" aria-expanded={moreOpen} onClick={() => setMoreOpen(!moreOpen)} className={`md:hidden ${ICON_BTN}`}>•••</button>
           <button onClick={onOpenSettings} aria-label="Feed settings" title="Feeds" className={ICON_BTN}>
             <GearIcon className={HEADER_ICON} />
           </button>
         </div>
       </div>
+
+      {moreOpen && <div className="flex flex-wrap items-center justify-end gap-2 px-3 pb-2 md:hidden" aria-label="More feed controls" onKeyDown={(e) => { if (e.key === "Escape") setMoreOpen(false); }}>
+          <SortControl sortMode={sortMode} onChange={onSortModeChange} />
+          <DisplayControl
+            textScale={textScale}
+            onTextScaleChange={onTextScaleChange}
+            density={density}
+            onDensityChange={onDensityChange}
+          />
+          <RefreshControl
+            lastRefreshAt={lastRefreshAt}
+            onRefresh={onRefresh}
+            refreshMs={refreshMs}
+            onRefreshMsChange={onRefreshMsChange}
+          />
+
+
+
+        <ThemeToggle />
+        <button className="action-button" onClick={onOpenNewsletter}>Subscribe</button>
+      </div>}
 
       {/* Expanded search row (below lg) — also opens when a query arrives from
           elsewhere (momentum topic tap) so the active filter stays visible. */}
@@ -224,6 +249,7 @@ export default function Header({
         <div className="flex items-center gap-2 px-3 pb-2 lg:hidden">
           <input
             type="search"
+              aria-label="Search feeds"
             autoFocus
             value={queryInput}
             onChange={(e) => onQueryInputChange(e.target.value)}
@@ -239,7 +265,7 @@ export default function Header({
         </div>
       )}
 
-      <div className="px-2 pb-2 md:hidden">
+      <div className="px-2 pb-2 2xl:hidden">
         <CategoryTabs category={category} onChange={onCategoryChange} />
       </div>
     </header>

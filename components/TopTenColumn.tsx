@@ -3,6 +3,10 @@
 import { useEffect, useRef } from "react";
 import { clearHealth, reportHealth } from "@/lib/feed-health";
 import { timeAgo } from "@/lib/fetch-helpers";
+import { selectItems } from "@/lib/curation";
+import { publisher } from "@/lib/stories";
+import { usePrefs } from "@/lib/use-prefs";
+import { useReading } from "./ReadingContext";
 import { useBrief } from "@/lib/use-brief";
 import { COLUMN_HEADER, COLUMN_SHELL } from "./column-shell";
 import { CommentIcon, RefreshIcon, TrophyIcon } from "./icons";
@@ -22,6 +26,8 @@ export default function TopTenColumn({
   refreshKey: number;
   dragHandleProps?: React.HTMLAttributes<HTMLElement>;
 }) {
+  const { prefs } = usePrefs();
+  const read = useReading();
   const { data, status, error, refetch } = useBrief(refreshKey);
 
   const cooldownRef = useRef(0);
@@ -31,7 +37,15 @@ export default function TopTenColumn({
     refetch(true);
   };
 
-  const stories = data?.top10 ?? [];
+  const stories = (data?.top10 ?? []).flatMap((story) => {
+    const members = selectItems(story.members ?? [{ ...story, source: story.sources[0] ?? "rss" }], prefs, "trending");
+    if (!members.length) return [];
+    return [{ ...story, title: members[0].title, url: members[0].externalUrl ?? members[0].url, members,
+      sources: [...new Set(members.map((m) => m.source))],
+      publishers: [...new Set(members.map(publisher))],
+      comments: members.reduce((sum, m) => sum + (m.comments ?? 0), 0),
+    }];
+  });
   const dateLabel = new Date().toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
@@ -40,8 +54,8 @@ export default function TopTenColumn({
   const health = status === "ok" ? (data?.stale ? "stale" : "ok") : status;
   const count = stories.length;
   useEffect(() => {
-    reportHealth("top10", { status: health, count });
-  }, [health, count]);
+    reportHealth("top10", { status: health, count, fetchedAt: data?.fetchedAt });
+  }, [health, count, data?.fetchedAt]);
   useEffect(() => () => clearHealth("top10"), []);
 
   return (
@@ -81,7 +95,7 @@ export default function TopTenColumn({
 
       {status === "ok" && data?.stale && (
         <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/[0.07] px-3 py-1.5 text-[10px] leading-tight text-amber-700 dark:border-amber-400/15 dark:text-amber-300/90">
-          Live fetch failed — cached {timeAgo(data.fetchedAt)}
+          Cached results — updated {timeAgo(data.fetchedAt)}
         </div>
       )}
 
@@ -148,6 +162,7 @@ export default function TopTenColumn({
                   >
                     {story.title}
                   </a>
+                  <button className="action-button mt-2" onClick={() => read(story.members)}>{story.members.length} posts · {story.publishers.length} publishers / platforms →</button>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[length:var(--fs-meta)]">
                     <span
                       className="inline-flex items-center gap-1.5"
@@ -180,7 +195,7 @@ export default function TopTenColumn({
 
         {status === "ok" && stories.length > 0 && (
           <p className="px-3 py-3 text-center text-[10px] leading-relaxed text-zinc-400 dark:text-zinc-600">
-            Ranked by how many sources cover a story and how loud each one is.
+            Ranked by independent publishers / platforms, normalized engagement and freshness. Builder mode may show fewer than ten stories.
           </p>
         )}
       </div>

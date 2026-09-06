@@ -14,15 +14,19 @@ import { useHotkeys } from "@/lib/use-hotkeys";
 import { usePrefs } from "@/lib/use-prefs";
 import { clearSeen } from "@/lib/use-seen";
 import type { CategoryId, DeckItem, Density, TextScale, VisibleFeed } from "@/lib/types";
-import AddFeedDialog from "./AddFeedDialog";
+import dynamic from "next/dynamic";
+import ReadingProvider from "./ReadingContext";
+import CurationControls from "./CurationControls";
+const AddFeedDialog = dynamic(() => import("./AddFeedDialog"));
 import ColumnDeck from "./ColumnDeck";
-import CommandPalette, { type Command } from "./CommandPalette";
+import type { Command } from "./CommandPalette";
+const CommandPalette = dynamic(() => import("./CommandPalette"));
 import ForYouFeed from "./ForYouFeed";
 import Header from "./Header";
-import NewsletterDialog from "./NewsletterDialog";
-import SavedDrawer from "./SavedDrawer";
-import SettingsDrawer from "./SettingsDrawer";
-import ShortcutsOverlay from "./ShortcutsOverlay";
+const NewsletterDialog = dynamic(() => import("./NewsletterDialog"));
+const SavedDrawer = dynamic(() => import("./SavedDrawer"));
+const SettingsDrawer = dynamic(() => import("./SettingsDrawer"));
+const ShortcutsOverlay = dynamic(() => import("./ShortcutsOverlay"));
 import StatusBar from "./StatusBar";
 import { toggleTheme } from "./ThemeToggle";
 
@@ -211,7 +215,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <>
+    <ReadingProvider>
       <Header
         category={prefs.category}
         onCategoryChange={setCategory}
@@ -234,6 +238,7 @@ export default function Dashboard() {
         onOpenSaved={() => setSavedOpen(true)}
       />
 
+      <CurationControls />
       {!ready ? (
         <DeckPlaceholder />
       ) : prefs.view === "foryou" ? (
@@ -256,14 +261,14 @@ export default function Dashboard() {
       )}
 
       <StatusBar
-        items={deckItems}
+        items={prefs.view === "foryou" ? deckItems.filter((it) => it.kind === "feed") : deckItems}
         lastRefreshAt={refresh.at}
         refreshMs={prefs.refreshMs}
         onOpenHelp={() => setHelpOpen(true)}
         onOpenPalette={() => setPaletteOpen(true)}
       />
 
-      <SettingsDrawer
+      {settingsOpen && <SettingsDrawer
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         prefs={prefs}
@@ -272,17 +277,17 @@ export default function Dashboard() {
           setSettingsOpen(false);
           setAddFeedOpen(true);
         }}
-      />
-      <AddFeedDialog
+      />}
+      {addFeedOpen && <AddFeedDialog
         open={addFeedOpen}
         onClose={() => setAddFeedOpen(false)}
         onAdd={(feed) => setPrefs((p) => ({ ...p, custom: [...p.custom, feed] }))}
-      />
-      <NewsletterDialog open={newsletterOpen} onClose={() => setNewsletterOpen(false)} />
-      <SavedDrawer open={savedOpen} onClose={() => setSavedOpen(false)} />
-      <ShortcutsOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
-    </>
+      />}
+      {newsletterOpen && <NewsletterDialog open={newsletterOpen} onClose={() => setNewsletterOpen(false)} />}
+      {savedOpen && <SavedDrawer open={savedOpen} onClose={() => setSavedOpen(false)} />}
+      {helpOpen && <ShortcutsOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />}
+      {paletteOpen && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />}
+    </ReadingProvider>
   );
 }
 

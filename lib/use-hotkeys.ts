@@ -37,7 +37,7 @@ const isTyping = (t: EventTarget | null) =>
 
 const columns = (): HTMLElement[] =>
   [...document.querySelectorAll<HTMLElement>("[data-feed-id]")].filter((el) =>
-    el.querySelector(".feed-scroll")
+    el.getClientRects().length > 0 && el.querySelector(".feed-scroll")
   );
 
 const cardsIn = (col: HTMLElement): HTMLElement[] => [
@@ -95,6 +95,7 @@ function clickIn(root: HTMLElement | null, selector: string) {
 export function useHotkeys(handlers: HotkeyHandlers) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (document.querySelector("dialog[open]")) return;
       if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
         handlers.onPalette();
