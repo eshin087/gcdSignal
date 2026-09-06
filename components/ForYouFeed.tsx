@@ -59,7 +59,7 @@ export default function ForYouFeed({
 
   const applyPending = () => {
     apply();
-    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    scrollRef.current?.scrollTo({ top: 0, behavior: "instant" });
   };
 
   const q = query.trim().toLowerCase();

@@ -20,6 +20,10 @@ theme) live in the browser's localStorage — no accounts, no database.
 
 ## Features
 
+See [how feed selection works](docs/feed-selection.md) for the Builder/Broad
+controls, Signal ranking, story groups, local personalization, caching, and
+verification commands.
+
 - **Categories** — Trending, Development, Security, Vibe Coding, Research,
   Industry. Switching re-queries every column with tuned per-source searches.
   Edit the mappings in [lib/categories.ts](lib/categories.ts).

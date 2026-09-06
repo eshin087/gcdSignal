@@ -70,7 +70,7 @@ export default function FeedColumn({
 
   const applyPending = () => {
     apply();
-    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    scrollRef.current?.scrollTo({ top: 0, behavior: "instant" });
   };
 
   // Pipeline: filter (search) → sort → reveal. Partitions never change

@@ -162,7 +162,7 @@ export default function TopTenColumn({
                   >
                     {story.title}
                   </a>
-                  <button className="action-button mt-2" onClick={() => read(story.members)}>{story.members.length} posts · {story.publishers.length} publishers / platforms →</button>
+                  <button className="action-button mt-2" onClick={() => read(story.members)}>{story.members.length} {story.members.length === 1 ? "post" : "posts"} · {story.publishers.length} {story.publishers.length === 1 ? "publisher / platform" : "publishers / platforms"} →</button>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[length:var(--fs-meta)]">
                     <span
                       className="inline-flex items-center gap-1.5"
@@ -172,7 +172,7 @@ export default function TopTenColumn({
                         <SourceIcon key={s} source={s} className="h-3 w-3" />
                       ))}
                     </span>
-                    {typeof story.comments === "number" && (
+                    {typeof story.comments === "number" && story.comments > 0 && (
                       <a
                         href={story.discussUrl ?? story.url}
                         target="_blank"

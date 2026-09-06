@@ -157,6 +157,7 @@ export default function FeedCard({
   return (
     <article
       data-item-key={itemKey}
+      data-related-keys={related?.length ? JSON.stringify(related.map(seenKey)) : undefined}
       tabIndex={-1}
       className={`card-enter card-glow group border-b border-black/[0.05] px-3 transition-[background-color,box-shadow] last:border-b-0 hover:bg-black/[0.03] focus:outline-none focus:ring-1 focus:ring-inset focus:ring-cyan-500/60 dark:border-white/[0.05] dark:hover:bg-white/[0.035] ${
         compact ? "py-1.5" : "py-2.5"

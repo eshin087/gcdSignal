@@ -56,6 +56,8 @@ export function useMarkObserver(
           if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
             const key = entry.target.getAttribute("data-item-key");
             if (key) keys.push(key);
+            const related = entry.target.getAttribute("data-related-keys");
+            if (related) { try { keys.push(...JSON.parse(related)); } catch { /* optional metadata */ } }
             io.unobserve(entry.target);
           }
         }
