@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useDialog } from "@/lib/use-dialog";
 import { XIcon } from "./icons";
 
 export default function Modal({
@@ -14,24 +14,13 @@ export default function Modal({
   title: string;
   children: React.ReactNode;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  const ref = useDialog(open);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={onClose} aria-hidden />
+    <dialog ref={ref} className="app-modal" aria-label={title} onCancel={onClose} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
         className="relative w-full max-w-sm rounded-xl border border-black/10 bg-white/90 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-[#141416]/90"
       >
         <header className="flex items-center justify-between px-4 pt-4">
@@ -46,6 +35,6 @@ export default function Modal({
         </header>
         <div className="p-4">{children}</div>
       </div>
-    </div>
+    </dialog>
   );
 }

@@ -2,11 +2,12 @@
 
 import { useSyncExternalStore } from "react";
 
-export type HealthStatus = "loading" | "ok" | "stale" | "error";
+export type HealthStatus = "idle" | "loading" | "ok" | "stale" | "error";
 
 export interface FeedHealth {
   status: HealthStatus;
   count: number;
+  fetchedAt?: string;
   /** When this status was last reported (ms epoch). */
   at: number;
 }
@@ -32,7 +33,7 @@ function subscribe(listener: () => void) {
 
 export function reportHealth(id: string, next: Omit<FeedHealth, "at">) {
   const prev = health.get(id);
-  if (prev && prev.status === next.status && prev.count === next.count) return;
+  if (prev && prev.status === next.status && prev.count === next.count && prev.fetchedAt === next.fetchedAt) return;
   health.set(id, { ...next, at: Date.now() });
   emit();
 }

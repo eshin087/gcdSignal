@@ -1,181 +1,98 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { cachedFeed, feedUrl, loadFeed } from "./feed-cache";
+import { clearHealth, reportHealth } from "./feed-health";
 import { getSeenSnapshot, seenKey } from "./use-seen";
-import type { CategoryId, FeedItem, VisibleFeed } from "./types";
+import type { CategoryId, FeedItem, FeedResponse, VisibleFeed } from "./types";
 
-export interface ForYouSource {
-  feedId: string;
-  label: string;
-  unseen: FeedItem[];
-  seenTail: FeedItem[];
-}
-
-export interface ForYouFailure {
-  label: string;
-  message: string;
-}
-
-interface Fetched {
-  id: string;
-  label: string;
-  items: FeedItem[];
-  stale: boolean;
-}
-
-interface Result {
-  key: string;
-  perSource: ForYouSource[];
-  failures: ForYouFailure[];
-  staleLabels: string[];
-}
-
-interface Pending {
-  key: string;
-  fetched: Fetched[];
-  failures: ForYouFailure[];
-  newCount: number;
-}
-
+export interface ForYouSource { feedId: string; label: string; custom: boolean; unseen: FeedItem[]; seenTail: FeedItem[] }
+export interface ForYouFailure { feedId: string; label: string; message: string }
+interface Result { key: string; perSource: ForYouSource[]; failures: ForYouFailure[]; staleLabels: string[] }
 const EMPTY_SOURCES: ForYouSource[] = [];
 const EMPTY_FAILURES: ForYouFailure[] = [];
 const EMPTY_STALE: string[] = [];
 
-function partition(key: string, fetched: Fetched[], failures: ForYouFailure[]): Result {
-  const seen = getSeenSnapshot();
-  const perSource: ForYouSource[] = [];
-  const staleLabels: string[] = [];
-  for (const f of fetched) {
-    const unseen: FeedItem[] = [];
-    const seenTail: FeedItem[] = [];
-    for (const item of f.items) {
-      (seen.has(seenKey(item)) ? seenTail : unseen).push(item);
-    }
-    perSource.push({ feedId: f.id, label: f.label, unseen, seenTail });
-    if (f.stale) staleLabels.push(f.label);
-  }
-  return { key, perSource, failures, staleLabels };
-}
-
-/**
- * Fetches every visible feed itself (same CDN-cached routes the deck uses, so
- * toggling views within 5 minutes is near-free) and partitions ALL sources
- * against ONE seen-snapshot — the doomscroll invariant holds across the mix.
- * Refresh-triggered results are held as pending while the reader is
- * mid-stream (`shouldHold`), surfaced as an "N new" pill; `apply()` swaps.
- */
-export function useForYou(
-  feeds: VisibleFeed[],
-  category: CategoryId,
-  refreshKey: number,
-  shouldHold?: () => boolean
-) {
-  const feedsKey = JSON.stringify(
-    feeds.map((f) => [f.id, f.source, f.label, f.params ?? {}, f.isCustom])
-  );
+export function useForYou(feeds: VisibleFeed[], category: CategoryId, refreshKey: number, shouldHold?: () => boolean) {
+  const feedsKey = JSON.stringify(feeds);
+  const base = category + "|" + feedsKey;
   const [attempt, setAttempt] = useState(0);
   const freshRef = useRef(false);
-  const base = `${feedsKey}|${category}`;
-  const triggerRef = useRef({ base: "", refreshKey: -1, attempt: -1 });
-  const requestKey = `${base}|${refreshKey}|${attempt}`;
-
   const [result, setResult] = useState<Result | null>(null);
-  const [pending, setPending] = useState<Pending | null>(null);
+  const [pending, setPending] = useState<Result | null>(null);
+  const displayed = useRef(result);
+  const hold = useRef(shouldHold);
+  useEffect(() => { displayed.current = result; hold.current = shouldHold; });
 
   useEffect(() => {
-    const ctrl = new AbortController();
-    const wantFresh = freshRef.current;
+    let alive = true;
+    const fresh = freshRef.current;
     freshRef.current = false;
-    const prev = triggerRef.current;
-    const isRefresh =
-      prev.base === base && prev.refreshKey !== refreshKey && prev.attempt === attempt;
-    triggerRef.current = { base, refreshKey, attempt };
-    const displayed = result;
-    const feedList = JSON.parse(feedsKey) as Array<
-      [string, string, string, Record<string, string>, boolean]
-    >;
-    (async () => {
-      const settled = await Promise.allSettled(
-        feedList.map(async ([id, source, label, params, isCustom]): Promise<Fetched> => {
-          const qs = new URLSearchParams({
-            // Custom feeds are pinned — same rule as FeedColumn.
-            category: isCustom ? "trending" : category,
-            ...params,
-          });
-          if (wantFresh) qs.set("fresh", "1");
-          const res = await fetch(`/api/feeds/${source}?${qs}`, { signal: ctrl.signal });
-          const data = (await res.json()) as {
-            items?: FeedItem[];
-            error?: string;
-            stale?: boolean;
-          };
-          if (!res.ok || data.error || !data.items) {
-            throw new Error(data.error ?? `HTTP ${res.status}`);
-          }
-          return { id, label, items: data.items, stale: Boolean(data.stale) };
-        })
-      );
-      if (ctrl.signal.aborted) return;
-
-      const fetched: Fetched[] = [];
-      const failures: ForYouFailure[] = [];
-      settled.forEach((r, i) => {
-        if (r.status === "fulfilled") fetched.push(r.value);
-        else {
-          failures.push({
-            label: feedList[i][2],
-            message: r.reason instanceof Error ? r.reason.message : "Fetch failed",
-          });
-        }
-      });
-
-      if (isRefresh && displayed && shouldHold?.()) {
-        const onScreen = new Set(
-          displayed.perSource.flatMap((s) => [...s.unseen, ...s.seenTail].map((it) => seenKey(it)))
-        );
-        const seen = getSeenSnapshot();
-        let newCount = 0;
-        for (const f of fetched) {
-          for (const it of f.items) {
-            const k = seenKey(it);
-            if (!onScreen.has(k) && !seen.has(k)) newCount++;
-          }
-        }
-        if (newCount > 0) {
-          setPending({ key: requestKey, fetched, failures, newCount });
-          return;
-        }
+    const feedList: VisibleFeed[] = JSON.parse(feedsKey);
+    const fetched = new Map<string, { feed: VisibleFeed; data: FeedResponse }>();
+    const failures = new Map<string, ForYouFailure>();
+    const seen = getSeenSnapshot();
+    const publish = () => {
+      if (!alive) return;
+      const next: Result = { key: base, perSource: [], failures: [...failures.values()], staleLabels: [] };
+      for (const feed of feedList) {
+        const data = fetched.get(feed.id)?.data;
+        if (!data) continue;
+        next.perSource.push({
+          feedId: feed.id, label: feed.label, custom: feed.isCustom,
+          unseen: data.items.filter((it) => !seen.has(seenKey(it))),
+          seenTail: data.items.filter((it) => seen.has(seenKey(it))),
+        });
+        if (data.stale) next.staleLabels.push(feed.label);
       }
-      setResult(partition(requestKey, fetched, failures));
-      setPending(null);
-    })();
-    return () => ctrl.abort();
-    // requestKey encodes every input; `result` is read once for the hold decision.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestKey]);
+      if (!fresh && displayed.current?.key === base && hold.current?.()) setPending(next);
+      else { setResult(next); setPending(null); }
+    };
+    for (const feed of feedList) {
+      const url = feedUrl(feed.source, feed.isCustom ? "trending" : category, feed.params);
+      const cached = cachedFeed<FeedResponse>(url);
+      if (cached) fetched.set(feed.id, { feed, data: cached });
+      reportHealth(feed.id, { status: cached ? cached.stale ? "stale" : "ok" : "loading", count: cached?.items.length ?? 0, fetchedAt: cached?.fetchedAt });
+    }
+    void Promise.resolve().then(() => { if (fetched.size || !feedList.length) publish(); });
+    // Each source publishes independently: no all-sources loading barrier.
+    for (const feed of feedList) {
+      const url = feedUrl(feed.source, feed.isCustom ? "trending" : category, feed.params);
+      void loadFeed<FeedResponse>(url, fresh).then((data) => {
+        if (!alive) return;
+        fetched.set(feed.id, { feed, data });
+        failures.delete(feed.id);
+        reportHealth(feed.id, { status: data.stale ? "stale" : "ok", count: data.items.length, fetchedAt: data.fetchedAt });
+        publish();
+      }).catch((error) => {
+        if (!alive) return;
+        failures.set(feed.id, { feedId: feed.id, label: feed.label, message: error instanceof Error ? error.message : "Fetch failed" });
+        reportHealth(feed.id, { status: "error", count: 0 });
+        publish();
+      });
+    }
+    return () => { alive = false; for (const feed of feedList) clearHealth(feed.id); };
+  }, [base, feedsKey, category, refreshKey, attempt]);
 
-  const holding = pending?.key === requestKey;
-  const current = result && (result.key === requestKey || holding) ? result : null;
-  const perSource = current?.perSource ?? EMPTY_SOURCES;
-  const failures = current?.failures ?? EMPTY_FAILURES;
-  const staleLabels = current?.staleLabels ?? EMPTY_STALE;
-  const status: "loading" | "ok" | "error" = !current
-    ? "loading"
-    : perSource.length
-      ? "ok"
-      : "error";
-  const pendingCount = holding ? pending.newCount : 0;
-
-  const refetch = useCallback((fresh = false) => {
-    freshRef.current = fresh;
-    setAttempt((a) => a + 1);
-  }, []);
-
+  const current = result?.key === base ? result : null;
+  const parked = pending?.key === base ? pending : null;
+  const oldKeys = new Set(current?.perSource.flatMap((s) => [...s.unseen, ...s.seenTail].map(seenKey)));
+  const pendingCount = parked?.perSource.flatMap((s) => s.unseen).filter((it) => !oldKeys.has(seenKey(it))).length ?? 0;
+  const refetch = useCallback((fresh = false) => { freshRef.current = fresh; setAttempt((a) => a + 1); }, []);
   const apply = useCallback(() => {
     if (!pending) return;
-    setResult(partition(pending.key, pending.fetched, pending.failures));
+    const seen = getSeenSnapshot();
+    setResult({ ...pending, perSource: pending.perSource.map((s) => {
+      const all = [...s.unseen, ...s.seenTail];
+      return { ...s, unseen: all.filter((it) => !seen.has(seenKey(it))), seenTail: all.filter((it) => seen.has(seenKey(it))) };
+    }) });
     setPending(null);
   }, [pending]);
-
-  return { perSource, failures, staleLabels, status, pendingCount, apply, refetch, requestKey };
+  return {
+    perSource: current?.perSource ?? EMPTY_SOURCES,
+    failures: current?.failures ?? EMPTY_FAILURES,
+    staleLabels: current?.staleLabels ?? EMPTY_STALE,
+    status: !current ? "loading" as const : current.perSource.length || !feeds.length ? "ok" as const : current.failures.length === feeds.length ? "error" as const : "loading" as const,
+    pendingCount, apply, refetch, requestKey: base,
+  };
 }
