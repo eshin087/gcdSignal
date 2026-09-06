@@ -17,15 +17,7 @@ export type CategoryId =
   | "industry";
 
 export type TextScale = "sm" | "md" | "lg" | "xl";
-export type SortMode = "hot" | "new" | "top" | "discussed" | "signal";
-export type ContentMode = "builder" | "broad";
-export type ContentKind = "Release" | "Tool" | "Tutorial" | "Research" | "Security" | "Discussion" | "Commentary";
-export interface Curation {
-  kind: ContentKind;
-  topics: CategoryId[];
-  reasons: string[];
-  builder: boolean;
-}
+export type SortMode = "hot" | "new" | "top" | "discussed";
 export type ViewMode = "deck" | "foryou";
 export type Density = "comfortable" | "compact";
 
@@ -53,14 +45,13 @@ export interface FeedItem {
   readMinutes?: number;
   /** Video length in seconds (YouTube API path only). */
   durationSec?: number;
-  curation?: Curation;
 }
 
 export interface FeedResponse {
   source: SourceId;
   items: FeedItem[];
   fetchedAt: string;
-  /** True for an older client cache or a last-good result after a failed fetch. */
+  /** True when the live fetch failed and this is a remembered last-good result. */
   stale?: boolean;
   /** Set (with empty items) when the fetch failed and nothing cached could stand in —
    *  delivered as a cacheable 200 so a dead source doesn't hit the server per load. */
@@ -76,11 +67,7 @@ export interface CustomFeed {
 }
 
 export interface Prefs {
-  v: 6;
-  contentMode: ContentMode;
-  followedTopics: CategoryId[];
-  mutedAuthors: string[];
-  mutedOutlets: string[];
+  v: 5;
   category: CategoryId;
   /** Hidden feed ids (built-in SourceIds, panel ids, or custom ids). */
   hidden: string[];
@@ -129,8 +116,6 @@ export interface BriefStory {
   /** Newest member timestamp (ISO). */
   timestamp: string;
   thumbnail?: string;
-  members?: FeedItem[];
-  publishers?: string[];
 }
 
 export interface BriefResponse {

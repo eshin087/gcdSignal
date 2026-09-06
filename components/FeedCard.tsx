@@ -9,7 +9,6 @@ import { toggleSaved, useSavedKeys } from "@/lib/use-saved";
 import type { FeedItem, SourceId } from "@/lib/types";
 import { BookmarkIcon, CheckIcon, ClockIcon, CommentIcon, ShareIcon } from "./icons";
 import SourceIcon from "./SourceIcon";
-import { useReading } from "./ReadingContext";
 
 const SCORE_GLYPH: Record<SourceId, string> = {
   reddit: "▲",
@@ -92,17 +91,12 @@ function Thumb({ src, compact }: { src: string; compact: boolean }) {
 export default function FeedCard({
   item,
   showSource = false,
-  related,
-  preview = true,
 }: {
   item: FeedItem;
   /** Show which feed the card came from (used in the mixed For You stream). */
   showSource?: boolean;
-  related?: FeedItem[];
-  preview?: boolean;
 }) {
   const savedKeys = useSavedKeys();
-  const read = useReading();
   const { prefs } = usePrefs();
   const compact = prefs.density === "compact";
   const itemKey = seenKey(item);
@@ -179,8 +173,8 @@ export default function FeedCard({
             </span>
           )}
 
-          {item.excerpt && (!compact || !preview) && (
-            <p className={`mt-1 ${preview ? "line-clamp-2" : ""} text-[length:var(--fs-excerpt)] leading-relaxed text-zinc-600 dark:text-zinc-400`}>
+          {item.excerpt && !compact && (
+            <p className="mt-1 line-clamp-2 text-[length:var(--fs-excerpt)] leading-relaxed text-zinc-500">
               {item.excerpt}
             </p>
           )}
@@ -193,7 +187,6 @@ export default function FeedCard({
           compact ? "mt-1" : "mt-2"
         }`}
       >
-        {preview && <button onClick={() => read(related ?? [item])} className="min-h-8 rounded-md border border-cyan-500/20 px-2 text-xs text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300" aria-label={`Preview ${item.title}`}>{related && related.length > 1 ? `${related.length} related items` : item.curation?.kind ?? "Preview"} ↗</button>}
         {showSource && (
           <span className="mr-0.5 inline-flex items-center gap-1">
             <SourceIcon source={item.source} className="h-3 w-3" />

@@ -34,8 +34,6 @@ export default function ColumnDeck({
   onReorder: (dragId: string, targetId: string, side: DropSide) => void;
 }) {
   const deckRef = useRef<HTMLDivElement>(null);
-  const [focusId, setFocusId] = useState<string | null>(null);
-  const focused = items.some((it) => it.id === focusId) ? focusId : null;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: string; side: DropSide } | null>(null);
@@ -59,7 +57,6 @@ export default function ColumnDeck({
   }, [items]);
 
   const jumpTo = (id: string) => {
-    if (focused) { setFocusId(id); return; }
     const el = deckRef.current?.querySelector(`[data-feed-id="${id}"]`);
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     el?.scrollIntoView({
@@ -68,15 +65,6 @@ export default function ColumnDeck({
       block: "nearest",
     });
   };
-
-  useEffect(() => {
-    if (!focused) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !document.querySelector("dialog[open]")) setFocusId(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [focused]);
 
   const clearDrag = () => {
     setDragId(null);
@@ -117,7 +105,7 @@ export default function ColumnDeck({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Mobile source chips */}
-      <div className={`flex shrink-0 gap-1.5 overflow-x-auto border-b border-black/[0.06] px-3 py-2 ${focused ? "" : "md:hidden"} dark:border-white/[0.06]`}>
+      <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-black/[0.06] px-3 py-2 md:hidden dark:border-white/[0.06]">
         {items.map((it) => (
           <button
             key={it.id}
@@ -139,9 +127,9 @@ export default function ColumnDeck({
       <div
         ref={deckRef}
         onWheel={onGutterWheel}
-        className="deck-scroll flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto scroll-smooth md:snap-none"
+        className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto scroll-smooth md:snap-none"
       >
-        <div className={`mx-auto flex h-full gap-0 md:gap-3 md:px-3 md:py-3 ${focused ? "w-full max-w-4xl" : "min-w-max"}`}>
+        <div className="mx-auto flex h-full min-w-max gap-0 md:gap-3 md:px-3 md:py-3">
           {items.map((it) => {
             const showDrop = dropTarget?.id === it.id && dragId !== null && dragId !== it.id;
             return (
@@ -166,8 +154,7 @@ export default function ColumnDeck({
                   }
                   clearDrag();
                 }}
-                style={focused && focused !== it.id ? { display: "none" } : undefined}
-                className={`relative flex flex-col min-h-0 flex-none snap-center transition-opacity ${focused ? "w-full" : "w-screen md:w-[340px] xl:w-[360px]"} ${
+                className={`relative flex min-h-0 w-screen flex-none snap-center transition-opacity md:w-[340px] xl:w-[360px] ${
                   dragId === it.id ? "opacity-40" : ""
                 }`}
               >
@@ -179,8 +166,6 @@ export default function ColumnDeck({
                     }`}
                   />
                 )}
-                <button className="min-h-8 shrink-0 rounded-t-md text-xs text-zinc-600 hover:text-cyan-700 dark:text-zinc-400" aria-pressed={focused === it.id} onClick={() => setFocusId(focused ? null : it.id)}>{focused ? "← Back to deck" : `Focus ${itemLabel(it)} ↗`}</button>
-                <DeferredColumn label={itemLabel(it)}>
                 {it.kind === "panel" ? (
                   <TopTenColumn refreshKey={refreshKey} dragHandleProps={dragHandleProps(it.id)} />
                 ) : (
@@ -193,7 +178,6 @@ export default function ColumnDeck({
                     dragHandleProps={dragHandleProps(it.id)}
                   />
                 )}
-                </DeferredColumn>
               </div>
             );
           })}
@@ -201,23 +185,4 @@ export default function ColumnDeck({
       </div>
     </div>
   );
-}
-
-/** Mount near the horizontal viewport once; keep mounted to preserve reading position. */
-function DeferredColumn({ label, children }: { label: string; children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        setMounted(true);
-        observer.disconnect();
-      }
-    }, { root: el.closest(".deck-scroll"), rootMargin: "0px 360px", threshold: 0 });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-  return <div ref={ref} className="flex min-h-0 flex-1">{mounted ? children : <div className="w-full p-4 text-xs text-zinc-500">{label} · loads when nearby</div>}</div>;
 }

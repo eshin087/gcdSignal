@@ -1,6 +1,6 @@
 "use client";
 
-import { useDialog } from "@/lib/use-dialog";
+import { useEffect } from "react";
 import {
   BUILT_IN_FEEDS,
   deckKnownIds,
@@ -34,7 +34,14 @@ export default function SettingsDrawer({
   setPrefs: (update: (p: Prefs) => Prefs) => void;
   onAddFeed: () => void;
 }) {
-  const ref = useDialog(open);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
 
   const seenCount = useSeenCount();
 
@@ -73,8 +80,19 @@ export default function SettingsDrawer({
     });
 
   return (
-    <dialog ref={ref} className="reader-dialog" aria-label="Feed settings" onCancel={onClose} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="flex h-full min-h-0 flex-col">
+    <div className={open ? "fixed inset-0 z-40" : "pointer-events-none fixed inset-0 z-40"}>
+      <div
+        className={`absolute inset-0 bg-black/40 transition-opacity ${open ? "opacity-100" : "opacity-0"}`}
+        onClick={onClose}
+        aria-hidden
+      />
+      <aside
+        role="dialog"
+        aria-label="Feed settings"
+        className={`absolute right-0 top-0 h-full w-80 max-w-[85vw] border-l border-black/10 bg-white/95 shadow-2xl backdrop-blur-xl transition-transform duration-200 dark:border-white/10 dark:bg-[#101013]/95 ${
+          open ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
         <header className="flex h-12 items-center justify-between border-b border-black/[0.07] px-4 dark:border-white/[0.07]">
           <h2 className="text-sm font-semibold">Feeds</h2>
           <button
@@ -174,7 +192,7 @@ export default function SettingsDrawer({
             Clear seen history ({seenCount})
           </button>
         </div>
-      </div>
-    </dialog>
+      </aside>
+    </div>
   );
 }

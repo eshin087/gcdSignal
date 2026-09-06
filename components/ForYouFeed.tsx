@@ -1,9 +1,6 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import { selectItems } from "@/lib/curation";
-import { groupStories } from "@/lib/stories";
-import { usePrefs } from "@/lib/use-prefs";
 import { sortItems } from "@/lib/sort";
 import { useForYou } from "@/lib/use-foryou";
 import { usePullToRefresh } from "@/lib/use-pull";
@@ -45,7 +42,6 @@ export default function ForYouFeed({
   sortMode: SortMode;
   query: string;
 }) {
-  const { prefs, setPrefs } = usePrefs();
   const scrollRef = useRef<HTMLDivElement>(null);
   const { perSource, failures, staleLabels, status, pendingCount, apply, refetch, requestKey } =
     useForYou(feeds, category, refreshKey, () => (scrollRef.current?.scrollTop ?? 0) > HOLD_SCROLL_PX);
@@ -65,15 +61,15 @@ export default function ForYouFeed({
   const q = query.trim().toLowerCase();
   const searching = q !== "";
 
-  const { unseenMix, seenMix, coverage } = useMemo(() => {
+  const { unseenMix, seenMix } = useMemo(() => {
     const m = (it: FeedItem) =>
       !q || `${it.title} ${it.excerpt ?? ""} ${it.sourceMeta ?? ""}`.toLowerCase().includes(q);
     // Cross-source scores are incomparable (reddit votes vs youtube views), so
     // hot/top/discussed rank per source then round-robin by deck order. "New"
     // uses real timestamps, which ARE comparable — sort globally post-merge.
     const perMode = sortMode === "new" ? "hot" : sortMode;
-    const uLists = perSource.map((s) => sortItems(selectItems(s.unseen, prefs, category, s.custom).filter(m), perMode, prefs.followedTopics));
-    const sLists = perSource.map((s) => sortItems(selectItems(s.seenTail, prefs, category, s.custom).filter(m), perMode, prefs.followedTopics));
+    const uLists = perSource.map((s) => sortItems(s.unseen.filter(m), perMode));
+    const sLists = perSource.map((s) => sortItems(s.seenTail.filter(m), perMode));
     let u = roundRobin(uLists);
     let sn = roundRobin(sLists);
     if (sortMode === "new") {
@@ -82,19 +78,8 @@ export default function ForYouFeed({
       u = [...u].sort(byTime);
       sn = [...sn].sort(byTime);
     }
-    if (sortMode === "signal") {
-      u = sortItems(u, "signal", prefs.followedTopics);
-      sn = sortItems(sn, "signal", prefs.followedTopics);
-    }
-    const unseenKeys = new Set(u.map((it) => `${it.source}:${it.id}`));
-    const groups = groupStories([...u, ...sn]);
-    const coverage = new Map(groups.map((g) => [`${g[0].source}:${g[0].id}`, g]));
-    return {
-      unseenMix: groups.filter((g) => unseenKeys.has(`${g[0].source}:${g[0].id}`)).map((g) => g[0]),
-      seenMix: groups.filter((g) => !unseenKeys.has(`${g[0].source}:${g[0].id}`)).map((g) => g[0]),
-      coverage,
-    };
-  }, [perSource, sortMode, q, prefs, category]);
+    return { unseenMix: u, seenMix: sn };
+  }, [perSource, sortMode, q]);
 
   const total = unseenMix.length + seenMix.length;
   const { revealed, fullyRevealed, sentinelRef } = useProgressiveReveal(requestKey, total, PAGE);
@@ -161,7 +146,6 @@ export default function ForYouFeed({
             </p>
           )}
 
-          {status === "ok" && total < 5 && prefs.contentMode === "builder" && !searching && <div className="px-4 py-3 text-xs">Fewer builder matches here. <button className="action-button" onClick={() => setPrefs((p) => ({ ...p, contentMode: "broad" }))}>Explore Broad</button></div>}
           {status === "ok" && total === 0 && (
             <p className="px-4 py-12 text-center text-xs text-zinc-500">
               {searching ? "No matches." : "Nothing new right now — try refreshing."}
@@ -180,7 +164,7 @@ export default function ForYouFeed({
           )}
 
           {status === "ok" &&
-            shownUnseen.map((item) => <FeedCard key={`${item.source}:${item.id}`} item={item} related={coverage.get(`${item.source}:${item.id}`)} showSource />)}
+            shownUnseen.map((item) => <FeedCard key={item.id} item={item} showSource />)}
 
           {status === "ok" && shownUnseen.length > 0 && shownSeen.length > 0 && (
             <div className="flex items-center gap-2 px-3 py-2" aria-label="Previously seen items">
@@ -193,7 +177,7 @@ export default function ForYouFeed({
           )}
 
           {status === "ok" &&
-            shownSeen.map((item) => <FeedCard key={`${item.source}:${item.id}`} item={item} related={coverage.get(`${item.source}:${item.id}`)} showSource />)}
+            shownSeen.map((item) => <FeedCard key={item.id} item={item} showSource />)}
 
           {status === "ok" && !showAll && <div ref={sentinelRef} className="h-px" />}
 
