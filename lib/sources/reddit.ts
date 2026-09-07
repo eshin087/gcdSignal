@@ -9,6 +9,7 @@ import {
   USER_AGENT,
 } from "../fetch-helpers";
 import type { FeedItem } from "../types";
+import { attachHealth, healthDetail } from "../source-health";
 
 interface RedditPost {
   id: string;
@@ -109,7 +110,8 @@ export async function fetchReddit(
     seen.add(it.id);
     return true;
   });
-  return diversify(applyGates(deduped, gates));
+  return attachHealth(diversify(applyGates(deduped, gates)), results.map((result, i) =>
+    healthDetail(`Reddit ${multis[i]}`, result.status === "fulfilled" ? "ok" : "error")));
 }
 
 /** OAuth (if creds) → HTML scrape (real scores, no key) → Atom fallback

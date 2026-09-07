@@ -13,14 +13,14 @@ const KEY = "gcdsignal:prefs";
 const V1_DEFAULT_HIDDEN = ["fourchan", "papers"];
 
 /** Built-ins that start hidden — full coverage is one Settings toggle away. */
-const DEFAULT_HIDDEN: string[] = ["github", "papers", "fourchan"];
+const DEFAULT_HIDDEN: string[] = ["top10", "github", "papers", "fourchan"];
 
 const isTextScale = (v: unknown): v is TextScale =>
   v === "sm" || v === "md" || v === "lg" || v === "xl";
 
 export const DEFAULT_PREFS: Prefs = {
-  v: 6,
-  contentMode: "builder",
+  v: 7,
+  contentMode: "broad",
   followedTopics: [],
   mutedAuthors: [],
   mutedOutlets: [],
@@ -30,7 +30,7 @@ export const DEFAULT_PREFS: Prefs = {
   refreshMs: DEFAULT_REFRESH_MS,
   textScale: "md",
   sortMode: "signal",
-  view: "deck",
+  view: "brief",
   order: DEFAULT_ORDER,
   density: "comfortable",
 };
@@ -49,12 +49,11 @@ function isCustomFeed(x: unknown): x is CustomFeed {
   );
 }
 
-function load(): Prefs {
+export function parsePrefs(raw: string | null): Prefs {
   try {
-    const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULT_PREFS;
     const p = JSON.parse(raw) as Omit<Partial<Prefs>, "v"> & { v?: number };
-    if (typeof p?.v !== "number" || p.v < 1 || p.v > 6) return DEFAULT_PREFS;
+    if (typeof p?.v !== "number" || p.v < 1 || p.v > 7) return DEFAULT_PREFS;
     let hidden = Array.isArray(p.hidden)
       ? p.hidden.filter((x): x is string => typeof x === "string")
       : [];
@@ -68,9 +67,10 @@ function load(): Prefs {
     if (p.v <= 3) hidden = [...new Set([...hidden.filter((h) => h !== "fourchan"), "github"])];
     // v4 → v5: 4chan leaves the default deck again (Momentum takes its slot).
     if (p.v <= 4) hidden = [...new Set([...hidden, "fourchan"])];
+    if (p.v < 7) hidden = [...new Set([...hidden, "top10"])];
     return {
-      v: 6,
-      contentMode: p.contentMode === "broad" ? "broad" : "builder",
+      v: 7,
+      contentMode: p.v === 7 && p.contentMode === "builder" ? "builder" : "broad",
       followedTopics: Array.isArray(p.followedTopics) ? [...new Set(p.followedTopics.filter((t) => typeof t === "string" && Object.hasOwn(CATEGORIES, t) && t !== "trending"))] : [],
       mutedAuthors: Array.isArray(p.mutedAuthors) ? p.mutedAuthors.filter((s): s is string => typeof s === "string").slice(0, 200) : [],
       mutedOutlets: Array.isArray(p.mutedOutlets) ? p.mutedOutlets.filter((s): s is string => typeof s === "string").slice(0, 200) : [],
@@ -79,8 +79,8 @@ function load(): Prefs {
       custom: Array.isArray(p.custom) ? p.custom.filter(isCustomFeed) : [],
       refreshMs: isValidRefreshMs(p.refreshMs) ? p.refreshMs : DEFAULT_REFRESH_MS,
       textScale: isTextScale(p.textScale) ? p.textScale : "md",
-      sortMode: isSortMode(p.sortMode) ? p.sortMode : "hot",
-      view: p.view === "foryou" ? "foryou" : "deck",
+      sortMode: isSortMode(p.sortMode) ? p.sortMode : "signal",
+      view: p.v === 7 && (p.view === "deck" || p.view === "library") ? p.view : "brief",
       order: Array.isArray(p.order)
         ? p.order.filter((x): x is string => typeof x === "string")
         : DEFAULT_ORDER,
@@ -89,6 +89,10 @@ function load(): Prefs {
   } catch {
     return DEFAULT_PREFS;
   }
+}
+
+function load(): Prefs {
+  try { return parsePrefs(localStorage.getItem(KEY)); } catch { return DEFAULT_PREFS; }
 }
 
 // localStorage-backed external store. The cache keeps getSnapshot referentially

@@ -2,10 +2,10 @@ import type { BriefResponse, FeedResponse } from "./types";
 
 type Payload = FeedResponse | BriefResponse;
 interface Entry { data: Payload; at: number }
-const KEY = "gcdsignal:feed-cache:v1";
+const KEY = "gcdsignal:feed-cache:v2";
 const MAX_ENTRIES = 24;
 const TTL = 24 * 3600000;
-const FRESH_MS = 60000;
+const FRESH_MS = 300000;
 const memory = new Map<string, Entry>();
 const inflight = new Map<string, Promise<Payload>>();
 let hydrated = false;
@@ -55,12 +55,12 @@ export function loadFeed<T extends Payload>(url: string, fresh = false): Promise
   hydrate();
   const entry = memory.get(url);
   if (!fresh && entry && !entry.data.stale && Date.now() - entry.at < FRESH_MS) return Promise.resolve(entry.data as T);
-  const key = `${url}|${fresh}`;
+  const key = url;
   const existing = inflight.get(key);
   if (existing) return existing as Promise<T>;
   const task = (async () => {
     try {
-      const response = await fetch(`${url}${fresh ? `${url.includes("?") ? "&" : "?"}fresh=1` : ""}`, { signal: AbortSignal.timeout(30000) });
+      const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
       const data = await response.json();
       if (!response.ok || data.error || (!Array.isArray(data.items) && !Array.isArray(data.top10))) throw new Error(data.error ?? `HTTP ${response.status}`);
       remember(url, data);

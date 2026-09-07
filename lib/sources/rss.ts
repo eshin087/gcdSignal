@@ -1,7 +1,9 @@
 import Parser from "rss-parser";
-import { fetchText, makeMatcher, stripHtml, truncate } from "../fetch-helpers";
+import { makeMatcher, stripHtml, truncate } from "../fetch-helpers";
 import { AI_TERMS } from "../categories";
 import type { CategoryId, FeedItem } from "../types";
+import { readCachedRssDocument, readRssDocument } from "../rss-fetch";
+import { attachHealth, healthDetail, sourceHealth } from "../source-health";
 
 export interface RssFeedDef {
   label: string;
@@ -15,6 +17,7 @@ export interface RssFeedDef {
 }
 
 export const RSS_FEEDS: RssFeedDef[] = [
+  { label: "OpenAI", url: "https://openai.com/news/rss.xml" },
   { label: "TechCrunch AI", url: "https://techcrunch.com/category/artificial-intelligence/feed/" },
   { label: "The Verge AI", url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml" },
   { label: "Ars Technica AI", url: "https://arstechnica.com/ai/feed/" },
@@ -26,7 +29,7 @@ export const RSS_FEEDS: RssFeedDef[] = [
   { label: "ZDNet AI", url: "https://www.zdnet.com/topic/artificial-intelligence/rss.xml" },
   { label: "IEEE Spectrum", url: "https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss" },
   { label: "Hugging Face", url: "https://huggingface.co/blog/feed.xml" },
-  { label: "Google AI", url: "https://blog.google/technology/ai/rss/" },
+  { label: "Google AI", url: "https://blog.google/innovation-and-ai/technology/ai/rss/" },
   {
     label: "404 Media",
     url: "https://www.404media.co/rss/",
@@ -54,6 +57,13 @@ export const isSiteWideOutlet = (label: string): boolean => SITE_WIDE_LABELS.has
 // Custom fields expose media thumbnails (attrs land under `$` in rss-parser)
 // and full article bodies (content:encoded) for read-time estimation.
 const parser = new Parser({
+  xml2js: {
+    // rss-parser calls toISOString directly for Atom dates. Neutralize an
+    // invalid date before that call so only this entry is dropped by recency.
+    valueProcessors: [(value: string, name: string) =>
+      (name === "published" || name === "updated") && !Number.isFinite(Date.parse(value))
+        ? "1970-01-01T00:00:00.000Z" : value],
+  },
   customFields: {
     item: [
       ["media:content", "mediaContent", { keepArray: true }],
@@ -66,6 +76,27 @@ const parser = new Parser({
 const READ_WPM = 225;
 /** Below this the feed only carries a summary — a read-time would be a lie. */
 const MIN_FULLTEXT_WORDS = 120;
+
+/** Publishers may emit structured Atom authors inside RSS (Google does). */
+export function normalizeRssAuthor(value: unknown, depth = 0): string | undefined {
+  if (depth > 3) return undefined;
+  if (typeof value === "string") return value.trim() ? truncate(stripHtml(value).trim(), 120) || undefined : undefined;
+  if (Array.isArray(value)) {
+    for (const entry of value.slice(0, 4)) {
+      const author = normalizeRssAuthor(entry, depth + 1);
+      if (author) return author;
+    }
+    return undefined;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["name", "_", "_text", "#text"]) {
+      const author = normalizeRssAuthor(record[key], depth + 1);
+      if (author) return author;
+    }
+  }
+  return undefined;
+}
 
 function estimateReadMinutes(item: { contentEncoded?: string; content?: string }): number | undefined {
   const enc = item.contentEncoded ?? "";
@@ -99,7 +130,7 @@ function extractThumbnail(item: {
       candidates.push(mc.$.url);
     }
   }
-  return candidates.find((c) => typeof c === "string" && c.startsWith("https://"));
+  return candidates.find((c) => typeof c === "string" && c.length <= 2048 && c.startsWith("https://"));
 }
 
 export async function fetchRss(
@@ -117,40 +148,41 @@ export async function fetchRss(
   const feeds: RssFeedDef[] = url
     ? [{ label: "", url }]
     : RSS_FEEDS.filter((f) => !f.categories || (category && f.categories.includes(category as CategoryId)));
+  const matches = makeMatcher(keywords);
   const results = await Promise.allSettled(
     feeds.map(async (f): Promise<FeedItem[]> => {
-      // Fetch ourselves (Next data cache + timeout), then parse — parseURL would bypass both.
-      const xml = await fetchText(f.url, {
-        timeoutMs: 6000,
-        revalidate: fresh ? 0 : undefined,
-        headers: { Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, */*" },
-      });
+      // Every publisher uses pinned DNS/validated redirects. Only curated URLs
+      // occupy Next's persistent cache; custom URLs use bounded route caching.
+      const { xml, fetchedAt } = await (url || fresh ? readRssDocument(f.url) : readCachedRssDocument(f.url));
+      if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error("Unsupported feed document");
       const parsed = await parser.parseString(xml);
-      const feedLabel = f.label || parsed.title || new URL(f.url).hostname;
+      const feedLabel = truncate(f.label || parsed.title || new URL(f.url).hostname, 120);
       const feedFilter = makeMatcher(f.keywords ?? []);
-      return (parsed.items ?? [])
-        .filter((item) => item.title && item.link?.startsWith("http"))
-        .filter((item) => feedFilter(item.title ?? "", item.contentSnippet ?? ""))
-        // Sort by date BEFORE capping — some feeds return hundreds of items in
-        // arbitrary document order.
-        .sort((a, b) => Date.parse(b.isoDate ?? b.pubDate ?? "") - Date.parse(a.isoDate ?? a.pubDate ?? ""))
+      const items: FeedItem[] = (parsed.items ?? [])
+        .filter((item) => item.title && item.link && item.link.length <= 2048 && /^https?:\/\//i.test(item.link))
+        .map((item) => ({ item, time: Date.parse(item.isoDate ?? item.pubDate ?? ""), excerpt: stripHtml(item.contentSnippet ?? item.content ?? "") }))
+        // Apply topic and date validity before the outlet cap. A publisher's
+        // newer unrelated stories must not hide its older relevant coverage.
+        .filter(({ item, time, excerpt }) => Number.isFinite(time) &&
+          feedFilter(item.title ?? "", excerpt) && matches(item.title ?? "", excerpt))
+        .sort((a, b) => b.time - a.time)
         .slice(0, 8)
-        .map((item) => {
-          const excerpt = stripHtml(item.contentSnippet ?? item.content ?? "");
-          const ts = item.isoDate ?? (item.pubDate ? new Date(item.pubDate).toISOString() : "");
+        .map(({ item, time, excerpt }) => {
           return {
-            id: `rss:${item.guid ?? item.link}`,
+            id: `rss:${String(item.guid ?? item.link).slice(0, 2048)}`,
             source: "rss" as const,
-            title: (item.title ?? "").trim(),
+            title: truncate((item.title ?? "").trim(), 500),
             url: item.link as string,
             thumbnail: extractThumbnail(item as Parameters<typeof extractThumbnail>[0]),
-            author: item.creator ?? undefined,
-            timestamp: ts || new Date(0).toISOString(),
+            author: normalizeRssAuthor(item.creator) ?? normalizeRssAuthor((item as { author?: unknown }).author),
+            timestamp: new Date(time).toISOString(),
             excerpt: excerpt ? truncate(excerpt, 280) : undefined,
             sourceMeta: feedLabel,
             readMinutes: estimateReadMinutes(item as { contentEncoded?: string; content?: string }),
           };
         });
+      const status = Date.now() - Date.parse(fetchedAt) >= 300_000 ? "stale" : "ok";
+      return attachHealth(items, [{ ...healthDetail(feedLabel, status, fetchedAt), checkedAt: fetchedAt, lastSuccessAt: fetchedAt }]);
     })
   );
   const fulfilled = results.filter(
@@ -163,7 +195,6 @@ export async function fetchRss(
     );
   }
 
-  const matches = makeMatcher(keywords);
   const seen = new Set<string>();
   const floor = Date.now() - 7 * 86400_000; // recency floor — round-robin must not resurrect stale posts
   const candidates = fulfilled
@@ -171,7 +202,7 @@ export async function fetchRss(
     .filter((item) => {
       if (seen.has(item.url)) return false;
       seen.add(item.url);
-      return Date.parse(item.timestamp) > floor && matches(item.title, item.excerpt ?? "");
+      return Date.parse(item.timestamp) > floor;
     });
 
   // Round-robin by outlet so high-frequency publishers can't crowd out the
@@ -201,5 +232,7 @@ export async function fetchRss(
       if (out.length >= 100) break;
     }
   }
-  return out;
+  return attachHealth(out, results.flatMap((result, i) => result.status === "fulfilled"
+    ? sourceHealth(result.value, feeds[i].label || "Custom RSS").details ?? []
+    : [healthDetail(feeds[i].label || "Custom RSS", "error")]));
 }

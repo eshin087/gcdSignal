@@ -34,7 +34,7 @@ export default function TopTenColumn({
   const manualRefresh = () => {
     if (Date.now() < cooldownRef.current || status === "loading") return;
     cooldownRef.current = Date.now() + MANUAL_COOLDOWN_MS;
-    refetch(true);
+    refetch();
   };
 
   const stories = (data?.top10 ?? []).flatMap((story) => {
@@ -124,7 +124,7 @@ export default function TopTenColumn({
             <p className="mb-1 font-medium">Couldn&apos;t build today&apos;s Top 10.</p>
             <p className="break-all font-mono text-[10px] opacity-60">{error}</p>
             <button
-              onClick={() => refetch(true)}
+              onClick={() => refetch()}
               className="mt-2 rounded-md border border-black/10 px-2.5 py-1 text-[11px] font-medium text-zinc-700 transition-colors hover:border-cyan-500/50 hover:text-cyan-600 dark:border-white/15 dark:text-zinc-300 dark:hover:border-cyan-400/50 dark:hover:text-cyan-300"
             >
               Retry

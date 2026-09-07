@@ -24,7 +24,8 @@ test("Builder, Broad, and topic gates are distinct", () => {
   assert.equal(classify(security).kind, "Security");
   assert.equal(classify(chatter).builder, false);
   assert.deepEqual(selectItems([tutorial, security, chatter], prefs, "development").map((i) => i.id), ["guide"]);
-  assert.equal(selectItems([tutorial, chatter], { ...prefs, contentMode: "broad" }, "development").length, 2);
+  assert.equal(selectItems([tutorial, chatter], { ...prefs, contentMode: "broad" }, "development").length, 1);
+  assert.equal(selectItems([tutorial, chatter], { ...prefs, contentMode: "broad" }, "trending").length, 2);
   assert.equal(selectItems([chatter], prefs, "security", true).length, 1);
 });
 test("explicit author and outlet mutes apply even to custom feeds", () => {
@@ -61,9 +62,9 @@ test("same-event headlines group without merging versions or homepages", () => {
   assert.equal(sameEvent(item("a", "Unrelated carbon project", { url: "https://example.com/" }), item("b", "Different forest initiative", { url: "https://example.com/" })), false);
 });
 test("story grouping does not chain through a bridge headline", () => {
-  const a = item("a", "Alpha beta gamma delta epsilon");
-  const b = item("b", "Alpha beta gamma theta lambda");
-  const c = item("c", "Gamma theta lambda sigma omega");
+  const a = item("a", "Alpha beta gamma delta epsilon zeta");
+  const b = item("b", "Alpha beta gamma delta theta lambda");
+  const c = item("c", "Gamma delta theta lambda sigma omega");
   assert.equal(sameEvent(a, b), true);
   assert.equal(sameEvent(b, c), true);
   assert.equal(sameEvent(a, c), false);

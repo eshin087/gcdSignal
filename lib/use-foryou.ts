@@ -43,7 +43,7 @@ export function useForYou(feeds: VisibleFeed[], category: CategoryId, refreshKey
           unseen: data.items.filter((it) => !seen.has(seenKey(it))),
           seenTail: data.items.filter((it) => seen.has(seenKey(it))),
         });
-        if (data.stale) next.staleLabels.push(feed.label);
+        if (data.stale || data.health?.degraded) next.staleLabels.push(feed.label);
       }
       if (!fresh && displayed.current?.key === base && hold.current?.()) setPending(next);
       else { setResult(next); setPending(null); }
@@ -62,7 +62,7 @@ export function useForYou(feeds: VisibleFeed[], category: CategoryId, refreshKey
         if (!alive) return;
         fetched.set(feed.id, { feed, data });
         failures.delete(feed.id);
-        reportHealth(feed.id, { status: data.stale ? "stale" : "ok", count: data.items.length, fetchedAt: data.fetchedAt });
+        reportHealth(feed.id, { status: data.stale || data.health?.degraded ? "stale" : "ok", count: data.items.length, fetchedAt: data.fetchedAt });
         publish();
       }).catch((error) => {
         if (!alive) return;

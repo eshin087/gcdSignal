@@ -15,7 +15,7 @@ function subscribe(listener: () => void) {
 }
 
 const getSnapshot = () => document.documentElement.classList.contains("dark");
-const getServerSnapshot = () => true; // dark is the server-rendered default
+const getServerSnapshot = () => false;
 
 export function toggleTheme() {
   const isDark = document.documentElement.classList.toggle("dark");

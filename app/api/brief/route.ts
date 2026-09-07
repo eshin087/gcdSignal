@@ -1,70 +1,73 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildTop10 } from "@/lib/brief";
-import { resolveParams } from "@/lib/categories";
+import { CATEGORY_IDS, resolveParams } from "@/lib/categories";
+import { selectItems } from "@/lib/curation";
 import { recallGood, rememberGood } from "@/lib/last-good";
 import { applyRelevance } from "@/lib/relevance";
-import { SOURCES } from "@/lib/sources";
-import type { BriefResponse, FeedItem, SourceId } from "@/lib/types";
+import { loadSource } from "@/lib/sources";
+import { sharedServerLoad } from "@/lib/server-cache";
+import { healthDetail, sourceHealth, summarizeHealth } from "@/lib/source-health";
+import type { BriefResponse, CategoryId, FeedItem, SourceHealth, SourceId } from "@/lib/types";
 
-/**
- * Aggregation pass feeding the Daily Top 10 panel. Always global (trending
- * category) — a single definitive daily list. The adapters hit the same
- * upstream URLs as the deck columns, so the Next data cache makes this
- * nearly free when columns are already loaded.
- */
-
-const BRIEF_SOURCES: SourceId[] = ["reddit", "rss", "hackernews", "bluesky", "youtube", "papers"];
-const CACHE_KEY = "brief";
+export const runtime = "nodejs";
+const PRIMARY: SourceId[] = ["rss", "hackernews"];
+const ALL: SourceId[] = [...PRIMARY, "reddit", "bluesky", "youtube", "papers"];
 
 export async function GET(req: NextRequest) {
-  const fresh = req.nextUrl.searchParams.get("fresh") === "1";
-
-  const settled = await Promise.allSettled(
-    BRIEF_SOURCES.map((s) =>
-      SOURCES[s](resolveParams(s, "trending", new URLSearchParams()), fresh)
-    )
-  );
-  const items: FeedItem[] = settled.flatMap((r, i) =>
-    r.status === "fulfilled" ? applyRelevance(BRIEF_SOURCES[i], r.value) : []
-  );
-
-  try {
-    if (!items.length) {
-      const firstErr = settled.find((r) => r.status === "rejected") as
-        | PromiseRejectedResult
-        | undefined;
-      throw firstErr?.reason instanceof Error
-        ? firstErr.reason
-        : new Error("All brief sources failed");
-    }
-    const body: BriefResponse = {
-      top10: buildTop10(items),
-      fetchedAt: new Date().toISOString(),
-    };
-    rememberGood(CACHE_KEY, body);
-    return NextResponse.json(body, {
-      headers: {
-        "Cache-Control": fresh
-          ? "no-store"
-          : "public, max-age=120, s-maxage=900, stale-while-revalidate=3600",
-      },
-    });
-  } catch (e) {
-    const cached = recallGood<BriefResponse>(CACHE_KEY);
-    if (cached) {
-      const body: BriefResponse = {
-        ...cached.value,
-        fetchedAt: new Date(cached.at).toISOString(),
-        stale: true,
-      };
-      return NextResponse.json(body, {
-        headers: { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300" },
-      });
-    }
-    const message = e instanceof Error ? e.message : "Brief build failed";
-    return NextResponse.json(
-      { error: message },
-      { status: 502, headers: { "Cache-Control": "no-store" } }
-    );
+  const sp = req.nextUrl.searchParams;
+  const windowParam = sp.get("window") ?? "24";
+  const phase = sp.get("phase") ?? "all";
+  const category = (sp.get("category") ?? "trending") as CategoryId;
+  if (!["24", "72"].includes(windowParam) || !["primary", "all"].includes(phase) ||
+      !CATEGORY_IDS.includes(category) || sp.getAll("category").length > 1 ||
+      sp.getAll("window").length > 1 || sp.getAll("phase").length > 1) {
+    return NextResponse.json({ error: "Invalid brief parameters" }, { status: 400 });
   }
+  const windowHours = Number(windowParam) as 24 | 72;
+  const canonical = new URLSearchParams({ category, phase, window: windowParam });
+  canonical.sort();
+  if (sp.toString() !== canonical.toString()) {
+    const target = req.nextUrl.clone(); target.search = canonical.toString();
+    return NextResponse.redirect(target, { status: 308, headers: { "Cache-Control": "public, max-age=60" } });
+  }
+  const cacheKey = `brief:${category}:${phase}:${windowHours}`;
+  const body = await sharedServerLoad<BriefResponse>(cacheKey, async () => {
+    const sources = phase === "primary" ? PRIMARY : ALL;
+    const settled = await Promise.allSettled(sources.map(async (source) => {
+      const raw = await loadSource(source, resolveParams(source, category, new URLSearchParams()));
+      // Provider parsing and filtering belong to this contributor's failure
+      // boundary; malformed upstream data must not discard healthy sources.
+      const items = selectItems(applyRelevance(source, raw),
+        { contentMode: "broad", mutedAuthors: [], mutedOutlets: [] }, category);
+      return { items, details: sourceHealth(raw, source).details ?? [] };
+    }));
+    const items: FeedItem[] = [];
+    const details: SourceHealth[] = [];
+    settled.forEach((result, index) => {
+      const source = sources[index];
+      if (result.status === "fulfilled") {
+        items.push(...result.value.items);
+        details.push(...result.value.details);
+      } else details.push(healthDetail(source, "error"));
+    });
+    const health = summarizeHealth(details);
+    const usable = details.some((detail) => detail.status !== "error");
+    if (!usable) {
+      const cached = recallGood<BriefResponse>(cacheKey);
+      if (cached) return { ...cached.value, stale: true, health: summarizeHealth(
+        (cached.value.health?.details ?? []).map((detail) => healthDetail(detail.id, "stale", detail.lastSuccessAt))) };
+    }
+    const result: BriefResponse = {
+      schemaVersion: 2, top10: buildTop10(items, Date.now(), windowHours), fetchedAt: new Date().toISOString(),
+      phase: phase as "primary" | "all", windowHours, health,
+      ...(!usable ? { error: "News sources temporarily unavailable. Try again later." } : {}),
+      ...(usable && !health.succeeded ? { stale: true } : {}),
+    };
+    if (health.succeeded) rememberGood(cacheKey, result);
+    return result;
+  }).catch((): BriefResponse => ({ schemaVersion: 2, top10: [], fetchedAt: new Date().toISOString(),
+    phase: phase as "primary" | "all", windowHours, error: "Brief service is busy. Try again later.",
+    health: summarizeHealth([healthDetail("brief", "error")]) }));
+  return NextResponse.json(body, { headers: { "Cache-Control": body.stale || body.error
+    ? "public, max-age=30, s-maxage=60" : "public, max-age=60, s-maxage=300, stale-while-revalidate=300" } });
 }

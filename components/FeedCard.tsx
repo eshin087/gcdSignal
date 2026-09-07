@@ -10,6 +10,7 @@ import type { FeedItem, SourceId } from "@/lib/types";
 import { BookmarkIcon, CheckIcon, ClockIcon, CommentIcon, ShareIcon } from "./icons";
 import SourceIcon from "./SourceIcon";
 import { useReading } from "./ReadingContext";
+import { markRead } from "@/lib/use-library";
 
 const SCORE_GLYPH: Record<SourceId, string> = {
   reddit: "▲",
@@ -38,13 +39,13 @@ function formatDuration(sec: number): string {
     : `${m}:${String(s).padStart(2, "0")}`;
 }
 
-const safeHref = (href: string | undefined) =>
-  href && href.startsWith("http") ? href : undefined;
+const safeHref = (href: string | undefined) => {
+  try { const url = new URL(href ?? ""); return ["https:", "http:"].includes(url.protocol) && !url.username && !url.password ? url.href : undefined; }
+  catch { return undefined; }
+};
 
 /** RSS-item favicon with a colored letter-chip fallback. */
 function Favicon({ host, color }: { host: string; color: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) {
     return (
       <span
         className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] text-[8px] font-bold"
@@ -53,20 +54,6 @@ function Favicon({ host, color }: { host: string; color: string }) {
         {host[0]?.toUpperCase()}
       </span>
     );
-  }
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={`https://www.google.com/s2/favicons?domain=${host}&sz=32`}
-      alt=""
-      width={14}
-      height={14}
-      loading="lazy"
-      referrerPolicy="no-referrer"
-      className="h-3.5 w-3.5 shrink-0 rounded-[3px]"
-      onError={() => setFailed(true)}
-    />
-  );
 }
 
 function Thumb({ src, compact }: { src: string; compact: boolean }) {
@@ -168,6 +155,7 @@ export default function FeedCard({
           {titleHref ? (
             <a
               href={titleHref}
+              onClick={() => markRead(related ?? [item])}
               target="_blank"
               rel="noopener noreferrer"
               className="block text-[length:var(--fs-title)] font-medium leading-snug tracking-[-0.01em] text-zinc-900 transition-colors visited:text-zinc-400 group-hover:text-cyan-700 dark:text-zinc-100 dark:visited:text-zinc-500 dark:group-hover:text-cyan-300"

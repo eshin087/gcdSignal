@@ -58,8 +58,8 @@ export function rankSignal(items: FeedItem[], followed: CategoryId[], now: numbe
   const score = (it: FeedItem) => {
     const meta = it.curation ?? classify(it);
     const age = Number.isFinite(Date.parse(it.timestamp)) ? Math.max(0, (now - Date.parse(it.timestamp)) / 3600000) : 168;
-    return 0.35 * Math.pow(0.5, age / 24) + 0.25 * (pcts.get(it) ?? 0.5)
-      + 0.2 * Number(meta.builder) + 0.2 * Number(meta.topics.some((t) => followed.includes(t)));
+    return 0.45 * Math.pow(0.5, age / 24) + 0.3 * (pcts.get(it) ?? 0.5)
+      + 0.25 * Number(meta.topics.some((t) => followed.includes(t)));
   };
   const scores = new Map(items.map((it) => [it, score(it)]));
   const outlets = new Map(items.map((it) => [it, outletKey(it)]));

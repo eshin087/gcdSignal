@@ -24,7 +24,7 @@ test("cache shares requests and supports warm switching, explicit refresh and fa
     return { ok: true, json: async () => data };
   });
   await loadFeed(url, true);
-  assert.match(freshUrl, /fresh=1/);
+  assert.equal(freshUrl, url, "manual refresh cannot add a server cache bypass");
   assert.equal(calls, 2);
   t.mock.method(globalThis, "fetch", async () => { throw new Error("offline"); });
   assert.equal((await loadFeed(url, true)).stale, true);
@@ -43,7 +43,7 @@ test("cache is bounded and expires stale responses", async (t) => {
   for (let i = 0; i < 26; i++) await loadFeed("/api/feeds/rss?test=" + i);
   assert.equal(cachedFeed("/api/feeds/rss?test=0"), null);
   assert.ok(cachedFeed("/api/feeds/rss?test=25"));
-  now += 61000;
+  now += 301000;
   assert.equal(cachedFeed("/api/feeds/rss?test=25").stale, true);
   now += 24 * 3600000;
   assert.equal(cachedFeed("/api/feeds/rss?test=25"), null);

@@ -35,10 +35,14 @@ const isTyping = (t: EventTarget | null) =>
     t.tagName === "SELECT" ||
     t.isContentEditable);
 
-const columns = (): HTMLElement[] =>
-  [...document.querySelectorAll<HTMLElement>("[data-feed-id]")].filter((el) =>
+const columns = (): HTMLElement[] => {
+  const deck = [...document.querySelectorAll<HTMLElement>("[data-feed-id]")].filter((el) =>
     el.getClientRects().length > 0 && el.querySelector(".feed-scroll")
   );
+  if (deck.length) return deck;
+  const reader = document.querySelector<HTMLElement>('.feed-scroll:has(article[tabindex])');
+  return reader ? [reader] : [];
+};
 
 const cardsIn = (col: HTMLElement): HTMLElement[] => [
   ...col.querySelectorAll<HTMLElement>("article[tabindex]"),

@@ -9,8 +9,8 @@ export const AI_TERMS = [
   "ai", "llm", "gpt", "openai", "anthropic", "claude", "gemini", "deepseek",
   "chatbot", "machine learning", "neural", "deep learning",
   "artificial intelligence", "genai", "generative", "copilot", "agentic",
-  "diffusion", "transformer", "deepfake", "mistral", "hugging face", "llama",
-  "grok", "midjourney",
+  "diffusion model", "transformer model", "deepfake", "mistral ai", "hugging face", "meta llama",
+  "grok ai", "midjourney",
 ];
 
 export interface CategoryDef {
@@ -43,7 +43,7 @@ export interface CategoryDef {
 
 export const CATEGORIES: Record<CategoryId, CategoryDef> = {
   trending: {
-    label: "Trending",
+    label: "All AI",
     reddit: { subs: "artificial+singularity+OpenAI+ClaudeAI+LocalLLaMA+MachineLearning" },
     hackernews: { q: "AI" },
     bluesky: { q: "AI" },
@@ -211,7 +211,7 @@ export const CATEGORIES: Record<CategoryId, CategoryDef> = {
 export const CATEGORY_IDS = Object.keys(CATEGORIES) as CategoryId[];
 
 export function isCategoryId(v: string | null): v is CategoryId {
-  return v !== null && v in CATEGORIES;
+  return v !== null && Object.hasOwn(CATEGORIES, v);
 }
 
 /**
