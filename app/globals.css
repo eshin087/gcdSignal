@@ -130,6 +130,43 @@ body::before {
   background-image: radial-gradient(circle, rgb(255 255 255 / 0.07) 1px, transparent 1.2px);
 }
 
+/* A quiet reading surface. Source branding stays inside the optional deck. */
+body { background-image: none; background-color: #f8f9fa; }
+.dark body { background-image: none; background-color: #111214; }
+body::before { display: none; }
+/* Share the existing html[data-text] scale without changing Deck typography. */
+.reader-page, [aria-label="Research library"] {
+  --reader-title: calc(var(--fs-title) + 6px);
+  --reader-title-wide: calc(var(--fs-title) + 10px);
+  --reader-body: calc(var(--fs-excerpt) + 2px);
+  --library-title: calc(var(--fs-title) + 4px);
+  --library-body: calc(var(--fs-excerpt) + 1px);
+}
+.reader-page .brief-story h2 { font-size: var(--reader-title); }
+.reader-page .reader-excerpt { font-size: var(--reader-body); line-height: 1.85; }
+[aria-label="Research library"] article h2 { font-size: var(--library-title); }
+[aria-label="Research library"] article > p { font-size: var(--library-body); }
+.reader-page .text-sm, [aria-label="Research library"] .text-sm { font-size: var(--fs-ui); }
+.reader-page .text-xs, [aria-label="Research library"] .text-xs { font-size: var(--fs-meta); }
+.reader-page .action-button { font-size: var(--fs-ui-sm); }
+@media (min-width: 640px) { .reader-page .brief-story h2 { font-size: var(--reader-title-wide); } }
+.reader-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #0f766e; }
+.dark .reader-eyebrow { color: #5eead4; }
+.reader-nav, .reader-icon { min-height: 44px; min-width: 44px; border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+.reader-nav[aria-current="page"] { color: #115e59; background: #e6f1ef; font-weight: 600; }
+.dark .reader-nav[aria-current="page"] { color: #99f6e4; background: #163530; }
+.reader-nav:hover, .reader-icon:hover { background-color: #f0f1f3; }
+.dark .reader-nav:hover, .dark .reader-icon:hover { background-color: #25272b; }
+.reader-input { min-height: 44px; border: 1px solid #d4d4d8; border-radius: 8px; padding: 8px 12px; font-size: 14px; background: transparent; }
+.dark .reader-input { border-color: #52525b; }
+.reader-header button, .reader-controls button, .reader-controls select { min-height: 44px; }
+.reader-header input:focus-visible, .reader-input:focus-visible { outline: 2px solid #0f766e; outline-offset: 3px; }
+.reader-primary { background: #115e59 !important; color: white !important; border-color: #115e59 !important; }
+.brief-story h2 a:focus-visible, button:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid #0d9488; outline-offset: 3px; }
+.coverage-panel summary, .brief-story summary { min-height: 44px; }
+.reader-dialog { color: inherit; }
+@media (max-width: 440px) { .reader-header .reader-nav { padding-inline: 8px; font-size: 13px; } }
+
 /* Status LEDs (column headers, status bar) */
 .led {
   display: inline-block;
@@ -287,10 +324,11 @@ dialog::backdrop { background: rgb(0 0 0 / .55); backdrop-filter: blur(2px); }
 .app-modal { margin: auto; border: 0; padding: 1rem; background: transparent; color: inherit; width: min(26rem, 100vw); max-height: 95dvh; }
 .action-button {
   display: inline-flex; align-items: center; justify-content: center; gap: .25rem;
-  min-height: 2rem; padding: .25rem .6rem; border: 1px solid rgb(113 113 122 / .3);
+  min-height: 2.75rem; padding: .25rem .6rem; border: 1px solid rgb(113 113 122 / .3);
   border-radius: .45rem; font-size: .75rem; color: inherit;
 }
 .action-button:hover, .action-button[aria-pressed="true"] { background: rgb(6 182 212 / .12); border-color: #0891b2; }
+[data-item-key] button { min-height: 44px; min-width: 44px; }
 button:focus-visible, a:focus-visible { outline: 2px solid #0891b2; outline-offset: 2px; }
 .led-idle { background: #71717a; }
 @media (pointer: coarse) {

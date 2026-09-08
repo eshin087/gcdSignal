@@ -1,273 +1,61 @@
 "use client";
 
 import { useState } from "react";
-import { useSavedKeys } from "@/lib/use-saved";
 import type { CategoryId, Density, SortMode, TextScale, ViewMode } from "@/lib/types";
 import CategoryTabs from "./CategoryTabs";
+import CurationControls from "./CurationControls";
 import DisplayControl from "./DisplayControl";
-import {
-  BookmarkIcon,
-  ColumnsIcon,
-  GearIcon,
-  MailIcon,
-  SearchIcon,
-  StreamIcon,
-  XIcon,
-} from "./icons";
 import RefreshControl from "./RefreshControl";
 import SortControl from "./SortControl";
 import ThemeToggle from "./ThemeToggle";
-
-const ICON_BTN =
-  "rounded-md p-2 text-zinc-500 transition-colors hover:bg-black/[0.05] hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300";
-
-const HEADER_ICON = "h-5 w-5";
-
-const INPUT_CLS =
-  "rounded-lg border border-black/10 bg-black/[0.02] px-2.5 py-1 text-[length:var(--fs-ui)] outline-none placeholder:text-zinc-400 focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/15 dark:bg-white/[0.03] dark:placeholder:text-zinc-600 [&::-webkit-search-cancel-button]:appearance-none";
+import { GearIcon } from "./icons";
 
 export default function Header({
-  category,
-  onCategoryChange,
-  lastRefreshAt,
-  onRefresh,
-  refreshMs,
-  onRefreshMsChange,
-  view,
-  onViewChange,
-  sortMode,
-  onSortModeChange,
-  textScale,
-  onTextScaleChange,
-  density,
-  onDensityChange,
-  queryInput,
-  onQueryInputChange,
-  onOpenSettings,
-  onOpenNewsletter,
-  onOpenSaved,
+  category, onCategoryChange, lastRefreshAt, onRefresh, refreshMs, onRefreshMsChange,
+  view, onViewChange, sortMode, onSortModeChange, textScale, onTextScaleChange,
+  density, onDensityChange, queryInput, onQueryInputChange, onOpenSettings, onOpenX,
 }: {
-  category: CategoryId;
-  onCategoryChange: (c: CategoryId) => void;
-  lastRefreshAt: number | null;
-  onRefresh: () => void;
-  refreshMs: number;
-  onRefreshMsChange: (ms: number) => void;
-  view: ViewMode;
-  onViewChange: (v: ViewMode) => void;
-  sortMode: SortMode;
-  onSortModeChange: (m: SortMode) => void;
-  textScale: TextScale;
-  onTextScaleChange: (t: TextScale) => void;
-  density: Density;
-  onDensityChange: (d: Density) => void;
-  queryInput: string;
-  onQueryInputChange: (q: string) => void;
-  onOpenSettings: () => void;
-  onOpenNewsletter: () => void;
-  onOpenSaved: () => void;
+  category: CategoryId; onCategoryChange: (c: CategoryId) => void;
+  lastRefreshAt: number | null; onRefresh: () => void; refreshMs: number; onRefreshMsChange: (n: number) => void;
+  view: ViewMode; onViewChange: (v: ViewMode) => void;
+  sortMode: SortMode; onSortModeChange: (m: SortMode) => void;
+  textScale: TextScale; onTextScaleChange: (s: TextScale) => void;
+  density: Density; onDensityChange: (d: Density) => void;
+  queryInput: string; onQueryInputChange: (q: string) => void;
+  onOpenSettings: () => void; onOpenX: () => void;
 }) {
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const savedCount = useSavedKeys().size;
-
-  const clearSearch = () => {
-    onQueryInputChange("");
-    setSearchOpen(false);
-  };
-
-  return (
-    <header className="relative z-30 shrink-0 border-b border-black/[0.06] bg-white/65 backdrop-blur-xl dark:border-white/[0.07] dark:bg-[#0a0a0b]/60">
-      {/* Horizon line: a thin cyan glow along the header's bottom edge. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent shadow-[0_0_14px_rgb(34_211_238/0.45)] dark:via-cyan-400/60"
-      />
-      <div className="flex h-12 items-center gap-1 px-2 sm:gap-3 sm:px-3 md:px-4">
-        <h1 className="shrink-0">
-          <button
-            onClick={() => window.location.reload()}
-            title="Refresh and reset the view"
-            className="rounded text-[18px] font-bold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40"
-          >
-            gcd
-            <span className="text-cyan-600 dark:bg-gradient-to-r dark:from-cyan-400 dark:to-sky-400 dark:bg-clip-text dark:text-transparent">
-              signal
-            </span>
-            <span
-              aria-hidden
-              className="cursor-blink ml-px font-mono font-normal text-cyan-500 dark:text-cyan-400"
-            >
-              _
-            </span>
-          </button>
-        </h1>
-
-        {/* View toggle */}
-        <div className="flex shrink-0 items-center rounded-lg border border-black/10 p-0.5 dark:border-white/10">
-          <button
-            onClick={() => onViewChange("deck")}
-            aria-pressed={view === "deck"}
-            title="Deck view"
-            className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[length:var(--fs-ui-sm)] font-medium transition-colors ${
-              view === "deck"
-                ? "bg-cyan-500/[0.12] text-cyan-700 dark:bg-cyan-400/10 dark:text-cyan-300"
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-            }`}
-          >
-            <ColumnsIcon className="h-[18px] w-[18px]" />
-            <span className="hidden lg:inline">Deck</span>
-          </button>
-          <button
-            onClick={() => onViewChange("foryou")}
-            aria-pressed={view === "foryou"}
-            title="For You feed"
-            className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[length:var(--fs-ui-sm)] font-medium transition-colors ${
-              view === "foryou"
-                ? "bg-cyan-500/[0.12] text-cyan-700 dark:bg-cyan-400/10 dark:text-cyan-300"
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-            }`}
-          >
-            <StreamIcon className="h-[18px] w-[18px]" />
-            <span className="hidden lg:inline">For You</span>
-          </button>
-        </div>
-
-        <div className="hidden min-w-0 2xl:block">
-          <CategoryTabs category={category} onChange={onCategoryChange} />
-        </div>
-
-        <div className="ml-auto flex items-center gap-0.5">
-          {/* Search: inline at lg+, icon below */}
-          <span className="relative hidden lg:block">
-            <input
-              type="search"
-              aria-label="Search feeds"
-              value={queryInput}
-              onChange={(e) => onQueryInputChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  onQueryInputChange("");
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
-              placeholder="Search feeds…"
-              className={`w-40 transition-all focus:w-56 ${queryInput ? "pr-7" : ""} ${INPUT_CLS}`}
-            />
-            {queryInput !== "" && (
-              <button
-                onClick={() => onQueryInputChange("")}
-                aria-label="Clear filter"
-                title="Clear filter"
-                className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-400 transition-colors hover:text-zinc-700 dark:hover:text-zinc-200"
-              >
-                <XIcon className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </span>
-          <button
-            onClick={() => setSearchOpen((o) => !o)}
-            aria-label="Search"
-            aria-expanded={searchOpen}
-            className={`lg:hidden ${ICON_BTN} ${queryInput ? "text-cyan-600 dark:text-cyan-300" : ""}`}
-          >
-            <SearchIcon className={HEADER_ICON} />
-          </button>
-
-          <span className="mx-1 hidden h-4 w-px bg-black/10 sm:block dark:bg-white/10" />
-
-          <div className="hidden items-center md:flex">
-          <SortControl sortMode={sortMode} onChange={onSortModeChange} />
-          <DisplayControl
-            textScale={textScale}
-            onTextScaleChange={onTextScaleChange}
-            density={density}
-            onDensityChange={onDensityChange}
-          />
-          <RefreshControl
-            lastRefreshAt={lastRefreshAt}
-            onRefresh={onRefresh}
-            refreshMs={refreshMs}
-            onRefreshMsChange={onRefreshMsChange}
-          />
-
-
-          </div>
-          <button
-            onClick={onOpenSaved}
-            aria-label="Saved items"
-            title="Saved items"
-            className={`relative ${ICON_BTN}`}
-          >
-            <BookmarkIcon className={HEADER_ICON} />
-            {savedCount > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-cyan-500 px-0.5 text-[9px] font-bold text-white dark:bg-cyan-400 dark:text-cyan-950">
-                {savedCount > 99 ? "99+" : savedCount}
-              </span>
-            )}
-          </button>
-          <span className="hidden md:inline-flex"><ThemeToggle /></span>
-          <button
-            onClick={onOpenNewsletter}
-            title="Daily email digest"
-            className={`hidden items-center gap-1.5 md:flex ${ICON_BTN}`}
-          >
-            <MailIcon className={HEADER_ICON} />
-            <span className="hidden text-[length:var(--fs-ui)] font-medium xl:inline">Subscribe</span>
-          </button>
-          <button aria-label="More controls" aria-expanded={moreOpen} onClick={() => setMoreOpen(!moreOpen)} className={`md:hidden ${ICON_BTN}`}>•••</button>
-          <button onClick={onOpenSettings} aria-label="Feed settings" title="Feeds" className={ICON_BTN}>
-            <GearIcon className={HEADER_ICON} />
-          </button>
-        </div>
-      </div>
-
-      {moreOpen && <div className="flex flex-wrap items-center justify-end gap-2 px-3 pb-2 md:hidden" aria-label="More feed controls" onKeyDown={(e) => { if (e.key === "Escape") setMoreOpen(false); }}>
-          <SortControl sortMode={sortMode} onChange={onSortModeChange} />
-          <DisplayControl
-            textScale={textScale}
-            onTextScaleChange={onTextScaleChange}
-            density={density}
-            onDensityChange={onDensityChange}
-          />
-          <RefreshControl
-            lastRefreshAt={lastRefreshAt}
-            onRefresh={onRefresh}
-            refreshMs={refreshMs}
-            onRefreshMsChange={onRefreshMsChange}
-          />
-
-
-
+  const [more, setMore] = useState(false);
+  return <header className="reader-header relative z-30 shrink-0 border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-[#111214]">
+    <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-3 px-3 py-2 sm:px-6">
+      <button className="min-h-11 shrink-0 text-xl font-semibold tracking-tight" onClick={() => { onQueryInputChange(""); onViewChange("brief"); }} aria-label="Signal home">
+        gcd<span className="text-teal-700 dark:text-teal-300">signal</span>
+      </button>
+      <nav aria-label="Main navigation" className="flex items-center gap-1">
+        {(["brief", "deck", "library"] as const).map((v) => <button key={v} className="reader-nav" aria-current={view === v ? "page" : undefined} onClick={() => { onQueryInputChange(""); onViewChange(v); }}>
+          {v === "brief" ? "Brief" : v === "deck" ? "Deck" : "Library"}
+        </button>)}
+      </nav>
+      <button className="reader-icon ml-auto md:order-last" aria-label="More controls" aria-expanded={more} onClick={() => setMore(!more)}>•••</button>
+      <label className="order-last flex min-h-11 w-full items-center gap-2 rounded-lg bg-zinc-100 px-3 md:order-none md:ml-auto md:w-72 dark:bg-zinc-800/70">
+        <span className="sr-only">Search your collection</span>
+        <span aria-hidden className="text-zinc-500">⌕</span>
+        <input type="search" placeholder="Search your collection…" aria-label="Search your collection" value={queryInput}
+          onChange={(e) => { onQueryInputChange(e.target.value); if (e.target.value) onViewChange("library"); }}
+          onKeyDown={(e) => { if (e.key === "Escape") onQueryInputChange(""); }}
+          className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
+      </label>
+    </div>
+    {view !== "library" && <div className="mx-auto max-w-[1600px] px-3 pb-1 sm:px-6"><CategoryTabs category={category} onChange={onCategoryChange} /></div>}
+    {more && <div className="reader-controls max-h-[65dvh] overflow-y-auto border-t border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-[#111214]" onKeyDown={(e) => { if (e.key === "Escape") setMore(false); }}>
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2">
+        {view === "deck" && <SortControl sortMode={sortMode} onChange={onSortModeChange} />}
+        <DisplayControl textScale={textScale} onTextScaleChange={onTextScaleChange} density={density} onDensityChange={onDensityChange} />
+        <RefreshControl lastRefreshAt={lastRefreshAt} onRefresh={onRefresh} refreshMs={refreshMs} onRefreshMsChange={onRefreshMsChange} />
         <ThemeToggle />
-        <button className="action-button" onClick={onOpenNewsletter}>Subscribe</button>
-      </div>}
-
-      {/* Expanded search row (below lg) — also opens when a query arrives from
-          elsewhere (momentum topic tap) so the active filter stays visible. */}
-      {(searchOpen || queryInput !== "") && (
-        <div className="flex items-center gap-2 px-3 pb-2 lg:hidden">
-          <input
-            type="search"
-              aria-label="Search feeds"
-            autoFocus
-            value={queryInput}
-            onChange={(e) => onQueryInputChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") clearSearch();
-            }}
-            placeholder="Search all feeds…"
-            className={`w-full ${INPUT_CLS}`}
-          />
-          <button onClick={clearSearch} aria-label="Close search" className={ICON_BTN}>
-            <XIcon />
-          </button>
-        </div>
-      )}
-
-      <div className="px-2 pb-2 2xl:hidden">
-        <CategoryTabs category={category} onChange={onCategoryChange} />
+        <button className="action-button" onClick={onOpenSettings} aria-label="Feed settings"><GearIcon className="h-4 w-4" /> Sources</button>
+        <button className="action-button" onClick={onOpenX}>X reading panel</button>
       </div>
-    </header>
-  );
+      <div className="mx-auto max-w-5xl"><CurationControls /></div>
+    </div>}
+  </header>;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useDialog } from "@/lib/use-dialog";
 
 export interface Command {
   id: string;
@@ -39,6 +40,7 @@ export default function CommandPalette({
   commands: Command[];
 }) {
   const [query, setQuery] = useState("");
+  const dialog = useDialog(open);
   const [cursor, setCursor] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -72,12 +74,8 @@ export default function CommandPalette({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[12vh]">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={close} aria-hidden />
+    <dialog ref={dialog} className="app-modal" aria-label="Command palette" onCancel={close} onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Command palette"
         className="relative w-full max-w-lg overflow-hidden rounded-xl border border-black/10 bg-white/95 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl dark:border-white/10 dark:bg-[#111114]/95"
       >
         <div className="flex items-center gap-2 border-b border-black/[0.07] px-3 dark:border-white/[0.07]">
@@ -144,6 +142,6 @@ export default function CommandPalette({
           ))}
         </ul>
       </div>
-    </div>
+    </dialog>
   );
 }

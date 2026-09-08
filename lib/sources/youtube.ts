@@ -1,6 +1,7 @@
 import { fetchJson, fetchText, makeMatcher, truncate } from "../fetch-helpers";
 import { AI_TERMS } from "../categories";
-import type { FeedItem } from "../types";
+import type { FeedItem, SourceHealth } from "../types";
+import { attachHealth, healthDetail } from "../source-health";
 
 /**
  * With a free YouTube Data API v3 key: real category search (search.list has no
@@ -26,7 +27,6 @@ const RSS_WINDOW_MS = 30 * 86400_000;
 const POOL_SIZE = 60;
 /** Shorts run up to 3 minutes; the audit found short-form to be pure AI-slop. */
 const MIN_DURATION_SEC = 181;
-const MIN_CATEGORY_HITS = 8;
 
 /** Reject Shorts by tag and titles whose letters are mostly non-Latin script
  *  (relevanceLanguage=en is only a hint to the API). */
@@ -72,6 +72,7 @@ interface RssVideo {
   description: string;
   mixed: boolean;
 }
+const channelHealth = new WeakMap<RssVideo[], SourceHealth[]>();
 
 export async function fetchYouTube(
   { q, channel, keywords = [] }: { q?: string; channel?: string; keywords?: string[] },
@@ -81,7 +82,7 @@ export async function fetchYouTube(
   // Custom channel feeds: raw channel uploads, no topical filtering.
   if (channel) {
     const videos = await fetchChannelRss([{ name: "", id: channel }], rv);
-    return rankVideos(videos.map((v) => v.item)).slice(0, POOL_SIZE);
+    return attachHealth(rankVideos(videos.map((v) => v.item)).slice(0, POOL_SIZE), channelHealth.get(videos) ?? []);
   }
 
   const key = process.env.YOUTUBE_API_KEY;
@@ -92,12 +93,11 @@ export async function fetchYouTube(
       const results = (await searchApi(q, key, rv)).filter(
         (v) => (v.durationSec === undefined || v.durationSec >= MIN_DURATION_SEC) && !isSlop(v.title)
       );
-      if (!keywords.length) return results;
+      if (!keywords.length) return attachHealth(results, [healthDetail("YouTube API", "ok")]);
       const catMatches = makeMatcher(keywords);
       const inCategory = results.filter((v) => catMatches(v.title, v.excerpt ?? ""));
-      // Category words are a preference, not a hard gate — the AI-relevance
-      // gate runs at the route; don't starve a tab over phrasing.
-      return inCategory.length >= MIN_CATEGORY_HITS ? inCategory : results;
+      // Thin topics stay thin; a successful empty query is not a source error.
+      return attachHealth(inCategory, [healthDetail("YouTube API", "ok")]);
     } catch {
       // Quota/key errors → keyless channel fallback below.
     }
@@ -108,17 +108,12 @@ export async function fetchYouTube(
   const aiMatches = makeMatcher(AI_TERMS);
   const aiPool = videos.filter((v) => !v.mixed || aiMatches(v.item.title, v.description));
 
-  if (!keywords.length) return rankVideos(aiPool.map((v) => v.item)).slice(0, POOL_SIZE);
+  if (!keywords.length) return attachHealth(rankVideos(aiPool.map((v) => v.item)).slice(0, POOL_SIZE), channelHealth.get(videos) ?? []);
 
-  // Category matches lead; the general AI pool backfills BEHIND them so thin
-  // categories still differ from Trending instead of duplicating it.
+  // Match the selected topic without quietly backfilling unrelated AI videos.
   const catMatches = makeMatcher(keywords);
   const inCategory = aiPool.filter((v) => catMatches(v.item.title, v.description));
-  const rest = aiPool.filter((v) => !inCategory.includes(v));
-  return [
-    ...rankVideos(inCategory.map((v) => v.item)),
-    ...rankVideos(rest.map((v) => v.item)),
-  ].slice(0, POOL_SIZE);
+  return attachHealth(rankVideos(inCategory.map((v) => v.item)).slice(0, POOL_SIZE), channelHealth.get(videos) ?? []);
 }
 
 /** Views blended with recency so one old mega-video can't sit on top forever. */
@@ -132,7 +127,8 @@ function rankVideos(items: FeedItem[]): FeedItem[] {
 }
 
 async function searchApi(q: string, key: string, revalidate?: number): Promise<FeedItem[]> {
-  const publishedAfter = new Date(Date.now() - 7 * 86400_000).toISOString();
+  // A stable five-minute boundary makes identical searches share the data cache.
+  const publishedAfter = new Date(Math.floor(Date.now() / 300_000) * 300_000 - 7 * 86400_000).toISOString();
   // relevance + Science & Technology (28) keeps AI-slop shorts and phone ads
   // out (verified: viewCount ordering surfaces viral junk); the videos.list
   // hydration below re-ranks the relevant set by views.
@@ -222,5 +218,7 @@ async function fetchChannelRss(
   if (!fulfilled.length) throw new Error("All YouTube channel feeds failed");
 
   const cutoff = Date.now() - RSS_WINDOW_MS;
-  return fulfilled.flatMap((r) => r.value).filter((v) => Date.parse(v.item.timestamp) > cutoff);
+  const out = fulfilled.flatMap((r) => r.value).filter((v) => Date.parse(v.item.timestamp) > cutoff);
+  channelHealth.set(out, results.map((result, i) => healthDetail(channels[i].name || "Custom YouTube channel", result.status === "fulfilled" ? "ok" : "error")));
+  return out;
 }

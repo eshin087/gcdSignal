@@ -21,7 +21,7 @@ interface AlgoliaHit {
 const exactAiWords = (q: string) => q.replace(/\b(AI|LLM)\b/g, '"$1"');
 
 export async function fetchHackerNews({ q }: { q: string }, fresh = false): Promise<FeedItem[]> {
-  const since = Math.floor(Date.now() / 1000) - 7 * 86400;
+  const since = Math.floor(Date.now() / 300_000) * 300 - 7 * 86400;
   const u =
     `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(exactAiWords(q))}` +
     `&tags=story&hitsPerPage=50&numericFilters=created_at_i>${since}` +

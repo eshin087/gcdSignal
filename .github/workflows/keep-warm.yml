@@ -1,7 +1,7 @@
 name: keep-warm
 
-# Re-fetch the default deck every 5 minutes so visitors never hit a cold
-# cache (~1.8s). Needs the repo secret CRON_SECRET (same value as on Vercel).
+# Best-effort warm-up of Brief and default Deck caches every five minutes.
+# Scheduling and upstream availability are not guaranteed. Needs CRON_SECRET.
 on:
   schedule:
     - cron: "*/5 * * * *"
@@ -13,7 +13,11 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Warm production caches
+        env:
+          SIGNAL_CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          curl -sS -m 55 \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://gcdsignal.vercel.app/api/warm" | head -c 2000
+          set -o pipefail
+          curl --fail-with-body -sS -m 55 \
+            -H "Authorization: Bearer $SIGNAL_CRON_SECRET" \
+            "https://gcdsignal.vercel.app/api/warm" | tee /tmp/signal-warm.json
+          jq -e '.ok == true' /tmp/signal-warm.json

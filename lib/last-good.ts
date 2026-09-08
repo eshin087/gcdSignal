@@ -1,32 +1,17 @@
+import { BoundedServerCache } from "./bounded-server-cache";
+
 /**
- * Warm-lambda "last known good" cache: when an upstream fetch fails (Reddit
- * 429s being the common case), the API routes serve the previous successful
- * result flagged `stale: true` instead of an error. Module-scoped, so it
- * survives across requests on a warm serverless instance — a cold instance
- * simply has nothing to fall back to yet.
+ * Bounded last-known-good fallback for warm serverless instances. Cold instances
+ * have no fallback; clients retain their own last-good snapshot. Never pretend
+ * this is durable cross-region storage.
  */
-
-interface Entry<T> {
-  value: T;
-  at: number;
-}
-
-const MAX_ENTRIES = 200;
+const store = new BoundedServerCache<{ value: unknown; at: number }>();
 const TTL_MS = 24 * 3600_000;
 
-const store = new Map<string, Entry<unknown>>();
-
 export function rememberGood<T>(key: string, value: T): void {
-  store.delete(key); // re-insert to refresh Map iteration order (oldest first)
-  store.set(key, { value, at: Date.now() });
-  if (store.size > MAX_ENTRIES) {
-    const oldest = store.keys().next().value;
-    if (oldest !== undefined) store.delete(oldest);
-  }
+  store.set(key, { value, at: Date.now() }, TTL_MS);
 }
-
 export function recallGood<T>(key: string): { value: T; at: number } | null {
   const hit = store.get(key);
-  if (!hit || Date.now() - hit.at > TTL_MS) return null;
-  return { value: hit.value as T, at: hit.at };
+  return hit ? { value: hit.value as T, at: hit.at } : null;
 }

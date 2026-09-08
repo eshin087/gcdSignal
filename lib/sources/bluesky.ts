@@ -61,7 +61,7 @@ async function getSession(): Promise<string | null> {
 
 export async function fetchBluesky({ q }: { q: string }, fresh = false): Promise<FeedItem[]> {
   const rv = fresh ? 0 : undefined;
-  const since = new Date(Date.now() - 7 * 86400_000).toISOString();
+  const since = new Date(Math.floor(Date.now() / 300_000) * 300_000 - 7 * 86400_000).toISOString();
   // lang=en: "ai" is an everyday word in several languages (愛) — the audit's
   // leak risk once the source is reachable again.
   const path =

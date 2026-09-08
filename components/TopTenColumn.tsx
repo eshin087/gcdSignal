@@ -34,7 +34,7 @@ export default function TopTenColumn({
   const manualRefresh = () => {
     if (Date.now() < cooldownRef.current || status === "loading") return;
     cooldownRef.current = Date.now() + MANUAL_COOLDOWN_MS;
-    refetch(true);
+    refetch();
   };
 
   const stories = (data?.top10 ?? []).flatMap((story) => {
@@ -124,7 +124,7 @@ export default function TopTenColumn({
             <p className="mb-1 font-medium">Couldn&apos;t build today&apos;s Top 10.</p>
             <p className="break-all font-mono text-[10px] opacity-60">{error}</p>
             <button
-              onClick={() => refetch(true)}
+              onClick={() => refetch()}
               className="mt-2 rounded-md border border-black/10 px-2.5 py-1 text-[11px] font-medium text-zinc-700 transition-colors hover:border-cyan-500/50 hover:text-cyan-600 dark:border-white/15 dark:text-zinc-300 dark:hover:border-cyan-400/50 dark:hover:text-cyan-300"
             >
               Retry
@@ -162,7 +162,7 @@ export default function TopTenColumn({
                   >
                     {story.title}
                   </a>
-                  <button className="action-button mt-2" onClick={() => read(story.members)}>{story.members.length} posts · {story.publishers.length} publishers / platforms →</button>
+                  <button className="action-button mt-2" onClick={() => read(story.members)}>{story.members.length} {story.members.length === 1 ? "post" : "posts"} · {story.publishers.length} {story.publishers.length === 1 ? "publisher / platform" : "publishers / platforms"} →</button>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[length:var(--fs-meta)]">
                     <span
                       className="inline-flex items-center gap-1.5"
@@ -172,7 +172,7 @@ export default function TopTenColumn({
                         <SourceIcon key={s} source={s} className="h-3 w-3" />
                       ))}
                     </span>
-                    {typeof story.comments === "number" && (
+                    {typeof story.comments === "number" && story.comments > 0 && (
                       <a
                         href={story.discussUrl ?? story.url}
                         target="_blank"

@@ -6,6 +6,31 @@ interface FetchOpts {
   revalidate?: number;
 }
 
+/** Bound decoded bodies too; Content-Length does not cover chunking/compression. */
+export async function readLimitedText(res: Response, maxBytes = 2 * 1024 * 1024): Promise<string> {
+  if (Number(res.headers.get("content-length")) > maxBytes) {
+    await res.body?.cancel();
+    throw new Error("Upstream response is too large");
+  }
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) { await reader.cancel(); throw new Error("Upstream response is too large"); }
+      chunks.push(value);
+    }
+  } finally { reader.releaseLock(); }
+  const output = new Uint8Array(bytes);
+  let offset = 0;
+  for (const chunk of chunks) { output.set(chunk, offset); offset += chunk.byteLength; }
+  return new TextDecoder().decode(output);
+}
+
 export async function fetchJson<T>(url: string, opts: FetchOpts = {}): Promise<T> {
   const res = await fetch(url, {
     headers: { "User-Agent": USER_AGENT, Accept: "application/json", ...opts.headers },
@@ -15,7 +40,7 @@ export async function fetchJson<T>(url: string, opts: FetchOpts = {}): Promise<T
   if (!res.ok) {
     throw new Error(`${new URL(url).hostname} returned ${res.status}`);
   }
-  return (await res.json()) as T;
+  return JSON.parse(await readLimitedText(res)) as T;
 }
 
 export async function fetchText(url: string, opts: FetchOpts = {}): Promise<string> {
@@ -27,7 +52,7 @@ export async function fetchText(url: string, opts: FetchOpts = {}): Promise<stri
   if (!res.ok) {
     throw new Error(`${new URL(url).hostname} returned ${res.status}`);
   }
-  return res.text();
+  return readLimitedText(res);
 }
 
 export function decodeEntities(s: string): string {

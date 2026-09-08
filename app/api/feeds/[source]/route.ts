@@ -1,114 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isCategoryId, resolveParams } from "@/lib/categories";
+import { parseFeedRequest } from "@/lib/feed-request";
 import { recallGood, rememberGood } from "@/lib/last-good";
 import { applyRelevance } from "@/lib/relevance";
-import { isSourceId, SOURCES } from "@/lib/sources";
-import type { FeedItem, FeedResponse } from "@/lib/types";
+import { isSourceId, loadSource } from "@/lib/sources";
+import { canonicalKey, sharedServerLoad } from "@/lib/server-cache";
+import { healthDetail, sourceHealth, summarizeHealth } from "@/lib/source-health";
+import type { FeedResponse } from "@/lib/types";
 
-// Vercel strips s-maxage/stale-while-revalidate before the browser, so the
-// small max-age is what stops clients re-requesting on every navigation.
-const CACHE_FRESH = "public, max-age=60, s-maxage=300, stale-while-revalidate=1800";
-const CACHE_STALE = "public, max-age=30, s-maxage=120, stale-while-revalidate=300";
-// Failures are served as a cacheable 200 (empty items + error) — a dead
-// source used to be a no-store 502 that invoked the lambda on every load.
-const CACHE_ERROR = "public, max-age=30, s-maxage=60";
+const CACHE_FRESH = "public, max-age=60, s-maxage=300, stale-while-revalidate=300";
+const CACHE_STALE = "public, max-age=30, s-maxage=60";
+export const runtime = "nodejs";
 
-const SUB_RE = /^[A-Za-z0-9_+]{1,160}$/;
-const BOARD_RE = /^[a-z0-9]{1,10}$/;
-const CHANNEL_RE = /^(UC|UU)[A-Za-z0-9_-]{10,40}$/;
-
-function validationError(sp: URLSearchParams): string | null {
-  const sub = sp.get("sub");
-  if (sub !== null && !SUB_RE.test(sub)) return "Invalid subreddit";
-  const board = sp.get("board");
-  if (board !== null && !BOARD_RE.test(board)) return "Invalid board";
-  const channel = sp.get("channel");
-  if (channel !== null && !CHANNEL_RE.test(channel)) return "Invalid channel id";
-  const q = sp.get("q");
-  if (q !== null && (q.length < 1 || q.length > 100)) return "Invalid query";
-  const url = sp.get("url");
-  if (url !== null) {
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-    } catch {
-      return "Invalid feed URL";
-    }
-    const host = parsed.hostname.toLowerCase();
-    const isIpLiteral = /^[\d.]+$/.test(host) || host.includes(":");
-    if (
-      (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
-      isIpLiteral ||
-      host === "localhost" ||
-      host.endsWith(".local") ||
-      host.endsWith(".internal")
-    ) {
-      return "Invalid feed URL";
-    }
-  }
-  return null;
-}
-
-export async function GET(
-  req: NextRequest,
-  ctx: { params: Promise<{ source: string }> }
-) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ source: string }> }) {
   const { source } = await ctx.params;
-  if (!isSourceId(source)) {
-    return NextResponse.json({ error: `Unknown source '${source}'` }, { status: 400 });
+  if (!isSourceId(source)) return NextResponse.json({ error: "Unknown source" }, { status: 400 });
+  let parsed: ReturnType<typeof parseFeedRequest>;
+  try { parsed = parseFeedRequest(source, req.nextUrl.searchParams); }
+  catch { return NextResponse.json({ error: "Invalid feed parameters. Custom RSS requires a public HTTPS URL." }, { status: 400 }); }
+  // Legacy fresh=1 is a browser refresh, never an upstream bypass. Redirect also
+  // collapses arbitrary cache-busting parameters onto the canonical CDN entry.
+  if (req.nextUrl.searchParams.toString() !== parsed.canonicalQuery) {
+    const target = req.nextUrl.clone();
+    target.search = parsed.canonicalQuery;
+    return NextResponse.redirect(target, { status: 308, headers: { "Cache-Control": "public, max-age=60" } });
   }
-
-  const sp = req.nextUrl.searchParams;
-  const invalid = validationError(sp);
-  if (invalid) {
-    return NextResponse.json({ error: invalid }, { status: 400 });
-  }
-
-  const categoryParam = sp.get("category");
-  const category = isCategoryId(categoryParam) ? categoryParam : "trending";
-  // Manual refreshes bypass both the data cache (adapters get revalidate: 0)
-  // and the CDN cache (no-store below) — otherwise "refresh" replays 5-min-old data.
-  const fresh = sp.get("fresh") === "1";
-
-  const params = resolveParams(source, category, sp);
-  const cacheKey = `${source}|${category}|${JSON.stringify(params)}`;
-  // Built-in Trending must feel current: cap it at 72h. Custom feeds always
-  // send explicit params (sub/url/q/...) and are exempt, as are other tabs.
-  const isBuiltIn = ![...sp.keys()].some((k) => k !== "category" && k !== "fresh");
-  try {
-    let items = await SOURCES[source](params, fresh);
-    // Source-aware AI-relevance gate; custom feeds are the user's call.
-    items = applyRelevance(source, items, { custom: !isBuiltIn });
-    if (category === "trending" && isBuiltIn) {
-      const floor = Date.now() - 72 * 3600_000;
-      items = items.filter((it) => Date.parse(it.timestamp) > floor);
-    }
-    rememberGood(cacheKey, items);
-    const body: FeedResponse = { source, items, fetchedAt: new Date().toISOString() };
-    return NextResponse.json(body, {
-      headers: { "Cache-Control": fresh ? "no-store" : CACHE_FRESH },
-    });
-  } catch (e) {
-    // Upstream down or rate-limiting (Reddit 429s): serve the last good result
-    // for this exact feed, flagged stale, rather than an error card. Short CDN
-    // TTL so recovery is retried soon.
-    const cached = recallGood<FeedItem[]>(cacheKey);
-    if (cached) {
-      const body: FeedResponse = {
-        source,
-        items: cached.value,
-        fetchedAt: new Date(cached.at).toISOString(),
-        stale: true,
+  const cacheKey = canonicalKey(`feed:${source}:${parsed.category}:${parsed.custom}`, parsed.params);
+  const body = await sharedServerLoad<FeedResponse>(cacheKey, async () => {
+    try {
+      const raw = await loadSource(source, parsed.params);
+      const health = sourceHealth(raw, source);
+      let items = applyRelevance(source, raw, { custom: parsed.custom });
+      if (parsed.category === "trending" && !parsed.custom) {
+        const floor = Date.now() - 72 * 3600_000;
+        items = items.filter((item) => Date.parse(item.timestamp) > floor);
+      }
+      const checkedAt = health.details?.map((detail) => detail.checkedAt ?? "").sort().at(-1);
+      const result: FeedResponse = { schemaVersion: 2, source, items, health, fetchedAt: checkedAt || new Date().toISOString(),
+        ...(health.succeeded === 0 && health.details?.some((detail) => detail.status === "stale") ? { stale: true } : {}) };
+      if (!result.stale) rememberGood(cacheKey, result);
+      return result;
+    } catch {
+      const cached = recallGood<FeedResponse>(cacheKey);
+      if (cached) return {
+        ...cached.value, stale: true,
+        health: summarizeHealth((cached.value.health?.details ?? [{ id: source }]).map((detail) =>
+          healthDetail(detail.id, "stale", "lastSuccessAt" in detail ? detail.lastSuccessAt : cached.value.fetchedAt))),
       };
-      return NextResponse.json(body, { headers: { "Cache-Control": CACHE_STALE } });
+      return { schemaVersion: 2, source, items: [], fetchedAt: new Date().toISOString(),
+        health: summarizeHealth([healthDetail(source, "error")]), error: "Source temporarily unavailable. Try again later." };
     }
-    const message = e instanceof Error ? e.message : "Upstream fetch failed";
-    const body: FeedResponse = {
-      source,
-      items: [],
-      fetchedAt: new Date().toISOString(),
-      error: message,
-    };
-    return NextResponse.json(body, { headers: { "Cache-Control": CACHE_ERROR } });
-  }
+  }).catch((): FeedResponse => ({ schemaVersion: 2, source, items: [], fetchedAt: new Date().toISOString(),
+    health: summarizeHealth([healthDetail(source, "error")]), error: "Feed service is busy. Try again later." }));
+  return NextResponse.json(body, { headers: { "Cache-Control": body.stale || body.error ? CACHE_STALE : CACHE_FRESH } });
 }

@@ -19,14 +19,17 @@ export type CategoryId =
 export type TextScale = "sm" | "md" | "lg" | "xl";
 export type SortMode = "hot" | "new" | "top" | "discussed" | "signal";
 export type ContentMode = "builder" | "broad";
-export type ContentKind = "Release" | "Tool" | "Tutorial" | "Research" | "Security" | "Discussion" | "Commentary";
+export type ContentKind = "News" | "Release" | "Tool" | "Tutorial" | "Research" | "Security" | "Discussion" | "Commentary";
 export interface Curation {
   kind: ContentKind;
   topics: CategoryId[];
   reasons: string[];
   builder: boolean;
+  primary?: boolean;
+  substantive?: boolean;
+  sponsored?: boolean;
 }
-export type ViewMode = "deck" | "foryou";
+export type ViewMode = "brief" | "deck" | "library";
 export type Density = "comfortable" | "compact";
 
 export interface FeedItem {
@@ -56,7 +59,25 @@ export interface FeedItem {
   curation?: Curation;
 }
 
+export interface SourceHealth {
+  id: string;
+  status: "ok" | "error" | "stale";
+  message?: string;
+  checkedAt?: string;
+  lastSuccessAt?: string;
+}
+
+export interface FeedHealth {
+  total: number;
+  succeeded: number;
+  failed: number;
+  degraded: boolean;
+  details?: SourceHealth[];
+}
+
 export interface FeedResponse {
+  schemaVersion?: 2;
+  health?: FeedHealth;
   source: SourceId;
   items: FeedItem[];
   fetchedAt: string;
@@ -76,7 +97,7 @@ export interface CustomFeed {
 }
 
 export interface Prefs {
-  v: 6;
+  v: 7;
   contentMode: ContentMode;
   followedTopics: CategoryId[];
   mutedAuthors: string[];
@@ -131,9 +152,18 @@ export interface BriefStory {
   thumbnail?: string;
   members?: FeedItem[];
   publishers?: string[];
+  platforms?: SourceId[];
+  reasons?: string[];
+  primaryUrl?: string;
+  firstPublishedAt?: string;
 }
 
 export interface BriefResponse {
+  error?: string;
+  schemaVersion?: 2;
+  health?: FeedHealth;
+  phase?: "primary" | "all";
+  windowHours?: 24 | 72;
   top10: BriefStory[];
   fetchedAt: string;
   stale?: boolean;

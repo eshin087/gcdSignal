@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { THEME_SCRIPT, TEXT_SCRIPT } from "@/lib/prepaint";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,23 +14,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "gcd signal — trending AI, one dashboard",
+  title: "gcd signal — your essential AI brief",
   description:
-    "The most trending AI content from Reddit, X, YouTube, Bluesky, GitHub, Hacker News, research papers, and major tech sites — in one deck.",
+    "Important AI developments, original sources, and a searchable personal research library. A focused brief with an optional source deck.",
 };
 
 export const viewport: Viewport = {
   themeColor: "#0a0a0b",
 };
-
-// Runs before paint: dark is the server-rendered default, so this only ever
-// needs to switch dark → light for users who opted in.
-const THEME_SCRIPT =
-  "(function(){try{if(localStorage.getItem('gcdsignal:theme')==='light')document.documentElement.classList.remove('dark')}catch(e){}})()";
-
-// Same pre-paint trick for the text-size scale (md is the attribute-less default).
-const TEXT_SCRIPT =
-  "(function(){try{var t=JSON.parse(localStorage.getItem('gcdsignal:prefs')||'{}').textScale;if(t==='sm'||t==='lg'||t==='xl')document.documentElement.setAttribute('data-text',t)}catch(e){}})()";
 
 export default function RootLayout({
   children,
@@ -39,7 +31,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark h-full ${geistSans.variable} ${geistMono.variable} antialiased`}
+      className={`h-full ${geistSans.variable} ${geistMono.variable} antialiased`}
       suppressHydrationWarning
     >
       <head>

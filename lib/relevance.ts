@@ -1,5 +1,5 @@
 import { AI_TERMS } from "./categories";
-import { classify } from "./curation";
+import { classify, editorialText, isPrimarySource } from "./curation";
 import { keywordMatcher, makeMatcher } from "./fetch-helpers";
 import { isSiteWideOutlet } from "./sources/rss";
 import type { FeedItem, SourceId } from "./types";
@@ -51,10 +51,15 @@ const EXTRA_TERMS = [
   "ai data center",
 ];
 
-export const AI_LEXICON: string[] = [...new Set([...AI_TERMS, ...EXTRA_TERMS])];
+const AMBIGUOUS = new Set(["claude", "gemini", "llama", "mistral", "grok", "neural", "diffusion", "transformer"]);
+export const AI_LEXICON: string[] = [...new Set([...AI_TERMS, ...EXTRA_TERMS])].filter((term) => !AMBIGUOUS.has(term));
 
 const titleHit = keywordMatcher(AI_LEXICON);
 const balancedHit = makeMatcher(AI_LEXICON);
+const modelName = /\b(?:claude|gemini|llama|mistral|grok|qwen|gpt)[- ]?(?:\d|(?:opus|sonnet|haiku|astra)\b)/i;
+const ambiguousBrand = /\b(?:claude|gemini|llama|mistral|grok|transformer)\b/i;
+const modelContext = /\b(?:model|chatbot|assistant|token|inference|weights|prompt|llm|ai|neural|context window)\b/i;
+const contextualHit = (text: string) => modelName.test(text) || (ambiguousBrand.test(text) && modelContext.test(text));
 
 /** Subreddits where nearly everything is AI by construction. */
 const AI_NATIVE_SUBS = new Set(
@@ -100,8 +105,18 @@ export function policyFor(source: SourceId, sourceMeta?: string): GatePolicy {
 
 function passes(item: FeedItem, policy: GatePolicy): boolean {
   if (policy === "open") return true;
-  if (policy === "strict") return titleHit(item.title);
-  return balancedHit(item.title, item.excerpt ?? "");
+  const title = editorialText(item.title), body = editorialText(item.excerpt ?? "");
+  // AI-native primary announcements can introduce a model name the lexicon
+  // has never seen. Microsoft is excluded here because its site is broader.
+  if (isPrimarySource(item)) {
+    try {
+      const host = new URL(item.externalUrl ?? item.url).hostname;
+      if (/^(?:www\.)?(?:openai\.com|anthropic\.com|deepmind\.google|mistral\.ai|huggingface\.co)$/.test(host)) return true;
+    } catch { /* textual relevance remains available */ }
+  }
+  if (titleHit(title) || contextualHit(title)) return true;
+  if (policy === "strict") return false;
+  return balancedHit("", body) || contextualHit(body);
 }
 
 /**

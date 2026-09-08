@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cachedFeed, feedUrl, loadFeed } from "./feed-cache";
+import { archiveItems } from "./library";
 import { getSeenSnapshot, seenKey } from "./use-seen";
 import type { CategoryId, FeedItem, FeedResponse, SourceId } from "./types";
 
@@ -39,6 +40,7 @@ export function useFeed(source: SourceId, params: Record<string, string> | undef
     });
     loadFeed<FeedResponse>(url, fresh).then((data) => {
       if (!alive) return;
+      void archiveItems(data.items);
       const next = partition(url, data);
       if (old && !fresh && hold.current?.()) setPending(next);
       else setResult(next);
@@ -58,7 +60,8 @@ export function useFeed(source: SourceId, params: Record<string, string> | undef
   return {
     unseen: current?.unseen ?? EMPTY, seenTail: current?.seenTail ?? EMPTY,
     status: (current ? "ok" : error ? "error" : "loading") as FeedStatus,
-    error, stale: Boolean(current?.data.stale || (current && error)), fetchedAt: current?.data.fetchedAt ?? null,
+    error, stale: Boolean(current?.data.stale || current?.data.health?.degraded || (current && error)), fetchedAt: current?.data.fetchedAt ?? null,
+    health: current?.data.health,
     pendingCount, apply, refetch, requestKey: url,
   };
 }

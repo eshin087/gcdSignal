@@ -1,116 +1,146 @@
 # gcd signal
 
-A glass-dark, TweetDeck-style dashboard for trending AI content. One column per
-source — Reddit (top of day with real vote counts), curated AI news from ~14
-outlets, YouTube, X, Bluesky, GitHub trending repos, Hacker News, research
-papers (Hugging Face + arXiv), and 4chan /g/ — with a category switcher,
-custom feeds, per-column and configurable auto-refresh, dark/light themes, and
-an optional daily email digest.
+A local-first AI news reader: a concise **Brief** for important developments,
+an optional source **Deck** for deeper browsing, and a searchable **Library**
+for material you want to keep.
 
-## Quick start
+The default is **Brief + All AI**, not Builder. Selection uses transparent
+rules and source evidence, not a paid language-model classifier. It is a
+best-effort reading aid, not a guarantee that every important story is covered.
 
-```bash
-npm install
+## Run locally
+
+~~~bash
+npm ci
 npm run dev
-```
+~~~
 
-Open http://localhost:3000. All feed columns work out of the box with no API
-keys (see notes below). Preferences (hidden columns, custom feeds, category,
-theme) live in the browser's localStorage — no accounts, no database.
+Open [localhost:3000](http://localhost:3000). No Signal account, paid AI service,
+or hosted application database is required. Some upstream sources may require
+optional credentials or be unavailable from your host; the coverage display
+reports failures instead of promising that every feed always works.
 
-## Features
+## Reading workflow
 
-- **Categories** — Trending, Development, Security, Vibe Coding, Research,
-  Industry. Switching re-queries every column with tuned per-source searches.
-  Edit the mappings in [lib/categories.ts](lib/categories.ts).
-- **Filter feeds** — hide/show any column from the ⚙ settings drawer.
-- **Custom feeds** — add a subreddit, RSS URL, Hacker News/Bluesky search,
-  Mastodon hashtag, or 4chan board. Each becomes its own column (pinned across
-  categories). Feeds are test-fetched before they're added.
-- **Dark mode default** with a persisted light-mode toggle (no flash).
-- **Mobile** — columns become a swipeable snap carousel with a source chip bar.
-- **Auto-refresh** on your schedule (off / 1m / 5m / 15m / 30m, paused while
-  the tab is hidden) plus a manual refresh — both in the header popover.
-- **Daily digest email** — top ~10 items across all sources, sent by a Vercel
-  cron job through Resend (setup below).
+- **Brief:** up to ten substantive stories from the last 24 hours, with an
+  explicit 72-hour expansion, original links, excerpts, selection reasons and
+  reporting/discussion counts. “Since your last visit” means new to your local
+  collection, not every new post on the internet.
+- **Deck:** configurable source columns, focus mode, mobile navigation,
+  sorting, optional Builder filtering and custom feeds. Topic selection remains
+  meaningful in All AI; a thin topic is not silently filled with unrelated posts.
+- **Library:** search fetched stories and saves by text, source, topic, content
+  type, publication date, collection and read/saved/followed state. Keep notes,
+  collections, saved searches and followed company/topic terms. This searches
+  collected feed text and notes—not the whole web or full articles.
+- **Read deliberately:** save, mark read/unread, dismiss and follow a story.
+  The Following section uses collected items and does not replace essential
+  news with a personalized bubble.
+- **See coverage:** the Brief first loads news/RSS and Hacker News, then enriches
+  the list with other configured sources. Retrieval time, stale results and
+  partial publisher/source failures are shown separately. Updates wait behind
+  an “Update brief” control when you are reading farther down the page.
 
-## Source notes
+[How selection, ranking and storage work](docs/feed-selection.md) describes the
+heuristics and limitations. Existing pre-v7 preferences migrate to Broad/Brief;
+other preferences and custom feeds are retained. Builder remains an explicit
+opt-in after migration.
 
-All upstream fetching happens in the server route `/api/feeds/[source]` with
-~5-minute caching, so browser CORS and upstream rate limits are non-issues.
+## Sources and optional configuration
 
-- **Reddit** — Reddit no longer offers free API access, and anonymous JSON is
-  blocked. Scores + comment counts come from parsing the legacy multireddit
-  HTML (`www.reddit.com/r/a+b+c/top/`), which still carries exact `data-score`
-  attributes; if Reddit ever blocks that, the column silently falls back to
-  the public Atom feed (titles, no scores). Posts are interleaved per
-  subreddit so one sub can't flood the column.
-- **X** — unofficial embed/syndication endpoints (no free API exists): account
-  timelines from ~8 major AI accounts, hydrated per-tweet for like/reply
-  counts. Rate-limited upstream; the column caches the last good batch and
-  shows an unavailable state if discovery fails cold. Least durable source by
-  design.
-- **YouTube** — with a free `YOUTUBE_API_KEY`: per-category video search with
-  view/comment counts. Without: curated AI channels via keyless RSS (also has
-  real view counts).
-- **GitHub** — recently-pushed AI repos ranked by stars (unauthenticated
-  search API).
-- **Papers** — Hugging Face daily papers (community upvotes + comments) merged
-  with recent arXiv cs.AI/LG/CL; arXiv is best-effort (aggressive rate
-  limits).
-- **Bluesky** — public AppView with host fallback (`public.api.bsky.app` →
-  `api.bsky.app`); optional app-password auth as a last resort.
-- **4chan** — read-only catalog API, text only, AI-keyword filtered, ranked by
-  replies decayed by thread age so perennial generals don't pin the top.
-- **AI News (RSS)** — ~14 outlets in [lib/sources/rss.ts](lib/sources/rss.ts),
-  round-robin interleaved by outlet with a 7-day recency floor so no single
-  publisher dominates and every outlet gets seen.
+Server adapters normalize source data into feed items. Availability, metrics
+and coverage vary; no source supplies an exhaustive view of AI news.
 
-## Newsletter setup (Resend)
+- **AI News:** curated editorial RSS plus verified primary feeds including
+  OpenAI, Google AI and Hugging Face. Anthropic and Microsoft AI newsroom links
+  are provided as direct links, not claimed as live feed integrations.
+- **Reddit:** optional OAuth credentials; HTML and Atom paths provide
+  best-effort fallbacks. Missing engagement is not fabricated.
+- **YouTube:** an optional YOUTUBE_API_KEY enables API search; curated channel
+  RSS is the fallback. Quotas and channel availability still apply.
+- **Hacker News / Bluesky:** category queries over available posts. Bluesky
+  uses configured app-password authentication first when provided, with public
+  hosts as best-effort alternatives.
+- **Papers / GitHub / 4chan:** optional Deck columns. GitHub shows recently
+  active repositories ranked by existing stars, not measured star growth.
+  Papers combine Hugging Face and arXiv; 4chan is text-only and hidden by default.
 
-Subscribers are stored as contacts in a Resend **Audience** (free tier: 1
-audience, 1,000 contacts, 100 emails/day) — no database needed. The daily
-digest is sent as a Resend **Broadcast**.
+Custom feeds support subreddit groups, RSS URLs, YouTube channels, GitHub/Hacker
+News/Bluesky searches and 4chan boards. Their explicitly chosen scope is kept
+across topic changes; author/outlet mutes still apply.
 
-1. Create a free account at https://resend.com.
-2. Copy an API key (https://resend.com/api-keys) → `RESEND_API_KEY`.
-3. Copy the default audience's ID (https://resend.com/audiences) →
-   `RESEND_AUDIENCE_ID`.
-4. Set `CRON_SECRET` to any long random string.
-5. Put all three in `.env.local` (copy `.env.example`).
+Use [.env.example](.env.example) for optional server credentials. Never place
+secrets in client-prefixed variables or commit your local environment file.
+Email signup, broadcast delivery and Resend configuration have been removed.
 
-**Test mode:** without a verified domain in Resend, mail is sent from
-`onboarding@resend.dev` and only delivers to *your own* (account owner) email.
-To send to real subscribers, verify a domain at https://resend.com/domains and
-set `DIGEST_FROM="gcd signal <digest@yourdomain.com>"`.
+### X: optional reading panel, not an algorithmic feed
 
-Trigger a digest manually:
+Save a public X profile, list or individual-post URL, then choose **Load embed**
+if you want X to render it. No X widget request is made before that action.
+Loading an embed contacts X and may depend on sign-in, browser restrictions or
+X availability; **Open on X** remains available if embedding fails.
 
-```bash
-curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/digest
-```
+Signal does not discover, rank, archive or search the embedded posts. No paid
+X API or unofficial timeline scraping is used. The panel keeps up to 50 link
+bookmarks locally and has its own link export, separate from Library backups.
 
-## Deploy (Vercel)
+## Local data and backups
 
-```bash
-npm i -g vercel && vercel
-```
+The Library uses IndexedDB in this browser. Ordinary collected items expire
+after 30 days without being fetched again and are capped at 5,000 records.
+Saved, followed, noted or collection-assigned items are excluded from automatic pruning.
+This is application behavior, not protection against clearing browser data,
+private-mode cleanup or storage eviction.
 
-1. Add the env vars from `.env.example` in the Vercel project settings.
-2. `vercel.json` already schedules the digest cron daily at 14:00 UTC.
-   Vercel automatically attaches `CRON_SECRET` as the bearer token.
-   (Hobby-tier crons run once per day and may drift within the hour.)
-3. After deploying, open `/api/feeds/reddit` and `/api/feeds/bluesky` once to
-   confirm both work from Vercel's IPs; add the Reddit OAuth env vars if the
-   Reddit column reports errors.
+Use **Export backup** in Library regularly. Versioned JSON backups include
+stories, reading/saved/follow states, notes, collections, saved searches and
+followed terms; imports validate and merge them. Import limits are 25 MB and
+20,000 records. Backups are not encrypted and are not a backup of all app
+preferences or the separate X bookmarks.
 
-## Project map
+Legacy localStorage saves migrate to IndexedDB. If storage fails, the app
+shows a warning and retains accessible changes in memory; export before closing
+the tab. There is no automatic cross-device account sync.
 
-```
-app/api/feeds/[source]/  feed proxy (validation, category resolution, caching)
-app/api/subscribe/       newsletter signup → Resend contact
-app/api/digest/          cron-triggered daily broadcast
-lib/sources/             one adapter per source → normalized FeedItem[]
-lib/categories.ts        category → per-source query config
-components/              deck UI, settings drawer, dialogs
-```
+## Caching and deployment
+
+Feed responses are shared across views with a five-minute fresh window,
+up to 24 browser-cache entries and a 24-hour stale fallback lifetime.
+Server requests also use bounded five-minute caching and request deduplication.
+Manual refresh rechecks the shared feed endpoint; it does not bypass server
+limits with an unrestricted force-fresh request.
+
+Connect the repository to Vercel and use the normal Next.js build, or run
+npm run build and npm start on a compatible Node host. Configure optional source
+credentials for that deployment and verify the coverage display there: a source
+working locally may be blocked from a hosting network.
+
+The optional GitHub Actions keep-warm workflow calls the authenticated /api/warm
+endpoint. It requires matching CRON_SECRET values in the deployment and GitHub
+repository secrets; it is unrelated to email. Warm-instance fallback caches
+are not durable storage, and warming does not guarantee upstream health.
+
+## Verification
+
+~~~bash
+npm test
+npm run lint
+npm run build
+~~~
+
+The deterministic suite covers selection, unbiased ranking, clustering,
+version-aware identity, cache behavior, local-library validation and security
+helpers without depending on live news.
+
+Browser suites use the pinned Playwright dev dependency and Chrome by default
+(or BROWSER_CHANNEL). Set PLAYWRIGHT_PATH only to use a different installation.
+
+~~~bash
+node tests/library-browser.mjs
+node tests/browser-smoke.mjs
+~~~
+
+The library suite uses an isolated page and real IndexedDB; it does not need a
+running server. The UI suite uses local fixture feeds; run the app first and set
+APP_URL if it is not at http://127.0.0.1:3001. These are functional regressions,
+not Lighthouse or Core Web Vitals measurements.

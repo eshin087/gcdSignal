@@ -16,15 +16,15 @@ import { clearSeen } from "@/lib/use-seen";
 import type { CategoryId, DeckItem, Density, TextScale, VisibleFeed } from "@/lib/types";
 import dynamic from "next/dynamic";
 import ReadingProvider from "./ReadingContext";
-import CurationControls from "./CurationControls";
+import { useLibrary } from "@/lib/use-library";
+import BriefView from "./BriefView";
+const ResearchScreen = dynamic(() => import("./ResearchScreen"));
+const XReadingPanel = dynamic(() => import("./XReadingPanel"));
 const AddFeedDialog = dynamic(() => import("./AddFeedDialog"));
 import ColumnDeck from "./ColumnDeck";
 import type { Command } from "./CommandPalette";
 const CommandPalette = dynamic(() => import("./CommandPalette"));
-import ForYouFeed from "./ForYouFeed";
 import Header from "./Header";
-const NewsletterDialog = dynamic(() => import("./NewsletterDialog"));
-const SavedDrawer = dynamic(() => import("./SavedDrawer"));
 const SettingsDrawer = dynamic(() => import("./SettingsDrawer"));
 const ShortcutsOverlay = dynamic(() => import("./ShortcutsOverlay"));
 import StatusBar from "./StatusBar";
@@ -48,8 +48,8 @@ export default function Dashboard() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addFeedOpen, setAddFeedOpen] = useState(false);
-  const [newsletterOpen, setNewsletterOpen] = useState(false);
-  const [savedOpen, setSavedOpen] = useState(false);
+  const [xOpen, setXOpen] = useState(false);
+  const library = useLibrary();
   const [helpOpen, setHelpOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -161,11 +161,11 @@ export default function Dashboard() {
       run: () => setPrefs((p) => ({ ...p, view: "deck" })),
     },
     {
-      id: "view:foryou",
+      id: "view:brief",
       group: "view",
-      label: "For You feed",
-      hint: prefs.view === "foryou" ? "current" : undefined,
-      run: () => setPrefs((p) => ({ ...p, view: "foryou" })),
+      label: "Essential Brief",
+      hint: prefs.view === "brief" ? "current" : undefined,
+      run: () => setPrefs((p) => ({ ...p, view: "brief" })),
     },
     ...orderedIds.map((id) => {
       const hidden = prefs.hidden.includes(id);
@@ -203,15 +203,15 @@ export default function Dashboard() {
     })),
     { id: "theme", group: "display", label: "Toggle light / dark theme", run: toggleTheme },
     { id: "refresh", group: "feeds", label: "Refresh all feeds", hint: "r = one column", run: bumpRefresh },
-    { id: "open:saved", group: "open", label: "Saved items", run: () => setSavedOpen(true) },
+    { id: "open:saved", group: "open", label: "Search your collection / saved items", run: () => setPrefs((p) => ({ ...p, view: "library" })) },
     { id: "open:settings", group: "open", label: "Feed settings", run: () => setSettingsOpen(true) },
     { id: "open:add", group: "open", label: "Add a feed", run: () => setAddFeedOpen(true) },
-    { id: "open:subscribe", group: "open", label: "Subscribe to the daily digest", run: () => setNewsletterOpen(true) },
+    { id: "open:x", group: "open", label: "Optional X reading panel", run: () => setXOpen(true) },
     { id: "open:help", group: "open", label: "Keyboard shortcuts", hint: "?", run: () => setHelpOpen(true) },
     ...(queryInput
       ? [{ id: "clear:search", group: "feeds", label: `Clear search filter (“${queryInput}”)`, run: () => setQueryInput("") }]
       : []),
-    { id: "clear:seen", group: "feeds", label: "Clear seen history", run: clearSeen },
+    { id: "clear:seen", group: "feeds", label: "Mark collected stories unread", run: clearSeen },
   ];
 
   return (
@@ -234,20 +234,21 @@ export default function Dashboard() {
         queryInput={queryInput}
         onQueryInputChange={setQueryInput}
         onOpenSettings={() => setSettingsOpen(true)}
-        onOpenNewsletter={() => setNewsletterOpen(true)}
-        onOpenSaved={() => setSavedOpen(true)}
+        onOpenX={() => setXOpen(true)}
       />
 
-      <CurationControls />
+      {library.storageWarning && <div role="status" className="shrink-0 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">{library.storageWarning} Keep this tab open and export a backup from Library.</div>}
       {!ready ? (
         <DeckPlaceholder />
-      ) : prefs.view === "foryou" ? (
-        <ForYouFeed
+      ) : prefs.view === "brief" ? (
+        <BriefView category={prefs.category} refreshKey={refresh.key} />
+      ) : prefs.view === "library" ? (
+        <ResearchScreen
           feeds={visibleFeeds}
           category={prefs.category}
           refreshKey={refresh.key}
-          sortMode={prefs.sortMode}
-          query={query}
+          query={queryInput}
+          onQueryChange={setQueryInput}
         />
       ) : (
         <ColumnDeck
@@ -260,13 +261,16 @@ export default function Dashboard() {
         />
       )}
 
-      <StatusBar
-        items={prefs.view === "foryou" ? deckItems.filter((it) => it.kind === "feed") : deckItems}
+      {prefs.view === "deck" ? <StatusBar
+        items={deckItems}
         lastRefreshAt={refresh.at}
         refreshMs={prefs.refreshMs}
         onOpenHelp={() => setHelpOpen(true)}
         onOpenPalette={() => setPaletteOpen(true)}
-      />
+      /> : <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-zinc-200 px-4 py-1 text-xs text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
+        <span>Personal library · stored in this browser</span>
+        <div className="flex gap-2"><button className="action-button" onClick={() => setHelpOpen(true)} aria-label="Keyboard shortcuts">?</button><button className="action-button" onClick={() => setPaletteOpen(true)} aria-label="Open command palette">⌘ K</button></div>
+      </footer>}
 
       {settingsOpen && <SettingsDrawer
         open={settingsOpen}
@@ -283,8 +287,7 @@ export default function Dashboard() {
         onClose={() => setAddFeedOpen(false)}
         onAdd={(feed) => setPrefs((p) => ({ ...p, custom: [...p.custom, feed] }))}
       />}
-      {newsletterOpen && <NewsletterDialog open={newsletterOpen} onClose={() => setNewsletterOpen(false)} />}
-      {savedOpen && <SavedDrawer open={savedOpen} onClose={() => setSavedOpen(false)} />}
+      {xOpen && <XReadingPanel onClose={() => setXOpen(false)} />}
       {helpOpen && <ShortcutsOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />}
       {paletteOpen && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />}
     </ReadingProvider>
@@ -295,23 +298,9 @@ export default function Dashboard() {
  *  real deck's wrapper structure so there's no layout jump. */
 function DeckPlaceholder() {
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden">
-      <div className="mx-auto flex h-full min-w-max gap-0 md:gap-3 md:px-3 md:py-3">
-        {Array.from({ length: 6 }, (_, i) => (
-          <div
-            key={i}
-            className="w-screen flex-none overflow-hidden bg-white p-3 md:w-[340px] md:rounded-xl md:border md:border-black/[0.07] xl:w-[360px] dark:bg-[#111114]/80"
-          >
-            <div className="skeleton mb-5 h-3 w-24" />
-            {Array.from({ length: 6 }, (_, j) => (
-              <div key={j} className="mb-4 space-y-1.5">
-                <div className="skeleton h-3 w-full" />
-                <div className="skeleton h-3 w-3/4" />
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+    <div className="min-h-0 flex-1 overflow-hidden px-4 py-8" role="status" aria-label="Loading reader">
+      <div className="mx-auto max-w-[780px] space-y-8"><div className="skeleton h-10 w-2/3" /><div className="skeleton h-12 w-full" />
+        {[1, 2, 3].map((n) => <div key={n} className="space-y-3"><div className="skeleton h-6 w-4/5" /><div className="skeleton h-4 w-full" /><div className="skeleton h-4 w-3/4" /></div>)}</div>
     </div>
   );
 }
