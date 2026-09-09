@@ -102,23 +102,23 @@ Legacy localStorage saves migrate to IndexedDB. If storage fails, the app
 shows a warning and retains accessible changes in memory; export before closing
 the tab. There is no automatic cross-device account sync.
 
-## Caching and deployment
+## Security and deployment
 
-Feed responses are shared across views with a five-minute fresh window,
-up to 24 browser-cache entries and a 24-hour stale fallback lifetime.
-Server requests also use bounded five-minute caching and request deduplication.
-Manual refresh rechecks the shared feed endpoint; it does not bypass server
-limits with an unrestricted force-fresh request.
+Deploy with the normal Next.js production build. Keep all optional credentials
+in the hosting provider's encrypted server-side environment; never commit a
+populated environment file or expose credentials through client-prefixed
+variables. Use [.env.example](.env.example) only as a list of supported settings.
 
-Connect the repository to Vercel and use the normal Next.js build, or run
-npm run build and npm start on a compatible Node host. Configure optional source
-credentials for that deployment and verify the coverage display there: a source
-working locally may be blocked from a hosting network.
+The application validates custom feed destinations, bounds external responses
+and requests, and reports partial source failures. Deployment owners should also
+keep framework dependencies patched, retain API rate limiting and security
+headers, and review logs without recording authorization headers or personal
+Library exports.
 
-The optional GitHub Actions keep-warm workflow calls the authenticated /api/warm
-endpoint. It requires matching CRON_SECRET values in the deployment and GitHub
-repository secrets; it is unrelated to email. Warm-instance fallback caches
-are not durable storage, and warming does not guarantee upstream health.
+Browser Library data and exported backups can contain reading history and
+personal notes. Backups are not encrypted, so store and share them accordingly.
+Server caches are performance aids rather than durable storage or availability
+guarantees.
 
 ## Verification
 
