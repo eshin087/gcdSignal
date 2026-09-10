@@ -9,7 +9,6 @@ The approved rule **Signal API budget** (ID: rule_signal_api_budget_5qB3k4) was 
 - Fixed window, 60 requests per 60 seconds, keyed by client IP.
 - Exceeded requests receive rate-limit mitigation.
 - No existing rule was overwritten; no paid plan or service was enabled.
-- /api/warm retains separate bearer-secret authentication.
 
 Check with "vercel firewall rules list" and "vercel firewall diff". Do not publish unrelated drafts. To adjust or disable this rule, inspect that exact ID first. The general "firewall overview" command may fail on Hobby because it also requests a paid IP-bypass feature; listing custom rules works.
 
@@ -17,8 +16,6 @@ Check with "vercel firewall rules list" and "vercel firewall diff". Do not publi
 Both views share normalized five-minute source results. The server's shared result and last-good caches are bounded per-instance caches, not a durable database or a cross-instance distributed lock. CDN/framework caches reduce repeated work; a cold instance may have no last-good value. Never describe the local cache as a coverage guarantee.
 
 Brief starts with the primary reporting phase, then loads the complete phase. Failed publishers remain in health details. The browser displays available cached content and holds reordered Brief results while the reader is scrolled down. Manual refresh does not bypass upstream caches.
-
-The warm workflow checks body-level health, not only HTTP 200. Partial upstream outages should be investigated by publisher/source rather than treated as a site-wide failure.
 
 ## Security policy rollout
 Security headers are enabled; CSP remains **report-only**. The two pre-paint scripts are hash-allowed. Official X widget origins are narrowly listed, and X is click-to-load. Next-generated inline hydration/RSC scripts still require a deliberate policy before CSP enforcement; no claim is made that report-only CSP blocks attacks.
