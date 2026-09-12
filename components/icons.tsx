@@ -1,5 +1,11 @@
+import { siX } from "simple-icons";
+
 interface IconProps {
   className?: string;
+}
+
+export function XBrandIcon({ className = "h-4 w-4" }: IconProps) {
+  return <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={siX.path} /></svg>;
 }
 
 export function GearIcon({ className = "h-4 w-4" }: IconProps) {

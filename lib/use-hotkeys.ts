@@ -46,7 +46,7 @@ const columns = (): HTMLElement[] => {
 
 const cardsIn = (col: HTMLElement): HTMLElement[] => [
   ...col.querySelectorAll<HTMLElement>("article[tabindex]"),
-];
+].filter((card) => card.getClientRects().length > 0);
 
 function focusedCard(): HTMLElement | null {
   const a = document.activeElement;
@@ -135,7 +135,7 @@ export function useHotkeys(handlers: HotkeyHandlers) {
           break;
         case "r": {
           const cols = columns();
-          clickIn(cols[Math.min(activeColumn, cols.length - 1)] ?? null, 'button[aria-label^="Refresh"]');
+          clickIn(cols[Math.min(activeColumn, cols.length - 1)] ?? null, 'button[data-refresh], button[aria-label^="Refresh"]');
           break;
         }
         case "?":

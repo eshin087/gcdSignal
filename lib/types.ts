@@ -29,7 +29,7 @@ export interface Curation {
   substantive?: boolean;
   sponsored?: boolean;
 }
-export type ViewMode = "brief" | "deck" | "library" | "x";
+export type ViewMode = "brief" | "deck" | "library";
 export type Density = "comfortable" | "compact";
 
 export interface FeedItem {
@@ -97,7 +97,7 @@ export interface CustomFeed {
 }
 
 export interface Prefs {
-  v: 8;
+  v: 9;
   contentMode: ContentMode;
   followedTopics: CategoryId[];
   mutedAuthors: string[];
@@ -125,8 +125,8 @@ export interface VisibleFeed {
   isCustom: boolean;
 }
 
-/** Non-source deck columns (Daily Top 10). */
-export type PanelId = "top10";
+/** Columns with a dedicated response contract rather than a native source feed. */
+export type PanelId = "top10" | "x-discovery";
 
 /** One deck slot: a fetchable feed column or a computed panel. */
 export type DeckItem =

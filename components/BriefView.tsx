@@ -40,7 +40,7 @@ export default function BriefView({ refreshKey, category }: { refreshKey: number
     <div className="reader-page mx-auto max-w-[850px] px-4 pb-12 pt-4 sm:px-8 sm:pt-9">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div><p className="reader-eyebrow">Your AI reading room <span className="sm:hidden">· {windowHours}h</span></p><h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">The essential Brief</h1>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">Major developments. Original sources. A clear place to stop.</p></div>
+          <p className="mt-2 hidden max-w-xl text-sm leading-6 text-zinc-600 sm:block dark:text-zinc-400">Major developments. Original sources. A clear place to stop.</p></div>
         <div className="hidden sm:block"><button className="action-button" onClick={() => refetch()} disabled={status === "loading"}>Refresh</button></div>
       </div>
       <CoveragePanel health={data?.health} stale={data?.stale || Boolean(error && data)} fetchedAt={data?.fetchedAt} phase={data?.phase} />

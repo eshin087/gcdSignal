@@ -19,7 +19,7 @@ const isTextScale = (v: unknown): v is TextScale =>
   v === "sm" || v === "md" || v === "lg" || v === "xl";
 
 export const DEFAULT_PREFS: Prefs = {
-  v: 8,
+  v: 9,
   contentMode: "broad",
   followedTopics: [],
   mutedAuthors: [],
@@ -53,7 +53,7 @@ export function parsePrefs(raw: string | null): Prefs {
   try {
     if (!raw) return DEFAULT_PREFS;
     const p = JSON.parse(raw) as Omit<Partial<Prefs>, "v"> & { v?: number };
-    if (typeof p?.v !== "number" || p.v < 1 || p.v > 8) return DEFAULT_PREFS;
+    if (typeof p?.v !== "number" || p.v < 1 || p.v > 9) return DEFAULT_PREFS;
     let hidden = Array.isArray(p.hidden)
       ? p.hidden.filter((x): x is string => typeof x === "string")
       : [];
@@ -71,8 +71,18 @@ export function parsePrefs(raw: string | null): Prefs {
     // v7 → v8: unreliable Bluesky search becomes opt-in. Apply this once so
     // readers can explicitly enable it again without losing that choice.
     if (p.v < 8) hidden = [...new Set([...hidden, "bluesky"])];
+    let order = Array.isArray(p.order)
+      ? p.order.filter((x): x is string => typeof x === "string")
+      : DEFAULT_ORDER;
+    // v8 → v9: X discoveries become a default column next to AI News. Insert
+    // only the new id, preserving every existing feed's relative position.
+    // Later explicit visibility and ordering choices are left untouched.
+    if (p.v < 9 && !order.includes("x-discovery")) {
+      order = [...order];
+      order.splice(order.indexOf("rss") + 1, 0, "x-discovery");
+    }
     return {
-      v: 8,
+      v: 9,
       contentMode: p.v >= 7 && p.contentMode === "builder" ? "builder" : "broad",
       followedTopics: Array.isArray(p.followedTopics) ? [...new Set(p.followedTopics.filter((t) => typeof t === "string" && Object.hasOwn(CATEGORIES, t) && t !== "trending"))] : [],
       mutedAuthors: Array.isArray(p.mutedAuthors) ? p.mutedAuthors.filter((s): s is string => typeof s === "string").slice(0, 200) : [],
@@ -83,10 +93,9 @@ export function parsePrefs(raw: string | null): Prefs {
       refreshMs: isValidRefreshMs(p.refreshMs) ? p.refreshMs : DEFAULT_REFRESH_MS,
       textScale: isTextScale(p.textScale) ? p.textScale : "md",
       sortMode: isSortMode(p.sortMode) ? p.sortMode : "signal",
-      view: p.v >= 7 && (p.view === "deck" || p.view === "library" || (p.v === 8 && p.view === "x")) ? p.view : "brief",
-      order: Array.isArray(p.order)
-        ? p.order.filter((x): x is string => typeof x === "string")
-        : DEFAULT_ORDER,
+      // The retired standalone X view opens the homepage, where its column lives.
+      view: p.v >= 7 && (p.view === "deck" || p.view === "library") ? p.view : "brief",
+      order,
       density: p.density === "compact" ? "compact" : "comfortable",
     };
   } catch {

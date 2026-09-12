@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { parseXLink, type XLink } from "@/lib/x-links";
 import { loadWidgets } from "@/lib/x-widgets";
 import XDiscoveryFeed from "./XDiscoveryFeed";
+import { COLUMN_HEADER, COLUMN_SHELL } from "./column-shell";
+import { XBrandIcon } from "./icons";
 
 const KEY = "gcdsignal:x-links:v1";
 const LIMIT = 50;
@@ -22,7 +24,9 @@ function labelFor(link: XLink): string {
   return parts[0] === "i" ? "List · " + parts[2] : parts[2].replace(/-/g, " ") + " · @" + parts[0];
 }
 
-export default function XReadingPanel({ refreshKey = 0 }: { refreshKey?: number }) {
+export default function XReadingPanel({ refreshKey = 0, dragHandleProps }: {
+  refreshKey?: number; dragHandleProps?: React.HTMLAttributes<HTMLElement>;
+}) {
   const [section, setSection] = useState<"discover" | "sources">("discover");
   const [input, setInput] = useState("");
   const [links, setLinks] = useState<XLink[]>([]);
@@ -35,6 +39,7 @@ export default function XReadingPanel({ refreshKey = 0 }: { refreshKey?: number 
   const [restored, setRestored] = useState(false);
   const host = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const scroll = useRef<HTMLDivElement>(null);
   const generation = useRef(0);
   const storageReadable = useRef(true);
 
@@ -176,19 +181,19 @@ export default function XReadingPanel({ refreshKey = 0 }: { refreshKey?: number 
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  return <main className="feed-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label="X reading">
-    <div className="reader-page mx-auto max-w-6xl px-4 pb-12 pt-5 sm:px-8 sm:pt-9">
-      <header className="mb-4">
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">AI on X</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">AI posts surfaced by news and discussion.</p>
-        <nav aria-label="X sections" className="mt-3 flex flex-wrap gap-2">
-          {([['discover', 'Discover'], ['sources', 'Saved sources']] as const).map(([id, label]) => <button key={id} className={`action-button min-h-11 ${section === id ? 'reader-primary' : ''}`} aria-current={section === id ? 'page' : undefined} onClick={() => { choose(selected); setSection(id); }}>{label}</button>)}
-        </nav>
-      </header>
+  return <section className={COLUMN_SHELL} aria-label="AI on X column">
+    <header className={COLUMN_HEADER} {...dragHandleProps}>
+      <XBrandIcon /><h2 className="text-sm font-semibold">AI on X</h2>
+      <span className="ml-auto text-xs text-zinc-500 dark:text-zinc-400">All AI · source picks</span>
+    </header>
+    <div role="group" aria-label="X sections" className="flex shrink-0 flex-wrap gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+      {([['discover', 'Discover'], ['sources', 'Saved sources']] as const).map(([id, label]) => <button key={id} className={`action-button min-h-11 ${section === id ? 'reader-primary' : ''}`} aria-pressed={section === id} onClick={() => { choose(selected); setSection(id); scroll.current?.scrollTo({ top: 0 }); }}>{label}</button>)}
+    </div>
+    <div ref={scroll} data-x-scroll className="feed-scroll min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 pb-8 pt-3">
 
       {storageError && <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"><p>{storageError}</p>{canSave && <button className="action-button mt-3" onClick={() => persist(links)}>Retry saving links</button>}</div>}
 
-      {section === "discover" ? <XDiscoveryFeed refreshKey={refreshKey} savedUrls={links.map((link) => link.url)} ready={restored} onSave={(url) => {
+      <div hidden={section !== "discover"}><XDiscoveryFeed refreshKey={refreshKey} savedUrls={links.map((link) => link.url)} ready={restored} onSave={(url) => {
         const link = parseXLink(url);
         if (!link || !restored) return false;
         if (links.some((saved) => saved.postId === link.postId)) return true;
@@ -196,7 +201,8 @@ export default function XReadingPanel({ refreshKey = 0 }: { refreshKey?: number 
         persist([...links, link]);
         if (!selected) choose(link);
         return true;
-      }} /> : <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
+      }} /></div>
+      {section === "sources" && <div className="grid min-w-0 items-start gap-4">
         <aside className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-4 sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/40" aria-label="Saved X sources">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="font-semibold">Your X sources</h2>
@@ -258,5 +264,5 @@ export default function XReadingPanel({ refreshKey = 0 }: { refreshKey?: number 
         </section>
       </div>}
     </div>
-  </main>;
+  </section>;
 }

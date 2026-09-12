@@ -54,7 +54,12 @@ async function setup(prefs) {
     if (!url.pathname.startsWith("/api/")) return route.continue();
     requests.push(url.href);
     if (url.pathname === "/api/brief") return route.fulfill({ json: briefFixture(url) });
-    if (url.pathname === "/api/feeds/x-discovery") return route.fulfill({ json: { schemaVersion: 1, items: [], fetchedAt: now(), health: health() } });
+    if (url.pathname === "/api/feeds/x-discovery") return route.fulfill({ json: {
+      schemaVersion: 1, fetchedAt: now(), health: health(), items: [{
+        id: "1234567890", url: "https://x.com/QaResearch/status/1234567890", author: "QaResearch", title: "AI model release from public coverage", sharedAt: now(), rank: 500,
+        reasons: ["Shared on Hacker News"], mentions: [{ source: "hackernews", sourceUrl: "https://news.ycombinator.com/item?id=101", sourceTitle: "AI model release from public coverage", sharedAt: now(), points: 80, comments: 12 }],
+      }],
+    } });
     const source = url.pathname.split("/").at(-1);
     if (source === "bluesky") return route.fulfill({ json: { schemaVersion: 2, source, items: [], error: "QA upstream unavailable", fetchedAt: now(), health: { total: 1, failed: 1, succeeded: 0, degraded: true } } });
     return route.fulfill({ json: { schemaVersion: 2, source, fetchedAt: now(), health: health(), items: Array.from({ length: 35 }, (_, i) => storyItem(source, i, url.searchParams.get("category") || "trending")) } });
@@ -93,6 +98,12 @@ try {
   await page.goto(appUrl);
   await page.getByRole("heading", { name: "The essential Brief", exact: true }).waitFor();
   await page.locator("main article").nth(9).waitFor();
+  const homeX = page.getByRole("region", { name: "AI on X column", exact: true });
+  await homeX.getByRole("button", { name: "Discover", exact: true }).waitFor();
+  await homeX.getByRole("heading", { name: "AI model release from public coverage", exact: true }).waitFor();
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "X", exact: true }).count(), 0, "X is a home column, not a separate navigation destination");
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button").count(), 3, "main navigation contains only Brief, Deck and Library");
+  assert.ok(requests.some((request) => new URL(request).pathname === "/api/feeds/x-discovery"), "the default homepage automatically requests X discoveries");
   assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "Brief", exact: true }).getAttribute("aria-current"), "page");
   assert.equal(await page.locator("main article").count(), 10, "all ten non-builder news stories remain visible by default");
   await page.getByText("Partial coverage", { exact: true }).waitFor();
@@ -112,6 +123,21 @@ try {
     assert.ok(Math.abs(bounds.y - logo.y) < 2, `Settings stays in the first row at ${width}`);
     assert.equal(await trigger.locator("svg").count(), 1, "Settings has a visible gear icon");
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no document overflow at ${width}`);
+    if (width < 1024) {
+      const jumpX = page.getByRole("button", { name: "Jump to X column", exact: true });
+      await touchTarget(jumpX, `Jump to X at ${width}`);
+      await jumpX.click();
+      await page.waitForFunction(() => { const column = document.querySelector('[data-feed-id="x-discovery"]'); const bounds = column?.getBoundingClientRect(); return bounds && bounds.left >= -1 && bounds.right <= innerWidth + 1; });
+      assert.equal(await page.evaluate(() => document.activeElement.id), "home-x", "the X jump transfers keyboard focus to its column");
+      await page.getByRole("button", { name: "Jump to Brief column", exact: true }).click();
+      await page.waitForFunction(() => document.querySelector('main[aria-label="Essential Brief"]').getBoundingClientRect().left >= -1);
+      assert.equal(await page.evaluate(() => document.activeElement.id), "home-brief", "the Brief jump transfers keyboard focus to its column");
+    } else {
+      const briefBounds = await page.getByRole("main", { name: "Essential Brief", exact: true }).boundingBox();
+      const xBounds = await homeX.boundingBox();
+      assert.ok(briefBounds.x >= 0 && xBounds.x >= briefBounds.x + briefBounds.width - 1 && xBounds.x + xBounds.width <= width + 1, "Brief and X are visible side by side on desktop");
+      assert.ok(xBounds.width >= 340 && xBounds.width <= 420, "desktop X remains a readable column");
+    }
     assert.equal(await page.getByRole("main", { name: "Essential Brief", exact: true }).getByRole("button", { name: "Refresh", exact: true }).count(), 1, `exactly one visible Brief refresh at ${width}`);
     const headerBefore = await page.locator(".reader-header").boundingBox();
     const drawer = await settings(page, true);
@@ -127,8 +153,18 @@ try {
     assert.equal(await page.evaluate(() => document.activeElement.getAttribute("aria-label")), "Settings", "closing Settings returns focus to its gear");
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  assert.ok((await page.locator("main article h2").first().boundingBox()).y < 500, "first mobile headline is above the 500px mark");
+  await page.waitForFunction(() => {
+    const container = document.querySelector(".home-columns");
+    const briefVisible = container.scrollLeft < container.clientWidth / 2;
+    return document.querySelector('[aria-label="Jump to Brief column"]').getAttribute("aria-pressed") === String(briefVisible)
+      && document.querySelector('[aria-label="Jump to X column"]').getAttribute("aria-pressed") === String(!briefVisible);
+  });
+  await page.getByRole("button", { name: "Jump to Brief column", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[aria-label="Jump to Brief column"]').getAttribute("aria-pressed") === "true");
+  assert.equal(await page.getByRole("button", { name: "Jump to X column", exact: true }).getAttribute("aria-pressed"), "false", "jumping after resize highlights the visible Brief column");
   await page.screenshot({ path: join(tmpdir(), "gcdsignal-mobile-qa.png") });
+  const firstHeadlineY = (await page.locator("main article h2").first().boundingBox()).y;
+  assert.ok(firstHeadlineY < 500, `first mobile headline is above the 500px mark (actual ${firstHeadlineY})`);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.screenshot({ path: join(tmpdir(), "gcdsignal-desktop-qa.png") });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -147,6 +183,7 @@ try {
   const drawer = await settings(page, true);
   assert.equal(await drawer.getByRole("button", { name: "Broad", exact: true }).getAttribute("aria-pressed"), "true");
   assert.equal(await drawer.getByRole("checkbox", { name: "Show Bluesky", exact: true }).isChecked(), false, "Bluesky starts disabled");
+  assert.equal(await drawer.getByRole("checkbox", { name: "Show AI on X", exact: true }).isChecked(), true, "X starts enabled as a column");
   for (const name of ["Small", "Medium", "Large", "Largest", "Comfortable", "Compact", "Broad", "Builder"]) {
     await touchTarget(drawer.getByRole("button", { name, exact: true }), name);
   }
@@ -220,6 +257,9 @@ try {
   assert.equal(await page.getByRole("region", { name: "Research library", exact: true }).locator("article").count(), 1, "personal notes are searchable after reload");
 
   await mainNav(page, "Deck");
+  await page.locator('[data-feed-id="x-discovery"]').waitFor();
+  const deckIds = await page.locator(".deck-scroll [data-feed-id]").evaluateAll((elements) => elements.map((element) => element.dataset.feedId));
+  assert.equal(deckIds.indexOf("x-discovery"), deckIds.indexOf("rss") + 1, "the default Deck puts X beside RSS");
   await page.getByRole("button", { name: "Focus Reddit ↗", exact: true }).waitFor();
   await page.locator('[data-feed-id="reddit"] article').first().waitFor();
   await page.getByRole("button", { name: "Focus Reddit ↗", exact: true }).scrollIntoViewIfNeeded();
@@ -229,6 +269,10 @@ try {
   await page.getByRole("button", { name: "← Back to deck", exact: true }).click();
   await page.getByRole("button", { name: "Focus Reddit ↗", exact: true }).waitFor();
   assert.ok(Math.abs(await page.locator(".deck-scroll").evaluate((element) => element.scrollLeft) - deckLeft) <= 1, "focus exit restores deck position");
+  await page.getByRole("button", { name: "Focus AI on X ↗", exact: true }).click();
+  assert.deepEqual(await page.locator("[data-feed-id]:visible").evaluateAll((elements) => elements.map((element) => element.dataset.feedId)), ["x-discovery"], "Deck focus isolates the X column");
+  await page.getByRole("region", { name: "AI on X column", exact: true }).getByRole("heading", { name: "AI model release from public coverage", exact: true }).waitFor();
+  await page.getByRole("button", { name: "← Back to deck", exact: true }).click();
   await page.keyboard.press("Control+k");
   await page.getByRole("dialog", { name: "Command palette", exact: true }).waitFor();
   await page.getByRole("textbox", { name: "Command", exact: true }).fill("text size");
@@ -236,12 +280,28 @@ try {
   assert.ok(await page.evaluate(() => !!document.activeElement.closest("dialog")));
   await page.keyboard.press("Escape");
   await page.getByRole("dialog").waitFor({ state: "detached" });
-  await mainNav(page, "X");
-  const xPanel = page.getByRole("main", { name: "X reading", exact: true });
+  await mainNav(page, "Brief");
+  const xPanel = page.getByRole("region", { name: "AI on X column", exact: true });
   await xPanel.waitFor();
-  assert.equal(await page.getByRole("dialog").count(), 0, "X opens as a main destination");
-  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "X", exact: true }).getAttribute("aria-current"), "page");
-  assert.equal(await xPanel.getByRole("button", { name: "Discover", exact: true }).getAttribute("aria-current"), "page", "X starts with automatic discovery");
+  const hideX = await settings(page, true);
+  await hideX.getByRole("checkbox", { name: "Show AI on X", exact: true }).uncheck();
+  await settings(page, false);
+  assert.equal(await xPanel.count(), 0, "hiding X removes it from the homepage");
+  await mainNav(page, "Deck");
+  assert.equal(await page.locator('[data-feed-id="x-discovery"]').count(), 0, "the same visibility choice hides the Deck column");
+  await mainNav(page, "Brief");
+  await page.reload();
+  await page.getByRole("heading", { name: "The essential Brief", exact: true }).waitFor();
+  assert.equal(await xPanel.count(), 0, "the hidden X choice survives reload");
+  const showX = await settings(page, true);
+  assert.equal(await showX.getByRole("checkbox", { name: "Show AI on X", exact: true }).isChecked(), false);
+  await showX.getByRole("checkbox", { name: "Show AI on X", exact: true }).check();
+  await settings(page, false);
+  await page.getByRole("button", { name: "Jump to X column", exact: true }).click();
+  await xPanel.getByRole("button", { name: "Discover", exact: true }).waitFor();
+  assert.equal(await page.getByRole("dialog").count(), 0, "X is inline, not a separate page or dialog");
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "Brief", exact: true }).getAttribute("aria-current"), "page");
+  assert.equal(await xPanel.getByRole("button", { name: "Discover", exact: true }).getAttribute("aria-pressed"), "true", "the X column starts with automatic discovery");
   await xPanel.getByRole("button", { name: "Saved sources", exact: true }).click();
   await xPanel.getByRole("heading", { name: "Build your X reading space", exact: true }).waitFor();
   await xPanel.getByRole("button", { name: "Add your first source", exact: true }).click();
@@ -256,7 +316,7 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `X has no document overflow at ${width}`);
     await touchTarget(xPanel.getByRole("button", { name: "Load embed", exact: true }), `X consent at ${width}`);
     if (width === 390 || width === 1440) {
-      await xPanel.evaluate((element) => { element.scrollTop = 0; });
+      await xPanel.locator("[data-x-scroll]").evaluate((element) => { element.scrollTop = 0; });
       await page.screenshot({ path: join(tmpdir(), `gcdsignal-x-${width === 390 ? "mobile" : "desktop"}-qa.png`) });
     }
   }
@@ -275,9 +335,10 @@ try {
   assert.equal(await xPanel.getByRole("link", { name: "Open on X ↗", exact: true }).getAttribute("href"), "https://x.com/OpenAI", "X accepts a simple account handle");
   assert.equal(external.filter((url) => url === "https://platform.twitter.com/widgets.js").length, attempts + 1, "choosing another account requires fresh consent");
   await page.reload();
-  await page.getByRole("main", { name: "X reading", exact: true }).getByRole("button", { name: "Saved sources", exact: true }).click();
-  await page.getByRole("main", { name: "X reading", exact: true }).getByRole("button", { name: "Load embed", exact: true }).waitFor();
-  assert.equal(await page.getByRole("main", { name: "X reading", exact: true }).getByRole("link", { name: "Open on X ↗", exact: true }).getAttribute("href"), "https://x.com/i/lists/123456789", "saved X sources survive reload");
+  await page.getByRole("button", { name: "Jump to X column", exact: true }).click();
+  await xPanel.getByRole("button", { name: "Saved sources", exact: true }).click();
+  await xPanel.getByRole("button", { name: "Load embed", exact: true }).waitFor();
+  assert.equal(await xPanel.getByRole("link", { name: "Open on X ↗", exact: true }).getAttribute("href"), "https://x.com/i/lists/123456789", "saved X sources survive reload");
   assert.equal(external.filter((url) => url === "https://platform.twitter.com/widgets.js").length, attempts + 1, "restoring an X source does not load it automatically");
   assert.ok(!requests.some((request) => new URL(request).pathname === "/api/feeds/bluesky"), "default Brief, Deck and Library do not request Bluesky");
   await context.close();
@@ -316,7 +377,7 @@ try {
   assert.equal(await scroll.evaluate((element) => element.scrollTop), 0);
   await held.context.close();
   assert.deepEqual(errors, [], "no client runtime errors");
-  console.log("PASS: Brief/Broad defaults, opt-in Bluesky, preference migrations, coverage, window/category requests, explicit read/save, library search/notes/reload, 320–1440px layouts, one-click Settings gear/drawer, touch targets, settings controls/focus, deck focus, main X consent/retry/fallback/reload, held refresh.");
+  console.log("PASS: Brief/Broad and X home-column defaults, opt-in Bluesky, preference migrations, coverage, window/category requests, explicit read/save, library search/notes/reload, 320–1440px layouts, mobile column jumps, desktop side-by-side columns, X hide/show/reload, one-click Settings gear/drawer, touch targets, settings controls/focus, deck focus, X consent/retry/fallback/reload, held refresh.");
   console.log("Screenshots: " + join(tmpdir(), "gcdsignal-mobile-qa.png") + " and " + join(tmpdir(), "gcdsignal-desktop-qa.png"));
   console.log("Settings and X screenshots: " + ["settings-mobile", "settings-desktop", "x-mobile", "x-desktop"].map((name) => join(tmpdir(), `gcdsignal-${name}-qa.png`)).join(", "));
 } finally { await browser.close(); }

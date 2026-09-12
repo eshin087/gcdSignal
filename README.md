@@ -2,7 +2,8 @@
 
 A local-first AI news reader: a concise **Brief** for important developments,
 an optional source **Deck** for deeper browsing, a searchable **Library**
-for material you want to keep, and an **X** tab that discovers AI post links.
+for material you want to keep, and a default **AI on X** column that discovers
+AI post links beside the Brief.
 
 The default is **Brief + All AI**, not Builder. Selection uses transparent
 rules and source evidence, not a paid language-model classifier. It is a
@@ -47,7 +48,9 @@ reports failures instead of promising that every feed always works.
 heuristics and limitations. Existing pre-v7 preferences migrate to Broad/Brief;
 other preferences and custom feeds are retained. The v8 update turns the built-in
 Bluesky column off once; re-enabling it in Settings is remembered. Existing v7
-Builder and view choices are preserved.
+Builder and view choices are preserved. The v9 update adds AI on X beside the
+Brief and after AI News in Deck; the retired X-page preference opens Brief.
+Existing saved X links remain intact. Hide the column in Settings if desired.
 
 ## Sources and optional configuration
 
@@ -79,12 +82,18 @@ Email signup, broadcast delivery and Resend configuration have been removed.
 
 ### X: automatic discovery and saved sources
 
-Open **X → Discover** to find AI-related X links shared on Hacker News and in
-Latent Space's public AI coverage. No handles or credentials are needed.
+The homepage's **AI on X** column automatically finds AI-related X links shared
+on Hacker News and in Latent Space's public AI coverage. No handles or
+credentials are needed. It sits beside the Brief on wide screens; on phones,
+swipe across or use **AI on X →** to reach the neighboring column. It is also a
+default Deck column, with the same hide, reorder and focus controls as other
+columns. There is no separate X page or main-navigation tab.
 **Popular** uses source discussion activity, recency and cross-source selection;
 it does not measure X-wide virality. Filter by text or sharing date, inspect why
 a post appears, and save links for later. Descriptions and dates belong to the
-citing source; the original post may be older or unavailable.
+citing source; the original post may be older or unavailable. X discovery uses
+its own text/date controls and covers All AI independently of the Brief/Deck
+topic and Builder filters.
 
 Choose **Load post from X** to view an original post in a dialog, or **Open on X**.
 The **Saved sources** section retains public profiles, lists and individual

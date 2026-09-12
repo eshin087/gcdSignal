@@ -153,9 +153,10 @@ sync. Browsing still makes requests to the site's feed endpoints and may load
 publisher thumbnails. Opening an original link contacts that website. Backups
 contain personal notes in plain JSON, so store/share them accordingly.
 
-## X reading tab
+## X discovery column
 
-The X tab defaults to Discover: dated links to X posts surfaced through Hacker
+The default AI on X column sits beside the homepage Brief and appears in Deck.
+It starts with Discover: dated links to X posts surfaced through Hacker
 News and Latent Space's public RSS. AI relevance uses the citing headline or
 individual paragraph; selection cannot inspect undiscovered X posts. Popular
 ranking uses bounded HN points/comments, recency and inclusion by both public
@@ -169,8 +170,10 @@ original X post. Filters and coverage limits are detailed in
 
 Saved sources retains public profile/list/post bookmarks. Official widgets load
 only after Load embed or Load post from X; original links remain available when
-widgets fail. Discovery and saved links remain separate from the main Brief
-and Library. No paid X API or unofficial timeline scraping is used. X bookmarks
+widgets fail. Discovery and saved links remain separate from Brief story ranking
+and Library storage. The column covers All AI with its own text/date controls;
+the main topic and Builder filters do not change its selection. No paid X API
+or unofficial timeline scraping is used. X bookmarks
 have their own export and are not included in Library backups.
 
 ## Verification
