@@ -44,7 +44,7 @@ function briefFixture(url) {
   };
 }
 async function setup(prefs) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce", colorScheme: "light" });
   if (prefs) await context.addInitScript((value) => {
     if (!sessionStorage.getItem("qa-seeded")) { localStorage.setItem("gcdsignal:prefs", JSON.stringify(value)); sessionStorage.setItem("qa-seeded", "1"); }
   }, prefs);
@@ -57,6 +57,7 @@ async function setup(prefs) {
     if (url.pathname === "/api/feeds/x-discovery") return route.fulfill({ json: {
       schemaVersion: 1, fetchedAt: now(), health: health(), items: [{
         id: "1234567890", url: "https://x.com/QaResearch/status/1234567890", author: "QaResearch", title: "AI model release from public coverage", sharedAt: now(), rank: 500,
+        excerpt: "Public source context about this AI model announcement. This intentionally long attributed excerpt checks the same two-line preview and compact-density behavior as the other news columns.",
         reasons: ["Shared on Hacker News"], mentions: [{ source: "hackernews", sourceUrl: "https://news.ycombinator.com/item?id=101", sourceTitle: "AI model release from public coverage", sharedAt: now(), points: 80, comments: 12 }],
       }],
     } });
@@ -93,13 +94,52 @@ async function dbRecords(page) {
     open.onsuccess = () => { const request = open.result.transaction("records").objectStore("records").getAll(); request.onsuccess = () => { resolve(request.result); open.result.close(); }; request.onerror = () => reject(request.error); };
   }));
 }
+async function matchingXColumn(page, { compact = false, label = "default" } = {}) {
+  const rss = page.locator('[data-feed-id="rss"]');
+  const x = page.getByRole("region", { name: "AI on X column", exact: true });
+  const rssCard = rss.locator("article").first();
+  const xCard = x.locator("article").first();
+  await rssCard.waitFor();
+  await xCard.waitFor();
+  // Compare actual computed styles, not class names that can drift independently.
+  const styles = (locator, properties) => locator.evaluate((element, keys) => {
+    const style = getComputedStyle(element);
+    return Object.fromEntries(keys.map((key) => [key, style.getPropertyValue(key)]));
+  }, properties);
+  const rssShell = rss.locator("section").first();
+  assert.deepEqual(await styles(x, ["background-color", "border-radius", "box-shadow"]), await styles(rssShell, ["background-color", "border-radius", "box-shadow"]), `${label}: X shares the standard column surface`);
+  const xHeader = x.locator(".col-header");
+  const rssHeader = rss.locator(".col-header");
+  assert.deepEqual(await styles(xHeader, ["height", "padding-left", "padding-right", "border-bottom-color"]), await styles(rssHeader, ["height", "padding-left", "padding-right", "border-bottom-color"]), `${label}: column headers align`);
+  assert.equal((await xHeader.boundingBox()).height, 44, `${label}: X has the standard 44px header`);
+  assert.deepEqual(await styles(xHeader.locator("h2"), ["font-family", "font-size", "font-weight", "text-transform", "color"]), await styles(rssHeader.locator("h2"), ["font-family", "font-size", "font-weight", "text-transform", "color"]), `${label}: column heading typography matches`);
+  await xHeader.locator('.led[aria-label="Status: ok"]').waitFor();
+  assert.equal(await xHeader.locator(".rounded-full").count(), 1, `${label}: X has a standard count badge`);
+  assert.equal(await xHeader.getByRole("button", { name: "Refresh AI on X", exact: true }).locator("svg").count(), 1, `${label}: refresh is an icon in the header`);
+  const accent = await xHeader.evaluate((element) => { const style = getComputedStyle(element.previousElementSibling); return { height: style.height, background: style.backgroundImage }; });
+  assert.equal(accent.height, "2px", `${label}: X has the same thin accent strip`);
+  assert.notEqual(accent.background, "none");
+  assert.deepEqual(await styles(xCard, ["padding-top", "padding-bottom", "padding-left", "padding-right", "border-radius", "border-bottom-color"]), await styles(rssCard, ["padding-top", "padding-bottom", "padding-left", "padding-right", "border-radius", "border-bottom-color"]), `${label}: feed row spacing and separators match`);
+  const xTitle = xCard.getByRole("heading").locator("a");
+  const rssTitle = rssCard.locator("a").first();
+  const titleStyle = await styles(xTitle, ["font-size", "font-weight", "line-height", "letter-spacing", "color"]);
+  assert.deepEqual(titleStyle, await styles(rssTitle, ["font-size", "font-weight", "line-height", "letter-spacing", "color"]), `${label}: X uses the same headline scale and weight`);
+  const excerpts = xCard.locator("p.line-clamp-2");
+  assert.equal(await excerpts.count(), compact ? 0 : 1, `${label}: X respects the shared density setting`);
+  if (!compact) assert.deepEqual(await styles(excerpts, ["font-size", "line-height", "-webkit-line-clamp", "color"]), await styles(rssCard.locator("p.line-clamp-2"), ["font-size", "line-height", "-webkit-line-clamp", "color"]), `${label}: excerpts share the two-line preview style`);
+  await x.locator("[data-x-scroll]").evaluate((element) => { element.scrollTop = 0; });
+  const titleBounds = await xTitle.boundingBox();
+  const headerBounds = await xHeader.boundingBox();
+  assert.ok(titleBounds.y >= headerBounds.y + headerBounds.height && titleBounds.y - headerBounds.y < 200, `${label}: headlines are not pushed down by introductory controls`);
+  return { fontSize: Number.parseFloat(titleStyle["font-size"]), padding: Number.parseFloat((await styles(xCard, ["padding-top"]))["padding-top"]), color: titleStyle.color };
+}
 try {
   const { context, page } = await setup();
   await page.goto(appUrl);
   await page.getByRole("heading", { name: "The essential Brief", exact: true }).waitFor();
   await page.locator("main article").nth(9).waitFor();
   const homeX = page.getByRole("region", { name: "AI on X column", exact: true });
-  await homeX.getByRole("button", { name: "Discover", exact: true }).waitFor();
+  await homeX.getByRole("region", { name: "X discoveries", exact: true }).waitFor();
   await homeX.getByRole("heading", { name: "AI model release from public coverage", exact: true }).waitFor();
   assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "X", exact: true }).count(), 0, "X is a home column, not a separate navigation destination");
   assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button").count(), 3, "main navigation contains only Brief, Deck and Library");
@@ -260,6 +300,35 @@ try {
   await page.locator('[data-feed-id="x-discovery"]').waitFor();
   const deckIds = await page.locator(".deck-scroll [data-feed-id]").evaluateAll((elements) => elements.map((element) => element.dataset.feedId));
   assert.equal(deckIds.indexOf("x-discovery"), deckIds.indexOf("rss") + 1, "the default Deck puts X beside RSS");
+  await page.setViewportSize({ width: 1440, height: 844 });
+  await page.mouse.move(0, 0);
+  const comfortableStyle = await matchingXColumn(page);
+  await page.screenshot({ path: join(tmpdir(), "gcdsignal-x-deck-comfortable-light.png") });
+  const originalDark = await page.locator("html").evaluate((element) => element.classList.contains("dark"));
+  const styleSettings = await settings(page, true);
+  await styleSettings.getByRole("button", { name: originalDark ? "Switch to light mode" : "Switch to dark mode", exact: true }).click();
+  await styleSettings.getByRole("button", { name: "Compact", exact: true }).click();
+  await settings(page, false);
+  const compactStyle = await matchingXColumn(page, { compact: true, label: "opposite theme / compact" });
+  assert.ok(compactStyle.padding < comfortableStyle.padding, "compact X rows reduce vertical padding");
+  assert.notEqual(compactStyle.color, comfortableStyle.color, "X headlines follow light/dark theme changes");
+  await page.screenshot({ path: join(tmpdir(), "gcdsignal-x-deck-compact-dark.png") });
+  let previousSize = 0;
+  for (const textSize of ["Small", "Medium", "Large", "Largest"]) {
+    const textSettings = await settings(page, true);
+    await textSettings.getByRole("button", { name: textSize, exact: true }).click();
+    await settings(page, false);
+    const style = await matchingXColumn(page, { compact: true, label: `${textSize} text / compact` });
+    assert.ok(style.fontSize > previousSize, `${textSize}: X headline size increases with the shared preference`);
+    previousSize = style.fontSize;
+  }
+  await page.screenshot({ path: join(tmpdir(), "gcdsignal-x-matched-columns-qa.png") });
+  const restoreStyle = await settings(page, true);
+  await restoreStyle.getByRole("button", { name: "Medium", exact: true }).click();
+  await restoreStyle.getByRole("button", { name: "Comfortable", exact: true }).click();
+  await restoreStyle.getByRole("button", { name: originalDark ? "Switch to dark mode" : "Switch to light mode", exact: true }).click();
+  await settings(page, false);
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Focus Reddit ↗", exact: true }).waitFor();
   await page.locator('[data-feed-id="reddit"] article').first().waitFor();
   await page.getByRole("button", { name: "Focus Reddit ↗", exact: true }).scrollIntoViewIfNeeded();
@@ -298,10 +367,10 @@ try {
   await showX.getByRole("checkbox", { name: "Show AI on X", exact: true }).check();
   await settings(page, false);
   await page.getByRole("button", { name: "Jump to X column", exact: true }).click();
-  await xPanel.getByRole("button", { name: "Discover", exact: true }).waitFor();
+  await xPanel.getByRole("region", { name: "X discoveries", exact: true }).waitFor();
   assert.equal(await page.getByRole("dialog").count(), 0, "X is inline, not a separate page or dialog");
   assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "Brief", exact: true }).getAttribute("aria-current"), "page");
-  assert.equal(await xPanel.getByRole("button", { name: "Discover", exact: true }).getAttribute("aria-pressed"), "true", "the X column starts with automatic discovery");
+  assert.equal(await xPanel.getByRole("button", { name: "Saved sources", exact: true }).getAttribute("aria-pressed"), "false", "the X column starts with automatic discovery");
   await xPanel.getByRole("button", { name: "Saved sources", exact: true }).click();
   await xPanel.getByRole("heading", { name: "Build your X reading space", exact: true }).waitFor();
   await xPanel.getByRole("button", { name: "Add your first source", exact: true }).click();
@@ -377,7 +446,7 @@ try {
   assert.equal(await scroll.evaluate((element) => element.scrollTop), 0);
   await held.context.close();
   assert.deepEqual(errors, [], "no client runtime errors");
-  console.log("PASS: Brief/Broad and X home-column defaults, opt-in Bluesky, preference migrations, coverage, window/category requests, explicit read/save, library search/notes/reload, 320–1440px layouts, mobile column jumps, desktop side-by-side columns, X hide/show/reload, one-click Settings gear/drawer, touch targets, settings controls/focus, deck focus, X consent/retry/fallback/reload, held refresh.");
+  console.log("PASS: Brief/Broad and X home-column defaults, opt-in Bluesky, preference migrations, coverage, window/category requests, explicit read/save, library search/notes/reload, 320–1440px layouts, mobile column jumps, desktop side-by-side columns, matching X/RSS column and row styles, light/dark themes, all text scales and compact density, X hide/show/reload, one-click Settings gear/drawer, touch targets, settings controls/focus, deck focus, X consent/retry/fallback/reload, held refresh.");
   console.log("Screenshots: " + join(tmpdir(), "gcdsignal-mobile-qa.png") + " and " + join(tmpdir(), "gcdsignal-desktop-qa.png"));
   console.log("Settings and X screenshots: " + ["settings-mobile", "settings-desktop", "x-mobile", "x-desktop"].map((name) => join(tmpdir(), `gcdsignal-${name}-qa.png`)).join(", "));
 } finally { await browser.close(); }

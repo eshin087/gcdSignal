@@ -7,6 +7,7 @@ import { loadWidgets } from "@/lib/x-widgets";
 import { useDialog } from "@/lib/use-dialog";
 import { clearHealth, reportHealth } from "@/lib/feed-health";
 import type { XDiscoveryPost, XDiscoveryResponse } from "@/lib/x-discovery-types";
+import XDiscoveryCard from "./XDiscoveryCard";
 
 const URL = "/api/feeds/x-discovery";
 let snapshot: { data: XDiscoveryResponse; receivedAt: number } | null = null;
@@ -81,14 +82,13 @@ function PostPreview({ post, onClose }: { post: XDiscoveryPost; onClose: () => v
   </dialog>;
 }
 
-export default function XDiscoveryFeed({ refreshKey, savedUrls, ready, onSave }: {
-  refreshKey: number; savedUrls: string[]; ready: boolean; onSave: (url: string) => boolean;
+export default function XDiscoveryFeed({ refreshKey, savedUrls, ready, onSave, onLoadingChange }: {
+  refreshKey: number; savedUrls: string[]; ready: boolean; onSave: (url: string) => boolean; onLoadingChange: (loading: boolean) => void;
 }) {
   const [data, setData] = useState<XDiscoveryResponse | null>(null);
   const [pending, setPending] = useState<XDiscoveryResponse | null>(null);
   const [failure, setFailure] = useState("");
   const [loading, setLoading] = useState(true);
-  const [attempt, setAttempt] = useState(0);
   const [windowHours, setWindowHours] = useState(72);
   const [sort, setSort] = useState("popular");
   const [query, setQuery] = useState("");
@@ -126,7 +126,7 @@ export default function XDiscoveryFeed({ refreshKey, savedUrls, ready, onSave }:
       if (active) setFailure(error instanceof Error ? error.message : "Discovery could not load.");
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [refreshKey, attempt]);
+  }, [refreshKey]);
 
   const cutoff = viewTime - windowHours * 3600_000;
   const filtered = (data?.items ?? []).filter((post) => Date.parse(post.sharedAt) >= cutoff &&
@@ -143,69 +143,60 @@ export default function XDiscoveryFeed({ refreshKey, savedUrls, ready, onSave }:
     });
   }, [problem, data, loading]);
   useEffect(() => () => clearHealth("x-discovery"), []);
+  useEffect(() => { onLoadingChange(loading); }, [loading, onLoadingChange]);
 
-  return <section aria-label="X discoveries" className="mx-auto max-w-3xl">
-    <p className="mb-3 text-xs leading-5 text-zinc-600 dark:text-zinc-400">AI links from Hacker News & Latent Space, ranked by source activity—not X likes.</p>
-    <div className="mb-3 flex flex-wrap items-end gap-2">
-      <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Shared within
-        <select className="reader-input mt-1 block min-h-11" value={windowHours} onChange={(event) => { setWindowHours(Number(event.target.value)); setViewTime(Date.now()); setLimit(20); }}>
-          <option value={24}>24 hours</option><option value={72}>3 days</option><option value={168}>7 days</option>
-        </select>
-      </label>
-      <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Order
-        <select className="reader-input mt-1 block min-h-11" value={sort} onChange={(event) => setSort(event.target.value)}>
-          <option value="popular">Popular</option><option value="new">Newly shared</option>
-        </select>
-      </label>
-      <button className="action-button min-h-11" aria-expanded={filterOpen} aria-controls="x-discovery-filter" onClick={() => setFilterOpen((open) => !open)}>Filter{query ? " · 1" : ""}</button>
+  return <section aria-label="X discoveries">
+    <div className="flex items-start gap-2 border-b border-black/[0.06] px-3 dark:border-white/[0.06]">
+      <details className="min-w-0 flex-1 text-[length:var(--fs-ui-sm)] leading-relaxed text-zinc-500 dark:text-zinc-400">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 font-mono" title="Coverage and selection details">All AI · {sort === "popular" ? "Popular" : "Newly shared"} · {windowHours / 24}d <span aria-hidden>⌄</span><span className="sr-only"> · Source coverage</span></summary>
+        <div className="pb-3">
+          <p className="font-medium">{data?.health.degraded || data?.stale ? "Partial or delayed coverage" : "Source coverage"}</p>
+          <p className="mt-1">{data ? `${filtered.length} ${filtered.length === 1 ? "post" : "posts"} · checked ${timeAgo(data.fetchedAt)}` : "Checking public sources"}</p>
+          <ul className="mt-2 space-y-1">
+            {data?.health.details?.map((source) => <li key={source.id}>{source.id.startsWith("hackernews") ? "Hacker News" : "Latent Space"}{source.id.includes(":") ? ` (${source.id.split(":")[1]})` : ""}: {source.status === "ok" ? "available" : source.status === "stale" ? "using an older result" : "unavailable"}{source.lastSuccessAt ? ` · last success ${timeAgo(source.lastSuccessAt)}` : ""}</li>)}
+          </ul>
+          <p className="mt-2">AI links from Hacker News and Latent Space, ranked by source activity—not X likes. The headline and excerpt describe the citing source, not a transcript of the post.</p>
+          <p className="mt-2">This column covers All AI independently of the main topic tabs and Builder filter. Use Filter for its own text/date controls.</p>
+          <p className="mt-2">Requests are cached for five minutes. Shared dates describe when a source linked the post; the original X post may be older. Sources can lag behind X.</p>
+          <p className="mt-2">No X requests happen until you open a link or load a post. Saved X links have their own export, separate from Library.</p>
+        </div>
+      </details>
+      <button className="min-h-11 shrink-0 px-2 text-[length:var(--fs-ui-sm)] font-medium text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300" aria-label="Filter" aria-expanded={filterOpen} aria-controls="x-discovery-filter" onClick={() => setFilterOpen((open) => !open)}>Filter{query ? " · 1" : ""}</button>
     </div>
-    {filterOpen && <label id="x-discovery-filter" className="mb-4 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Filter discoveries
-      <input type="search" className="reader-input mt-1 block min-h-11 w-full" placeholder="Company, topic, or author" value={query} onChange={(event) => { setQuery(event.target.value); setLimit(20); }} />
-    </label>}
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-600 dark:text-zinc-400">
-      <span>{data ? `${filtered.length} posts · checked ${timeAgo(data.fetchedAt)}` : "Checking public sources"}</span>
-      <button className="action-button min-h-11" data-refresh aria-label="Check for updates" disabled={loading} onClick={() => setAttempt((value) => value + 1)}>{loading ? "Checking…" : "Refresh"}</button>
-    </div>
-    {pending && <button className="action-button reader-primary mb-4 min-h-11 w-full" onClick={() => {
-      displayed.current = pending; setData(pending); setPending(null); setViewTime(Date.now()); setLimit(20);
-    }}>Show updated discoveries</button>}
-    {problem && <p role="status" className="mb-4 rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-950 dark:bg-amber-950/40 dark:text-amber-200">{problem}{data?.items.length ? " Showing the last available discoveries." : " Your saved sources are still available."}</p>}
-    {data && <details className="mb-3 text-xs leading-6 text-zinc-600 dark:text-zinc-400">
-      <summary className="min-h-11 cursor-pointer py-2">{data.health.degraded || data.stale ? "Partial or delayed coverage" : "Source coverage"}</summary>
-      <ul className="mt-1 space-y-1">
-        {data.health.details?.map((source) => <li key={source.id}>{source.id.startsWith("hackernews") ? "Hacker News" : "Latent Space"}{source.id.includes(":") ? ` (${source.id.split(":")[1]})` : ""}: {source.status === "ok" ? "available" : source.status === "stale" ? "using an older result" : "unavailable"}{source.lastSuccessAt ? ` · last success ${timeAgo(source.lastSuccessAt)}` : ""}</li>)}
-      </ul>
-      <p className="mt-2">This column covers All AI independently of the main topic tabs and Builder filter. Use the column’s own text/date controls.</p>
-      <p className="mt-2">Sources update on their own schedules. Requests are cached for five minutes. Dates below describe when a source shared the link; the original X post may be older.</p>
-    </details>}
-    {!data && loading && <p role="status" className="py-12 text-center text-sm text-zinc-600 dark:text-zinc-400">Finding AI posts from public sources…</p>}
-    {data && !filtered.length && <div className="rounded-2xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-zinc-700">
-      <h2 className="font-semibold">No discoveries match this view yet</h2>
-      <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">Try a longer sharing window or clear your filter. New posts appear when the sources cover them.</p>
+    {filterOpen && <div id="x-discovery-filter" className="space-y-3 border-b border-black/[0.06] bg-black/[0.02] p-3 dark:border-white/[0.06] dark:bg-white/[0.02]">
+      <div className="grid grid-cols-2 gap-3">
+        <label className="text-[length:var(--fs-ui-sm)] font-medium text-zinc-600 dark:text-zinc-400">Shared within
+          <select className="reader-input mt-1 block min-h-11 w-full" value={windowHours} onChange={(event) => { setWindowHours(Number(event.target.value)); setViewTime(Date.now()); setLimit(20); }}>
+            <option value={24}>24 hours</option><option value={72}>3 days</option><option value={168}>7 days</option>
+          </select>
+        </label>
+        <label className="text-[length:var(--fs-ui-sm)] font-medium text-zinc-600 dark:text-zinc-400">Order
+          <select className="reader-input mt-1 block min-h-11 w-full" value={sort} onChange={(event) => setSort(event.target.value)}>
+            <option value="popular">Popular</option><option value="new">Newly shared</option>
+          </select>
+        </label>
+      </div>
+      <label className="block text-[length:var(--fs-ui-sm)] font-medium text-zinc-600 dark:text-zinc-400">Filter discoveries
+        <input type="search" className="reader-input mt-1 block min-h-11 w-full" placeholder="Company, topic, or author" value={query} onChange={(event) => { setQuery(event.target.value); setLimit(20); }} />
+      </label>
     </div>}
-    <div className="space-y-4">
+    {pending && <div className="pointer-events-none sticky top-2 z-10 flex justify-center"><button className="pointer-events-auto min-h-11 rounded-full bg-cyan-500 px-3 font-mono text-[length:var(--fs-ui-sm)] font-semibold text-white shadow-lg shadow-cyan-500/30 dark:bg-cyan-400 dark:text-cyan-950" onClick={() => {
+      displayed.current = pending; setData(pending); setPending(null); setViewTime(Date.now()); setLimit(20);
+    }}>Show updated discoveries</button></div>}
+    {(problem || data?.health.degraded || data?.stale) && <p role="status" className="border-b border-amber-500/20 bg-amber-500/[0.07] px-3 py-2 text-[length:var(--fs-ui-sm)] leading-relaxed text-amber-800 dark:text-amber-300">{problem || "Partial or delayed coverage."}{data?.items.length ? " Showing available discoveries; check source coverage for details." : " Your saved sources are still available."}</p>}
+    {!data && loading && <p role="status" className="py-12 text-center text-sm text-zinc-600 dark:text-zinc-400">Finding AI posts from public sources…</p>}
+    {data && !filtered.length && <div className="px-4 py-10 text-center">
+      <h3 className="text-[length:var(--fs-title)] font-medium text-zinc-600 dark:text-zinc-300">No discoveries match this view yet</h3>
+      <p className="mt-2 text-[length:var(--fs-meta)] leading-relaxed text-zinc-500 dark:text-zinc-400">Try a longer sharing window or clear your filter. New posts appear when the sources cover them.</p>
+    </div>}
+    <div>
       {filtered.slice(0, limit).map((post) => {
         const saved = savedIds.has(parseXLink(post.url)?.postId);
-        return <article key={post.id} tabIndex={-1} className="break-words rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-600 dark:text-zinc-400"><span className="font-medium">@{post.author}</span><time dateTime={post.sharedAt}>Shared {timeAgo(post.sharedAt)}</time></div>
-          <h3 className="mt-2 text-base font-semibold leading-6 tracking-tight"><a href={post.url} target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 dark:hover:text-teal-300">{post.title}</a></h3>
-          {post.excerpt && <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">{post.excerpt}</p>}
-          <p className="mt-3 text-xs leading-5 text-zinc-500 dark:text-zinc-400">Source description · read the original post for its full context</p>
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs leading-6 text-teal-800 dark:text-teal-300">
-            {post.mentions.map((mention) => <a key={`${mention.source}:${mention.sourceUrl}`} href={mention.sourceUrl} target="_blank" rel="noopener noreferrer" className="min-h-11 py-2 underline decoration-teal-500/30 underline-offset-4">{mention.source === "hackernews" ? "Hacker News" : "Latent Space"}{mention.points !== undefined ? ` · ${mention.points} HN points` : ""}{mention.comments !== undefined ? ` · ${mention.comments} comments` : ""} ↗</a>)}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <a className="action-button reader-primary min-h-11" href={post.url} target="_blank" rel="noopener noreferrer">Open on X ↗</a>
-            <button className="action-button min-h-11" onClick={() => setPreview(post)}>Load post from X</button>
-            <button className="action-button min-h-11" aria-label={saved ? "Saved" : "Save post"} disabled={!ready || saved} onClick={() => setNotice(onSave(post.url) ? "Post added to Saved sources." : "Your 50 saved-link slots are full. Remove a saved source to make room.")}>{saved ? "Saved" : "Save post"}</button>
-          </div>
-          <details className="mt-2 text-xs leading-6 text-zinc-600 dark:text-zinc-400"><summary className="min-h-11 cursor-pointer py-2">Why this post?</summary><ul className="list-disc space-y-1 pl-4">{post.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></details>
-        </article>;
+        return <XDiscoveryCard key={post.id} post={post} saved={saved} ready={ready} onPreview={() => setPreview(post)} onSave={() => setNotice(onSave(post.url) ? "Post added to Saved sources." : "Your 50 saved-link slots are full. Remove a saved source to make room.")} />;
       })}
     </div>
-    {filtered.length > limit && <button className="action-button my-5 min-h-11 w-full" onClick={() => setLimit((value) => value + 20)}>Show more discoveries</button>}
-    <p role="status" className="mt-4 text-sm text-teal-800 dark:text-teal-300">{notice}</p>
-    <p className="mt-4 text-xs leading-6 text-zinc-500 dark:text-zinc-400">No accounts to add. X only loads when you open a link or choose Load post from X. Discovery descriptions come from the linked sources and are separate from your research library.</p>
+    {filtered.length > limit && <button className="min-h-11 w-full px-3 font-mono text-[length:var(--fs-ui-sm)] text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300" onClick={() => setLimit((value) => value + 20)}>Show more discoveries</button>}
+    <p role="status" className={notice ? "p-3 text-[length:var(--fs-ui-sm)] text-cyan-700 dark:text-cyan-300" : "sr-only"}>{notice}</p>
     {preview && <PostPreview key={preview.id} post={preview} onClose={() => setPreview(null)} />}
   </section>;
 }

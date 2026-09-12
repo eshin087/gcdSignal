@@ -21,7 +21,7 @@ function fixture() {
 }
 
 async function setup({ blockWidgets = false, empty = false, blockStorage = false } = {}) {
-  const state = { data: fixture(), fail: false, requests: [], external: [] };
+  const state = { data: fixture(), fail: false, delay: null, requests: [], external: [] };
   if (empty) state.data.items = [];
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
   await context.addInitScript(({ blockStorage }) => {
@@ -46,6 +46,7 @@ async function setup({ blockWidgets = false, empty = false, blockStorage = false
     }
     if (url.pathname === "/api/feeds/x-discovery") {
       state.requests.push(url.href);
+      if (state.delay) await state.delay;
       return state.fail ? route.fulfill({ status: 503, json: { error: "Fixture outage" } }) : route.fulfill({ json: state.data });
     }
     if (url.pathname.startsWith("/api/")) return route.fulfill({ json: { schemaVersion: 2, items: [], top10: [], fetchedAt: time(), health: { total: 0, succeeded: 0, failed: 0, degraded: false } } });
@@ -56,29 +57,35 @@ async function setup({ blockWidgets = false, empty = false, blockStorage = false
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(appUrl);
   const panel = page.getByRole("region", { name: "X discoveries", exact: true });
-  await panel.getByRole("button", { name: "Check for updates", exact: true }).waitFor();
+  const column = page.getByRole("region", { name: "AI on X column", exact: true });
+  const refresh = column.getByRole("button", { name: "Refresh AI on X", exact: true });
+  await refresh.waitFor();
   await page.getByRole("button", { name: "Jump to X column", exact: true }).click();
-  return { context, page, panel, state };
+  return { context, page, panel, column, refresh, state };
 }
 
 try {
-  const { context, page, panel, state } = await setup();
+  const { context, page, panel, column, refresh, state } = await setup();
   assert.equal(await panel.locator("article").count(), 2, "automatic discoveries show without handles");
   assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "X", exact: true }).count(), 0, "X has no separate navigation tab");
   assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "Brief", exact: true }).getAttribute("aria-current"), "page", "automatic X appears on the default homepage");
   assert.equal(await panel.locator("article").first().getByRole("heading").innerText(), "AI model release with a useful demo");
   assert.deepEqual(state.external, [], "discovery does not load X or images automatically");
+  assert.equal(await panel.getByRole("button", { name: "Filter", exact: true }).getAttribute("aria-expanded"), "false", "advanced controls start collapsed");
+  assert.equal(await panel.getByRole("combobox").count(), 0, "date and sorting controls do not occupy the default column");
+  assert.equal(await column.getByRole("button", { name: "Saved sources", exact: true }).getAttribute("aria-pressed"), "false");
+  assert.equal(await column.getByRole("button", { name: "Discover", exact: true }).count(), 0, "default discovery needs no extra tab row");
+  await panel.getByRole("button", { name: "Filter", exact: true }).click();
   await panel.getByRole("combobox", { name: "Order", exact: true }).selectOption("new");
   assert.match(await panel.locator("article").first().innerText(), /research paper/);
-  await panel.getByRole("button", { name: "Filter", exact: true }).click();
   await panel.getByRole("searchbox", { name: "Filter discoveries", exact: true }).fill("demo");
   assert.equal(await panel.locator("article").count(), 1);
   await panel.getByRole("searchbox", { name: "Filter discoveries", exact: true }).fill("");
-  await panel.getByRole("button", { name: "Filter", exact: true }).click();
   await panel.getByRole("combobox", { name: "Shared within", exact: true }).selectOption("168");
   assert.equal(await panel.locator("article").count(), 3);
   await panel.getByRole("combobox", { name: "Shared within", exact: true }).selectOption("72");
   await panel.getByRole("combobox", { name: "Order", exact: true }).selectOption("popular");
+  await panel.getByRole("button", { name: "Filter", exact: true }).click();
   const release = panel.locator("article").filter({ hasText: "useful demo" });
   await release.getByRole("button", { name: "Save post", exact: true }).click();
   await release.getByRole("button", { name: "Saved", exact: true }).waitFor();
@@ -121,6 +128,10 @@ try {
     }
     if ([390, 1440].includes(width)) {
       await xColumn.locator("[data-x-scroll]").evaluate((element) => { element.scrollTop = 0; });
+      const headerBounds = await xColumn.locator(".col-header").boundingBox();
+      const titleBounds = await release.getByRole("heading").boundingBox();
+      assert.equal(headerBounds.height, 44, "X uses the standard 44px column header");
+      assert.ok(titleBounds.y >= headerBounds.y + headerBounds.height && titleBounds.y - headerBounds.y < 200, `the first headline remains near the header at ${width}px`);
       await page.screenshot({ path: join(tmpdir(), `gcdsignal-x-discovery-${width}.png`) });
     }
   }
@@ -138,12 +149,13 @@ try {
   await dialog.waitFor({ state: "detached" });
   assert.equal(await previewButton.evaluate((element) => element === document.activeElement), true, "closing preview restores focus");
 
-  await panel.getByRole("button", { name: "Check for updates", exact: true }).click();
+  await refresh.click();
   assert.equal(state.requests.length, 1, "manual refresh honors five-minute cache");
+  await panel.getByRole("button", { name: "Filter", exact: true }).click();
   await panel.getByRole("combobox", { name: "Shared within", exact: true }).selectOption("24");
   state.data = { ...state.data, items: [{ ...state.data.items[0], id: "444", url: "https://x.com/QaRelease/status/444", title: "New AI discovery after refresh", sharedAt: time(-7) }, ...state.data.items] };
   await page.evaluate(() => { window.__clockOffset += 7 * 3600_000; });
-  await panel.getByRole("button", { name: "Check for updates", exact: true }).click();
+  await refresh.click();
   await panel.getByRole("button", { name: "Show updated discoveries", exact: true }).waitFor();
   assert.equal(await panel.getByRole("heading", { name: "New AI discovery after refresh", exact: true }).count(), 0, "new results wait for deliberate application");
   assert.equal(await panel.getByRole("heading", { name: "AI model release with a useful demo", exact: true }).count(), 1, "holding updates also holds the date cutoff so cards do not disappear");
@@ -151,9 +163,46 @@ try {
   await panel.getByRole("heading", { name: "New AI discovery after refresh", exact: true }).waitFor();
   state.fail = true;
   await page.evaluate(() => { window.__clockOffset += 360_000; });
-  await panel.getByRole("button", { name: "Check for updates", exact: true }).click();
-  await panel.getByText(/Showing the last available discoveries/).waitFor();
+  await refresh.click();
+  await panel.getByText(/Showing available discoveries; check source coverage/).waitFor();
+  await column.locator('.col-header .led[aria-label="Status: stale"]').waitFor();
   assert.equal(await panel.locator("article").count(), 2, "an outage keeps already loaded cards");
+
+  // A source can return useful stale content while a later refresh is running.
+  // The health LED must not substitute for the independent request busy state.
+  const healthyCoverage = state.data.health;
+  state.fail = false;
+  state.data = { ...state.data, stale: true, health: { ...healthyCoverage, degraded: true, succeeded: 1, failed: 1 } };
+  await page.evaluate(() => { window.__clockOffset += 360_000; });
+  await Promise.all([
+    page.waitForResponse((response) => new URL(response.url()).pathname === "/api/feeds/x-discovery"),
+    refresh.click(),
+  ]);
+  await page.waitForFunction(() => document.querySelector('button[aria-label="Refresh AI on X"]')?.getAttribute("aria-busy") === "false");
+  await column.locator('.col-header .led[aria-label="Status: stale"]').waitFor();
+  let releaseResponse;
+  state.delay = new Promise((resolve) => { releaseResponse = resolve; });
+  try {
+    await page.evaluate(() => { window.__clockOffset += 360_000; });
+    await Promise.all([
+      page.waitForRequest((request) => new URL(request.url()).pathname === "/api/feeds/x-discovery"),
+      refresh.click(),
+    ]);
+    await page.waitForFunction(() => document.querySelector('button[aria-label="Refresh AI on X"]')?.getAttribute("aria-busy") === "true");
+    assert.equal(await refresh.isDisabled(), true, "a delayed refresh is disabled even with stale source health");
+    assert.equal(await refresh.locator("svg.animate-spin").count(), 1, "stale refresh still shows its busy spinner");
+    await column.locator('.col-header .led[aria-label="Status: stale"]').waitFor();
+    const requestCount = state.requests.length;
+    await refresh.evaluate((element) => element.click());
+    assert.equal(state.requests.length, requestCount, "a disabled refresh cannot start a second request");
+    state.data = { ...state.data, stale: false, health: healthyCoverage };
+  } finally {
+    state.delay = null;
+    releaseResponse();
+  }
+  await column.locator('.col-header .led[aria-label="Status: ok"]').waitFor();
+  await page.waitForFunction(() => document.querySelector('button[aria-label="Refresh AI on X"]')?.getAttribute("aria-busy") === "false");
+  assert.equal(await refresh.isEnabled(), true, "completed refresh becomes available again");
   await context.close();
 
   const blocked = await setup({ blockWidgets: true, blockStorage: true });
@@ -174,5 +223,5 @@ try {
   assert.deepEqual(empty.state.external, []);
   await empty.context.close();
   assert.deepEqual(errors, [], "no client runtime errors");
-  console.log("PASS: automatic discovery, dates/order/search, saving, 320–1440px layout, click-to-load preview/focus, cache/update stability, blocked storage/widgets and empty/outage states.");
+  console.log("PASS: automatic discovery, compact column header/controls, dates/order/search, saving, 320–1440px layout, click-to-load preview/focus, cache/update stability, independent source-status/busy indicators, delayed stale retry, blocked storage/widgets and empty/outage states.");
 } finally { await browser.close(); }

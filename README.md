@@ -95,9 +95,13 @@ citing source; the original post may be older or unavailable. X discovery uses
 its own text/date controls and covers All AI independently of the Brief/Deck
 topic and Builder filters.
 
-Choose **Load post from X** to view an original post in a dialog, or **Open on X**.
-The **Saved sources** section retains public profiles, lists and individual
-posts with click-to-load widgets. X is contacted only after those actions;
+X uses the same flat rows, header, text sizes and Compact/Comfortable spacing
+as the other feed columns. **Filter** opens its text, date and order controls;
+the scope summary expands source-health and selection details.
+
+Choose **Load from X** to view an original post in a dialog, or **Open on X**.
+The header's bookmark icon opens **Saved sources**, retaining public profiles,
+lists and individual posts with click-to-load widgets. X is contacted only after those actions;
 embedding may be blocked or require sign-in.
 
 This uses public source APIs/RSS and optional official embeds. There is no paid

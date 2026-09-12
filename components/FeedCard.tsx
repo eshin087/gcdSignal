@@ -11,6 +11,7 @@ import { BookmarkIcon, CheckIcon, ClockIcon, CommentIcon, ShareIcon } from "./ic
 import SourceIcon from "./SourceIcon";
 import { useReading } from "./ReadingContext";
 import { markRead } from "@/lib/use-library";
+import { FEED_CARD_TITLE_CLASS, feedCardExcerptClassName, feedCardMetadataClassName, feedCardRowClassName, formatFeedCount } from "./feed-card-style";
 
 const SCORE_GLYPH: Record<SourceId, string> = {
   reddit: "▲",
@@ -22,13 +23,6 @@ const SCORE_GLYPH: Record<SourceId, string> = {
   github: "★",
   papers: "▲",
 };
-
-function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (n >= 10_000) return `${Math.round(n / 1000)}k`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
-  return String(n);
-}
 
 function formatDuration(sec: number): string {
   const h = Math.floor(sec / 3600);
@@ -125,13 +119,13 @@ export default function FeedCard({
 
   const scoreChip = typeof item.score === "number" && (
     <span className="inline-flex items-center gap-0.5 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[length:var(--fs-chip)] font-semibold tabular-nums text-amber-600 dark:bg-amber-400/10 dark:text-amber-300">
-      {SCORE_GLYPH[item.source]} {formatCount(item.score)}
+      {SCORE_GLYPH[item.source]} {formatFeedCount(item.score)}
     </span>
   );
   const commentChip = typeof item.comments === "number" && item.comments !== item.score && (
     <span className="inline-flex items-center gap-1 rounded-md bg-black/[0.04] px-1.5 py-0.5 text-[length:var(--fs-chip)] font-medium tabular-nums text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400">
       <CommentIcon className="h-3 w-3" />
-      {formatCount(item.comments)}
+      {formatFeedCount(item.comments)}
     </span>
   );
   const chips = (scoreChip || commentChip) && (
@@ -146,9 +140,7 @@ export default function FeedCard({
       data-item-key={itemKey}
       data-related-keys={related?.length ? JSON.stringify(related.map(seenKey)) : undefined}
       tabIndex={-1}
-      className={`card-enter card-glow group border-b border-black/[0.05] px-3 transition-[background-color,box-shadow] last:border-b-0 hover:bg-black/[0.03] focus:outline-none focus:ring-1 focus:ring-inset focus:ring-cyan-500/60 dark:border-white/[0.05] dark:hover:bg-white/[0.035] ${
-        compact ? "py-1.5" : "py-2.5"
-      }`}
+      className={feedCardRowClassName(compact)}
     >
       <div className="flex gap-2.5">
         <div className="min-w-0 flex-1">
@@ -158,7 +150,7 @@ export default function FeedCard({
               onClick={() => markRead(related ?? [item])}
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-[length:var(--fs-title)] font-medium leading-snug tracking-[-0.01em] text-zinc-900 transition-colors visited:text-zinc-400 group-hover:text-cyan-700 dark:text-zinc-100 dark:visited:text-zinc-500 dark:group-hover:text-cyan-300"
+              className={FEED_CARD_TITLE_CLASS}
             >
               {item.title}
             </a>
@@ -169,7 +161,7 @@ export default function FeedCard({
           )}
 
           {item.excerpt && (!compact || !preview) && (
-            <p className={`mt-1 ${preview ? "line-clamp-2" : ""} text-[length:var(--fs-excerpt)] leading-relaxed text-zinc-600 dark:text-zinc-400`}>
+            <p className={feedCardExcerptClassName(preview)}>
               {item.excerpt}
             </p>
           )}
@@ -178,9 +170,7 @@ export default function FeedCard({
       </div>
 
       <div
-        className={`flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[length:var(--fs-meta)] ${
-          compact ? "mt-1" : "mt-2"
-        }`}
+        className={feedCardMetadataClassName(compact)}
       >
         {preview && <button onClick={() => read(related ?? [item])} className="min-h-8 rounded-md border border-cyan-500/20 px-2 text-xs text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300" aria-label={`Preview ${item.title}`}>{related && related.length > 1 ? `${related.length} related items` : item.curation?.kind ?? "Preview"} ↗</button>}
         {showSource && (
