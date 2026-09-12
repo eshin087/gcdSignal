@@ -5,8 +5,9 @@ import { parseXLink, type XLink } from "@/lib/x-links";
 import { loadWidgets } from "@/lib/x-widgets";
 import { useDeckHealth } from "@/lib/feed-health";
 import XDiscoveryFeed from "./XDiscoveryFeed";
-import { COLUMN_HEADER, COLUMN_SHELL } from "./column-shell";
-import { BookmarkIcon, RefreshIcon, XBrandIcon } from "./icons";
+import { COLUMN_SHELL } from "./column-shell";
+import { BookmarkIcon, XBrandIcon } from "./icons";
+import ColumnHeader from "./ColumnHeader";
 
 const KEY = "gcdsignal:x-links:v1";
 const LIMIT = 50;
@@ -25,8 +26,8 @@ function labelFor(link: XLink): string {
   return parts[0] === "i" ? "List · " + parts[2] : parts[2].replace(/-/g, " ") + " · @" + parts[0];
 }
 
-export default function XReadingPanel({ refreshKey = 0, dragHandleProps }: {
-  refreshKey?: number; dragHandleProps?: React.HTMLAttributes<HTMLElement>;
+export default function XReadingPanel({ refreshKey = 0, dragHandleProps, headerAction }: {
+  refreshKey?: number; dragHandleProps?: React.HTMLAttributes<HTMLElement>; headerAction?: React.ReactNode;
 }) {
   const [section, setSection] = useState<"discover" | "sources">("discover");
   const [manualRefresh, setManualRefresh] = useState(0);
@@ -188,16 +189,10 @@ export default function XReadingPanel({ refreshKey = 0, dragHandleProps }: {
 
   return <section className={COLUMN_SHELL} aria-label="AI on X column">
     <div aria-hidden className="h-[2px] shrink-0 bg-gradient-to-r from-zinc-500/60 via-zinc-500/10 to-transparent dark:from-zinc-300/60 dark:via-zinc-300/10" />
-    <header {...dragHandleProps} className={`${COLUMN_HEADER} ${dragHandleProps ? "select-none md:cursor-grab md:active:cursor-grabbing" : ""}`}>
-      <span className={`led led-${health}`} aria-label={`Status: ${health}`} />
-      <XBrandIcon />
-      <h2 className="truncate font-mono text-[length:var(--fs-colhead)] font-semibold lowercase tracking-tight text-zinc-600 dark:text-zinc-300"><span className="text-cyan-500/80 dark:text-cyan-400/80">&gt;&nbsp;</span>AI on X</h2>
-      <span className="ml-auto flex items-center gap-1">
-        {feedHealth && <span className="rounded-full bg-black/[0.04] px-2 py-px font-mono text-[length:var(--fs-ui-sm)] tabular-nums text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400" title={`${feedHealth.count} available discoveries before filters`}>{feedHealth.count}</span>}
-        <button className={`flex h-11 w-11 shrink-0 items-center justify-center rounded transition-colors hover:bg-black/[0.05] focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-white/[0.06] ${section === "sources" ? "text-cyan-600 dark:text-cyan-300" : "text-zinc-500 dark:text-zinc-400"}`} draggable={false} aria-label="Saved sources" title="Saved X sources" aria-pressed={section === "sources"} onClick={() => { choose(selected); setSection(section === "sources" ? "discover" : "sources"); scroll.current?.scrollTo({ top: 0 }); }}><BookmarkIcon filled={section === "sources"} /></button>
-        <button className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-black/[0.05] hover:text-zinc-600 focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:text-zinc-500 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300" draggable={false} aria-label="Refresh AI on X" title="Refresh AI on X" disabled={refreshing} aria-busy={refreshing} onClick={() => setManualRefresh((value) => value + 1)}><RefreshIcon className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} /></button>
-      </span>
-    </header>
+    <ColumnHeader icon={<XBrandIcon />} label="AI on X" health={health}
+      count={feedHealth?.count} countTitle={feedHealth ? `${feedHealth.count} available discoveries before filters` : undefined}
+      onRefresh={() => setManualRefresh((value) => value + 1)} refreshing={refreshing} dragHandleProps={dragHandleProps}
+      extraAction={<>{headerAction}<button className={`flex h-11 w-11 shrink-0 items-center justify-center rounded transition-colors hover:bg-black/[0.05] focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-white/[0.06] ${section === "sources" ? "text-cyan-600 dark:text-cyan-300" : "text-zinc-500 dark:text-zinc-400"}`} draggable={false} aria-label="Saved sources" title="Saved X sources" aria-pressed={section === "sources"} onClick={() => { choose(selected); setSection(section === "sources" ? "discover" : "sources"); scroll.current?.scrollTo({ top: 0 }); }}><BookmarkIcon filled={section === "sources"} /></button></>} />
     {section === "sources" && <div className="flex shrink-0 items-center gap-3 border-b border-black/[0.06] px-3 dark:border-white/[0.06]"><button aria-label="Discover" className="min-h-11 text-[length:var(--fs-ui-sm)] font-medium text-cyan-700 dark:text-cyan-300" onClick={() => { choose(selected); setSection("discover"); scroll.current?.scrollTo({ top: 0 }); }}>← Discover</button><span className="ml-auto font-mono text-[length:var(--fs-ui-sm)] text-zinc-500 dark:text-zinc-400">Saved sources · {links.length}</span></div>}
     <div ref={scroll} data-x-scroll className="feed-scroll relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
 

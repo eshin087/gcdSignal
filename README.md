@@ -32,6 +32,12 @@ reports failures instead of promising that every feed always works.
 - **Deck:** configurable source columns, focus mode, mobile navigation,
   sorting, optional Builder filtering and custom feeds. Topic selection remains
   meaningful in All AI; a thin topic is not silently filled with unrelated posts.
+- **Focus and details:** focus one Brief or Deck column without changing its
+  reading position. Story rows keep secondary sources and actions behind one
+  small **Details** control so headlines stay easy to scan.
+- **Must read:** add any news, research or X link to one short browser-local
+  queue from **Details**. **Done** removes it from the queue only; Library saves
+  and X bookmarks remain unchanged. The queue has its own JSON backup.
 - **Library:** search fetched stories and saves by text, source, topic, content
   type, publication date, collection and read/saved/followed state. Keep notes,
   collections, saved searches and followed company/topic terms. This searches
@@ -51,6 +57,8 @@ Bluesky column off once; re-enabling it in Settings is remembered. Existing v7
 Builder and view choices are preserved. The v9 update adds AI on X beside the
 Brief and after AI News in Deck; the retired X-page preference opens Brief.
 Existing saved X links remain intact. Hide the column in Settings if desired.
+The v10 update makes 4chan opt-in once for existing readers; explicitly
+re-enabling it afterward is remembered.
 
 ## Sources and optional configuration
 
@@ -89,8 +97,9 @@ swipe across or use **AI on X →** to reach the neighboring column. It is also 
 default Deck column, with the same hide, reorder and focus controls as other
 columns. There is no separate X page or main-navigation tab.
 **Popular** uses source discussion activity, recency and cross-source selection;
-it does not measure X-wide virality. Filter by text or sharing date, inspect why
-a post appears, and save links for later. Descriptions and dates belong to the
+it does not measure X-wide virality. Hacker News comments remain labeled as HN
+discussion; free discovery does not supply X views, likes or replies. Filter by
+text or sharing date, inspect why a post appears, and save links for later. Descriptions and dates belong to the
 citing source; the original post may be older or unavailable. X discovery uses
 its own text/date controls and covers All AI independently of the Brief/Deck
 topic and Builder filters.
@@ -99,7 +108,9 @@ X uses the same flat rows, header, text sizes and Compact/Comfortable spacing
 as the other feed columns. **Filter** opens its text, date and order controls;
 the scope summary expands source-health and selection details.
 
-Choose **Load from X** to view an original post in a dialog, or **Open on X**.
+Open **Details**, then choose **Load post from X** to view an original post in a
+dialog, or **Open on X**. The widget or original page may display X's current
+engagement counts, but Signal does not copy or rank by those counts.
 The header's bookmark icon opens **Saved sources**, retaining public profiles,
 lists and individual posts with click-to-load widgets. X is contacted only after those actions;
 embedding may be blocked or require sign-in.
@@ -117,7 +128,10 @@ The Library uses IndexedDB in this browser. Ordinary collected items expire
 after 30 days without being fetched again and are capped at 5,000 records.
 Saved, followed, noted or collection-assigned items are excluded from automatic pruning.
 This is application behavior, not protection against clearing browser data,
-private-mode cleanup or storage eviction.
+private-mode cleanup or storage eviction. Must read uses a separate local store,
+keeps up to 200 items, and never evicts Library records. Its unencrypted JSON
+exports include titles, URLs, source labels, internal story identities and exact
+added-at timestamps, which can reveal reading interests and timing.
 
 Use **Export backup** in Library regularly. Versioned JSON backups include
 stories, reading/saved/follow states, notes, collections, saved searches and
@@ -125,9 +139,10 @@ followed terms; imports validate and merge them. Import limits are 25 MB and
 20,000 records. Backups are not encrypted and are not a backup of all app
 preferences or the separate X bookmarks.
 
-Legacy localStorage saves migrate to IndexedDB. If storage fails, the app
-shows a warning and retains accessible changes in memory; export before closing
-the tab. There is no automatic cross-device account sync.
+Legacy localStorage saves migrate to IndexedDB. If queue storage cannot be read,
+the app preserves visible changes in memory and offers a clearly labeled recovery
+export; it may not contain unreadable stored entries. Export before closing the
+tab. There is no automatic cross-device account sync.
 
 ## Security and deployment
 
@@ -167,6 +182,7 @@ node tests/library-browser.mjs
 node tests/browser-smoke.mjs
 node tests/x-browser.mjs
 node tests/x-discovery-browser.mjs
+node tests/reading-queue-browser.mjs
 ~~~
 
 The library suite uses an isolated page and real IndexedDB; it does not need a

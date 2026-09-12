@@ -12,9 +12,9 @@ import { useFeed } from "@/lib/use-feed";
 import { usePullToRefresh } from "@/lib/use-pull";
 import { useMarkObserver, useProgressiveReveal } from "@/lib/use-reveal";
 import type { CategoryId, FeedItem, SortMode, VisibleFeed } from "@/lib/types";
-import { COLUMN_HEADER, COLUMN_SHELL } from "./column-shell";
+import { COLUMN_SHELL } from "./column-shell";
+import ColumnHeader from "./ColumnHeader";
 import FeedCard from "./FeedCard";
-import { RefreshIcon } from "./icons";
 import SourceIcon from "./SourceIcon";
 
 const MANUAL_COOLDOWN_MS = 10_000;
@@ -29,6 +29,7 @@ export default function FeedColumn({
   sortMode,
   query,
   dragHandleProps,
+  headerAction,
 }: {
   feed: VisibleFeed;
   category: CategoryId;
@@ -36,6 +37,7 @@ export default function FeedColumn({
   sortMode: SortMode;
   query: string;
   dragHandleProps?: React.HTMLAttributes<HTMLElement>;
+  headerAction?: React.ReactNode;
 }) {
   const { prefs, setPrefs } = usePrefs();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -134,41 +136,11 @@ export default function FeedColumn({
         }}
       />
 
-      <header
-        {...dragHandleProps}
-        className={`${COLUMN_HEADER} ${dragHandleProps ? "select-none md:cursor-grab md:active:cursor-grabbing" : ""}`}
-      >
-        <span className={`led led-${health}`} aria-label={`Status: ${health}`} />
-        <SourceIcon source={feed.source} />
-        <h2 className="truncate font-mono text-[length:var(--fs-colhead)] font-semibold lowercase tracking-tight text-zinc-600 dark:text-zinc-300">
-          <span className="text-cyan-500/80 dark:text-cyan-400/80">&gt;&nbsp;</span>
-          {feed.label}
-        </h2>
-        {feed.isCustom && (
-          <span className="rounded bg-black/[0.05] px-1 py-px font-mono text-[length:var(--fs-ui-sm)] text-zinc-500 dark:bg-white/[0.07]">
-            custom
-          </span>
-        )}
-        <span className="ml-auto flex items-center gap-1">
-          {status === "ok" && (
-            <span
-              className="rounded-full bg-black/[0.04] px-2 py-px font-mono text-[length:var(--fs-ui-sm)] tabular-nums text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400"
-              title={searching ? `${total} matches` : `${unseen.length} new · ${poolSize} total`}
-            >
-              {badgeValue}
-            </span>
-          )}
-          <button
-            onClick={manualRefresh}
-            aria-label={`Refresh ${feed.label}`}
-            title={`Refresh ${feed.label}`}
-            draggable={false}
-            className="rounded p-1 text-zinc-400 transition-colors hover:bg-black/[0.05] hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:text-zinc-600 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300"
-          >
-            <RefreshIcon className={`h-3.5 w-3.5 ${status === "loading" ? "animate-spin" : ""}`} />
-          </button>
-        </span>
-      </header>
+      <ColumnHeader icon={<SourceIcon source={feed.source} />} label={feed.label} health={health}
+        title={feed.isCustom ? `${feed.label} · custom feed` : feed.label}
+        count={status === "ok" ? badgeValue : undefined}
+        countTitle={searching ? `${total} matches` : `${unseen.length} new · ${poolSize} total`}
+        onRefresh={manualRefresh} refreshing={status === "loading"} extraAction={headerAction} dragHandleProps={dragHandleProps} />
 
       {status === "ok" && stale && (
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-amber-500/20 bg-amber-500/[0.07] px-3 py-1.5 font-mono text-[10px] leading-tight text-amber-700 dark:border-amber-400/15 dark:text-amber-300/90">

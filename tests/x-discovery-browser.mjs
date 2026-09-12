@@ -25,7 +25,7 @@ async function setup({ blockWidgets = false, empty = false, blockStorage = false
   if (empty) state.data.items = [];
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
   await context.addInitScript(({ blockStorage }) => {
-    localStorage.setItem("gcdsignal:prefs", JSON.stringify({ v: 9, refreshMs: 0 }));
+    localStorage.setItem("gcdsignal:prefs", JSON.stringify({ v: 10, refreshMs: 0 }));
     const clock = Date.now;
     window.__clockOffset = 0;
     Date.now = () => clock() + window.__clockOffset;
@@ -64,12 +64,26 @@ async function setup({ blockWidgets = false, empty = false, blockStorage = false
   return { context, page, panel, column, refresh, state };
 }
 
+async function openStoryDetails(article) {
+  const details = article.locator("details[data-story-details]");
+  if (await details.getAttribute("open") === null) await details.locator("summary").click();
+  await details.locator(".story-details-body").waitFor({ state: "visible" });
+  return details;
+}
+
 try {
   const { context, page, panel, column, refresh, state } = await setup();
   assert.equal(await panel.locator("article").count(), 2, "automatic discoveries show without handles");
   assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "X", exact: true }).count(), 0, "X has no separate navigation tab");
   assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "Brief", exact: true }).getAttribute("aria-current"), "page", "automatic X appears on the default homepage");
-  assert.equal(await panel.locator("article").first().getByRole("heading").innerText(), "AI model release with a useful demo");
+  const firstDiscovery = panel.locator("article").first();
+  assert.equal(await firstDiscovery.getByRole("heading").innerText(), "AI model release with a useful demo");
+  assert.equal(await firstDiscovery.locator("details[data-story-details]").getAttribute("open"), null, "story Details start collapsed");
+  assert.equal(await firstDiscovery.locator('button[aria-label="Load post from X"]').isVisible(), false, "collapsed cards hide the bulky X preview action");
+  assert.equal(await firstDiscovery.locator('button[aria-label="Save post"]').isVisible(), false, "collapsed cards hide the X save action");
+  const collapsedText = await firstDiscovery.innerText();
+  assert.match(collapsedText, /30 HN comments/, "the visible discussion count is labeled as Hacker News comments");
+  assert.doesNotMatch(collapsedText, /\b(?:views?|likes?|replies?)\b/i, "the collapsed card makes no visible claim about unavailable X metrics");
   assert.deepEqual(state.external, [], "discovery does not load X or images automatically");
   assert.equal(await panel.getByRole("button", { name: "Filter", exact: true }).getAttribute("aria-expanded"), "false", "advanced controls start collapsed");
   assert.equal(await panel.getByRole("combobox").count(), 0, "date and sorting controls do not occupy the default column");
@@ -87,8 +101,10 @@ try {
   await panel.getByRole("combobox", { name: "Order", exact: true }).selectOption("popular");
   await panel.getByRole("button", { name: "Filter", exact: true }).click();
   const release = panel.locator("article").filter({ hasText: "useful demo" });
+  const releaseDetails = await openStoryDetails(release);
   await release.getByRole("button", { name: "Save post", exact: true }).click();
   await release.getByRole("button", { name: "Saved", exact: true }).waitFor();
+  await releaseDetails.getByText(/X views, likes, and replies are unavailable/).waitFor();
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("gcdsignal:x-links:v1"))), ["https://x.com/QaRelease/status/111"]);
   assert.deepEqual(state.external, [], "saving still does not contact X");
   await page.getByRole("button", { name: "Saved sources", exact: true }).click();
@@ -113,13 +129,23 @@ try {
   assert.equal(await panel.locator("article").nth(1).evaluate((element) => element === document.activeElement), true, "j moves to the next visible X card");
   await page.keyboard.press("k");
   assert.equal(await panel.locator("article").first().evaluate((element) => element === document.activeElement), true, "k returns to the previous visible X card");
+  assert.equal(await release.locator("details[data-story-details]").getAttribute("open"), "", "switching to saved sources preserves an explicitly opened story without remounting the feed");
+  await openStoryDetails(release);
 
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     if (width < 1024) await page.getByRole("button", { name: "Jump to X column", exact: true }).click();
     const xColumn = page.getByRole("region", { name: "AI on X column", exact: true });
-    await release.getByRole("button", { name: "Load post from X", exact: true }).scrollIntoViewIfNeeded();
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `discovery fits ${width}px`);
+    await release.getByRole("button", { name: "Load post from X", exact: true }).evaluate((element) => {
+      const scroller = element.closest(".feed-scroll");
+      if (!scroller) return;
+      const scrollerBounds = scroller.getBoundingClientRect();
+      const bounds = element.getBoundingClientRect();
+      if (bounds.bottom > scrollerBounds.bottom) scroller.scrollTop += bounds.bottom - scrollerBounds.bottom;
+      else if (bounds.top < scrollerBounds.top) scroller.scrollTop += bounds.top - scrollerBounds.top;
+    });
+    const layout = await page.evaluate(() => ({ bodyWidth: document.body.scrollWidth, innerWidth, rootX: window.scrollX, rootOverflowX: getComputedStyle(document.documentElement).overflowX }));
+    assert.ok(layout.bodyWidth <= layout.innerWidth && layout.rootX === 0 && layout.rootOverflowX === "clip", `discovery fits ${width}px: ${JSON.stringify(layout)}`);
     const columnBounds = await xColumn.boundingBox();
     assert.ok(columnBounds.x >= -1 && columnBounds.x + columnBounds.width <= width + 1, `X column is visible at ${width}px`);
     for (const name of ["Load post from X", "Saved"]) {
@@ -207,6 +233,7 @@ try {
 
   const blocked = await setup({ blockWidgets: true, blockStorage: true });
   const first = blocked.panel.locator("article").first();
+  await openStoryDetails(first);
   await first.getByRole("button", { name: "Save post", exact: true }).click();
   await blocked.page.getByRole("region", { name: "AI on X column", exact: true }).getByRole("alert").waitFor();
   await first.getByRole("button", { name: "Load post from X", exact: true }).click();
@@ -223,5 +250,5 @@ try {
   assert.deepEqual(empty.state.external, []);
   await empty.context.close();
   assert.deepEqual(errors, [], "no client runtime errors");
-  console.log("PASS: automatic discovery, compact column header/controls, dates/order/search, saving, 320–1440px layout, click-to-load preview/focus, cache/update stability, independent source-status/busy indicators, delayed stale retry, blocked storage/widgets and empty/outage states.");
+  console.log("PASS: automatic discovery, collapsed Details with labeled HN comments, compact column header/controls, dates/order/search, saving, 320–1440px layout, click-to-load preview/focus, cache/update stability, independent source-status/busy indicators, delayed stale retry, blocked storage/widgets and empty/outage states.");
 } finally { await browser.close(); }

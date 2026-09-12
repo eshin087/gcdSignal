@@ -39,7 +39,9 @@ try {
         briefRequests: resources.filter((entry) => entry.name.includes("/api/brief")).length,
         storyCount: document.querySelectorAll(".brief-story").length,
         firstHeadlineY: Math.round(document.querySelector(".brief-story h2").getBoundingClientRect().top),
-        overflow: document.documentElement.scrollWidth > innerWidth,
+        bodyOverflow: document.body.scrollWidth > innerWidth,
+        rootShiftX: window.scrollX,
+        rootOverflowX: getComputedStyle(document.documentElement).overflowX,
         xRequests: resources.filter((entry) => /platform\.twitter|syndication\.twitter/.test(entry.name)).length,
       };
     })) });

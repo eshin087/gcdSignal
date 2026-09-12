@@ -31,7 +31,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`h-full ${geistSans.variable} ${geistMono.variable} antialiased`}
+      className={`h-full w-full max-w-full overflow-clip ${geistSans.variable} ${geistMono.variable} antialiased`}
       suppressHydrationWarning
     >
       <head>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { scrollColumnInRail, scrollItemInColumn } from "./scroll-rail";
 
 /**
  * Vim-style deck navigation, driven off the DOM so nothing threads through
@@ -59,7 +60,8 @@ function markActive(index: number, scroll: boolean) {
   activeColumn = Math.max(0, Math.min(cols.length - 1, index));
   cols.forEach((c, i) => c.toggleAttribute("data-active-col", i === activeColumn));
   if (scroll) {
-    cols[activeColumn].scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" });
+    const column = cols[activeColumn];
+    scrollColumnInRail(column.closest<HTMLElement>(".deck-scroll"), column, "nearest");
   }
 }
 
@@ -72,7 +74,7 @@ function moveColumn(delta: number) {
   const cards = cardsIn(cols[activeColumn]);
   if (focusedCard() && cards[0]) {
     cards[0].focus({ preventScroll: true });
-    cards[0].scrollIntoView({ block: "nearest" });
+    scrollItemInColumn(cards[0]);
   }
 }
 
@@ -88,7 +90,7 @@ function moveCard(delta: number) {
   idx = Math.max(0, Math.min(cards.length - 1, idx));
   const card = cards[idx];
   card.focus({ preventScroll: true });
-  card.scrollIntoView({ block: "nearest" });
+  scrollItemInColumn(card);
   markActive(activeColumn, false);
 }
 
@@ -130,9 +132,14 @@ export function useHotkeys(handlers: HotkeyHandlers) {
         case "o":
           clickIn(focusedCard(), "a[href]");
           break;
-        case "s":
+        case "s": {
+          // Secondary actions are intentionally quiet until Details is opened.
+          // Reveal the saved state when the shortcut changes it.
+          const details = focusedCard()?.querySelector<HTMLDetailsElement>("details[data-story-details]");
+          if (details) details.open = true;
           clickIn(focusedCard(), 'button[aria-label^="Save"], button[aria-label^="Remove from saved"]');
           break;
+        }
         case "r": {
           const cols = columns();
           clickIn(cols[Math.min(activeColumn, cols.length - 1)] ?? null, 'button[data-refresh], button[aria-label^="Refresh"]');

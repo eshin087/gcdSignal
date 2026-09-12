@@ -97,7 +97,7 @@ export interface CustomFeed {
 }
 
 export interface Prefs {
-  v: 9;
+  v: 10;
   contentMode: ContentMode;
   followedTopics: CategoryId[];
   mutedAuthors: string[];

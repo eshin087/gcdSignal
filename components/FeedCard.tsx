@@ -7,11 +7,12 @@ import { usePrefs } from "@/lib/use-prefs";
 import { seenKey } from "@/lib/use-seen";
 import { toggleSaved, useSavedKeys } from "@/lib/use-saved";
 import type { FeedItem, SourceId } from "@/lib/types";
-import { BookmarkIcon, CheckIcon, ClockIcon, CommentIcon, ShareIcon } from "./icons";
+import { ClockIcon, CommentIcon } from "./icons";
 import SourceIcon from "./SourceIcon";
 import { useReading } from "./ReadingContext";
 import { markRead } from "@/lib/use-library";
 import { FEED_CARD_TITLE_CLASS, feedCardExcerptClassName, feedCardMetadataClassName, feedCardRowClassName, formatFeedCount } from "./feed-card-style";
+import QueueButton from "./QueueButton";
 
 const SCORE_GLYPH: Record<SourceId, string> = {
   reddit: "▲",
@@ -92,6 +93,7 @@ export default function FeedCard({
 
   const titleHref = safeHref(item.externalUrl) ?? safeHref(item.url);
   const discussHref = safeHref(item.url);
+  const distinctDiscussHref = discussHref && titleHref && discussHref !== titleHref ? discussHref : undefined;
   const ago = timeAgo(item.timestamp);
   const color = SOURCE_COLORS[item.source];
   const thumb = item.thumbnail?.startsWith("https://") ? item.thumbnail : undefined;
@@ -118,23 +120,16 @@ export default function FeedCard({
   }
 
   const scoreChip = typeof item.score === "number" && (
-    <span className="inline-flex items-center gap-0.5 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[length:var(--fs-chip)] font-semibold tabular-nums text-amber-600 dark:bg-amber-400/10 dark:text-amber-300">
+    <span className="inline-flex items-center gap-0.5 tabular-nums text-zinc-600 dark:text-zinc-400">
       {SCORE_GLYPH[item.source]} {formatFeedCount(item.score)}
     </span>
   );
   const commentChip = typeof item.comments === "number" && item.comments !== item.score && (
-    <span className="inline-flex items-center gap-1 rounded-md bg-black/[0.04] px-1.5 py-0.5 text-[length:var(--fs-chip)] font-medium tabular-nums text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400">
+    <span className="inline-flex items-center gap-1 tabular-nums text-zinc-600 dark:text-zinc-400">
       <CommentIcon className="h-3 w-3" />
       {formatFeedCount(item.comments)}
     </span>
   );
-  const chips = (scoreChip || commentChip) && (
-    <span className="inline-flex items-center gap-2">
-      {scoreChip}
-      {commentChip}
-    </span>
-  );
-
   return (
     <article
       data-item-key={itemKey}
@@ -169,10 +164,7 @@ export default function FeedCard({
         {thumb && <Thumb src={thumb} compact={compact} />}
       </div>
 
-      <div
-        className={feedCardMetadataClassName(compact)}
-      >
-        {preview && <button onClick={() => read(related ?? [item])} className="min-h-8 rounded-md border border-cyan-500/20 px-2 text-xs text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300" aria-label={`Preview ${item.title}`}>{related && related.length > 1 ? `${related.length} related items` : item.curation?.kind ?? "Preview"} ↗</button>}
+      <div className={feedCardMetadataClassName(compact)}>
         {showSource && (
           <span className="mr-0.5 inline-flex items-center gap-1">
             <SourceIcon source={item.source} className="h-3 w-3" />
@@ -181,19 +173,19 @@ export default function FeedCard({
             </span>
           </span>
         )}
-        {chips &&
+        {commentChip &&
           (discussHref ? (
             <a
               href={discussHref}
               target="_blank"
               rel="noopener noreferrer"
               title="Open discussion"
-              className="inline-flex items-center gap-2"
+              className="inline-flex items-center gap-1 hover:text-cyan-700 dark:hover:text-cyan-300"
             >
-              {chips}
+              {commentChip}
             </a>
           ) : (
-            chips
+            commentChip
           ))}
         {ago && (
           <span className="tabular-nums text-sky-600/80 dark:text-sky-400/70">{ago}</span>
@@ -218,40 +210,18 @@ export default function FeedCard({
             </span>
           </span>
         )}
-        <span className="ml-auto inline-flex items-center gap-0.5">
-          {shareHref && (
-            <button
-              onClick={copyLink}
-              aria-label={copied ? "Link copied" : "Copy link"}
-              title={copied ? "Copied!" : "Copy link"}
-              className={`rounded p-0.5 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
-                copied
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-zinc-400 hover:text-cyan-600 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 dark:text-zinc-600 dark:hover:text-cyan-300"
-              }`}
-            >
-              {copied ? (
-                <CheckIcon className="h-3.5 w-3.5" />
-              ) : (
-                <ShareIcon className="h-3.5 w-3.5" />
-              )}
-            </button>
-          )}
-          <button
-            onClick={() => toggleSaved(item)}
-            aria-label={saved ? "Remove from saved" : "Save for later"}
-            aria-pressed={saved}
-            title={saved ? "Remove from saved" : "Save for later"}
-            className={`rounded p-0.5 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
-              saved
-                ? "text-cyan-600 dark:text-cyan-300"
-                : "text-zinc-400 hover:text-cyan-600 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 dark:text-zinc-600 dark:hover:text-cyan-300"
-            }`}
-          >
-            <BookmarkIcon className="h-3.5 w-3.5" filled={saved} />
-          </button>
-        </span>
       </div>
+      <details data-story-details className="text-[length:var(--fs-meta)] text-zinc-600 dark:text-zinc-400">
+        <summary className="story-details-summary" aria-label={`Details for ${item.title}`}>Details</summary>
+        <div className="story-details-body">
+          {preview && <button onClick={() => read(related ?? [item])} className="story-action" aria-label={`Preview ${item.title}`}>{related && related.length > 1 ? `${related.length} sources & discussion` : "Sources & discussion"}</button>}
+          {scoreChip && <span className="inline-flex min-h-11 items-center">{scoreChip}</span>}
+          {distinctDiscussHref && <a href={distinctDiscussHref} target="_blank" rel="noopener noreferrer" className="story-action">Open discussion ↗</a>}
+          <button onClick={() => toggleSaved(item)} aria-label={saved ? "Remove from saved" : "Save for later"} aria-pressed={saved} className="story-action">{saved ? "Saved ✓" : "Save"}</button>
+          {shareHref && <QueueButton id={`feed:${itemKey}`} title={item.title} url={shareHref} source={item.sourceMeta ?? SOURCE_LABELS[item.source]} />}
+          {shareHref && <button onClick={copyLink} aria-label={copied ? "Link copied" : "Copy link"} className="story-action">{copied ? "Copied ✓" : "Copy link"}</button>}
+        </div>
+      </details>
     </article>
   );
 }
