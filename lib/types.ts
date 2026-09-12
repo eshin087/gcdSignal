@@ -29,7 +29,7 @@ export interface Curation {
   substantive?: boolean;
   sponsored?: boolean;
 }
-export type ViewMode = "brief" | "deck" | "library";
+export type ViewMode = "brief" | "deck" | "library" | "x";
 export type Density = "comfortable" | "compact";
 
 export interface FeedItem {
@@ -97,7 +97,7 @@ export interface CustomFeed {
 }
 
 export interface Prefs {
-  v: 7;
+  v: 8;
   contentMode: ContentMode;
   followedTopics: CategoryId[];
   mutedAuthors: string[];

@@ -11,7 +11,7 @@ import type { BriefResponse, CategoryId, FeedItem, SourceHealth, SourceId } from
 
 export const runtime = "nodejs";
 const PRIMARY: SourceId[] = ["rss", "hackernews"];
-const ALL: SourceId[] = [...PRIMARY, "reddit", "bluesky", "youtube", "papers"];
+const ALL: SourceId[] = [...PRIMARY, "reddit", "youtube", "papers"];
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;

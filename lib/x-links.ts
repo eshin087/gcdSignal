@@ -2,8 +2,10 @@ export interface XLink { url: string; kind: "profile" | "list" | "post"; postId?
 /** Accept identifiers only, never pasted widget HTML or arbitrary script URLs. */
 export function parseXLink(raw: string): XLink | null {
   if (raw.length > 500) return null;
+  const input = raw.trim();
+  const candidate = /^@?[A-Za-z0-9_]{1,15}$/.test(input) ? "https://x.com/" + input.replace(/^@/, "") : input;
   try {
-    const url = new URL(raw);
+    const url = new URL(candidate);
     if (url.protocol !== "https:" || url.username || url.password || url.port || !["x.com", "www.x.com", "twitter.com", "www.twitter.com"].includes(url.hostname)) return null;
     const path = url.pathname.replace(/\/+$/, "");
     const post = path.match(/^\/[A-Za-z0-9_]{1,15}\/status\/(\d{1,25})$/);
