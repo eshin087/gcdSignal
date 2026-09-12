@@ -1,5 +1,8 @@
 # gcd signal
 
+[Project guide](docs/README.md) · [Current status](docs/STATUS.md) ·
+[Product decisions](docs/DECISIONS.md)
+
 A local-first AI news reader: a concise **Brief** for important developments,
 an optional source **Deck** for deeper browsing, a searchable **Library**
 for material you want to keep, and an **X** tab for your public sources.
