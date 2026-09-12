@@ -17,9 +17,8 @@ import type { CategoryId, DeckItem, Density, TextScale, VisibleFeed } from "@/li
 import dynamic from "next/dynamic";
 import ReadingProvider from "./ReadingContext";
 import { useLibrary } from "@/lib/use-library";
-import BriefView from "./BriefView";
+import HomeColumns from "./HomeColumns";
 const ResearchScreen = dynamic(() => import("./ResearchScreen"));
-const XReadingPanel = dynamic(() => import("./XReadingPanel"));
 const AddFeedDialog = dynamic(() => import("./AddFeedDialog"));
 import ColumnDeck from "./ColumnDeck";
 import type { Command } from "./CommandPalette";
@@ -205,7 +204,6 @@ export default function Dashboard() {
     { id: "open:saved", group: "open", label: "Search your collection / saved items", run: () => setPrefs((p) => ({ ...p, view: "library" })) },
     { id: "open:settings", group: "open", label: "Settings", run: () => setSettingsOpen(true) },
     { id: "open:add", group: "open", label: "Add a feed", run: () => setAddFeedOpen(true) },
-    { id: "open:x", group: "open", label: "X reading panel", run: () => setPrefs((p) => ({ ...p, view: "x" })) },
     { id: "open:help", group: "open", label: "Keyboard shortcuts", hint: "?", run: () => setHelpOpen(true) },
     ...(queryInput
       ? [{ id: "clear:search", group: "feeds", label: `Clear search filter (“${queryInput}”)`, run: () => setQueryInput("") }]
@@ -230,9 +228,7 @@ export default function Dashboard() {
       {!ready ? (
         <DeckPlaceholder />
       ) : prefs.view === "brief" ? (
-        <BriefView category={prefs.category} refreshKey={refresh.key} />
-      ) : prefs.view === "x" ? (
-        <XReadingPanel refreshKey={refresh.key} />
+        <HomeColumns category={prefs.category} refreshKey={refresh.key} showX={!prefs.hidden.includes("x-discovery")} />
       ) : prefs.view === "library" ? (
         <ResearchScreen
           feeds={visibleFeeds}
@@ -269,7 +265,6 @@ export default function Dashboard() {
         prefs={prefs}
         setPrefs={setPrefs}
         onRefresh={bumpRefresh}
-        onOpenX={() => { setSettingsOpen(false); setPrefs((p) => ({ ...p, view: "x" })); }}
         onOpenHelp={() => { setSettingsOpen(false); setHelpOpen(true); }}
         onAddFeed={() => {
           setSettingsOpen(false);

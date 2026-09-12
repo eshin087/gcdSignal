@@ -18,27 +18,32 @@ export const BUILT_IN_FEEDS: BuiltInFeed[] = [
   { id: "fourchan", source: "fourchan", label: "4chan /g/" },
 ];
 
-/** Computed deck columns that aren't fetchable sources. */
+/** Curated or discovery columns with their own presentation and data contracts. */
 export interface PanelDef {
   id: PanelId;
   label: string;
 }
 
-export const PANELS: PanelDef[] = [{ id: "top10", label: "Daily Top 10" }];
+export const PANELS: PanelDef[] = [
+  { id: "top10", label: "Daily Top 10" },
+  { id: "x-discovery", label: "AI on X" },
+];
 
 export const PANEL_LABELS: Record<PanelId, string> = {
   top10: "Daily Top 10",
+  "x-discovery": "AI on X",
 };
 
 export function isPanelId(v: string): v is PanelId {
-  return v === "top10";
+  return v === "top10" || v === "x-discovery";
 }
 
-/** Default deck order: Top 10 far left, default-hidden sources trailing. */
+/** Default deck order includes X discoveries alongside AI News. */
 export const DEFAULT_ORDER: string[] = [
   "top10",
   "reddit",
   "rss",
+  "x-discovery",
   "youtube",
   "bluesky",
   "hackernews",

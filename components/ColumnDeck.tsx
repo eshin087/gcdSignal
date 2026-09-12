@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import type { CategoryId, DeckItem, SortMode } from "@/lib/types";
 import FeedColumn from "./FeedColumn";
-import { TrophyIcon } from "./icons";
+import { TrophyIcon, XBrandIcon } from "./icons";
 import SourceIcon from "./SourceIcon";
 import TopTenColumn from "./TopTenColumn";
+
+const XReadingPanel = dynamic(() => import("./XReadingPanel"));
 
 type DropSide = "before" | "after";
 
@@ -15,6 +18,7 @@ function itemLabel(it: DeckItem): string {
 
 function ItemIcon({ it, className = "h-3 w-3" }: { it: DeckItem; className?: string }) {
   if (it.kind === "feed") return <SourceIcon source={it.feed.source} className={className} />;
+  if (it.id === "x-discovery") return <XBrandIcon className={className} />;
   return <TrophyIcon className={className} />;
 }
 
@@ -193,7 +197,9 @@ export default function ColumnDeck({
                 <button className="min-h-8 shrink-0 rounded-t-md text-xs text-zinc-600 hover:text-cyan-700 dark:text-zinc-400" aria-pressed={focused === it.id} onClick={() => toggleFocus(it.id)}>{focused ? "← Back to deck" : `Focus ${itemLabel(it)} ↗`}</button>
                 <DeferredColumn label={itemLabel(it)}>
                 {it.kind === "panel" ? (
-                  <TopTenColumn refreshKey={refreshKey} dragHandleProps={dragHandleProps(it.id)} />
+                  it.id === "x-discovery"
+                    ? <XReadingPanel refreshKey={refreshKey} dragHandleProps={dragHandleProps(it.id)} />
+                    : <TopTenColumn refreshKey={refreshKey} dragHandleProps={dragHandleProps(it.id)} />
                 ) : (
                   <FeedColumn
                     feed={it.feed}

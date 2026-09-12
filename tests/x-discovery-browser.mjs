@@ -25,7 +25,7 @@ async function setup({ blockWidgets = false, empty = false, blockStorage = false
   if (empty) state.data.items = [];
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
   await context.addInitScript(({ blockStorage }) => {
-    localStorage.setItem("gcdsignal:prefs", JSON.stringify({ v: 8, view: "x", contentMode: "broad", refreshMs: 0 }));
+    localStorage.setItem("gcdsignal:prefs", JSON.stringify({ v: 9, refreshMs: 0 }));
     const clock = Date.now;
     window.__clockOffset = 0;
     Date.now = () => clock() + window.__clockOffset;
@@ -57,12 +57,15 @@ async function setup({ blockWidgets = false, empty = false, blockStorage = false
   await page.goto(appUrl);
   const panel = page.getByRole("region", { name: "X discoveries", exact: true });
   await panel.getByRole("button", { name: "Check for updates", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Jump to X column", exact: true }).click();
   return { context, page, panel, state };
 }
 
 try {
   const { context, page, panel, state } = await setup();
   assert.equal(await panel.locator("article").count(), 2, "automatic discoveries show without handles");
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "X", exact: true }).count(), 0, "X has no separate navigation tab");
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "Brief", exact: true }).getAttribute("aria-current"), "page", "automatic X appears on the default homepage");
   assert.equal(await panel.locator("article").first().getByRole("heading").innerText(), "AI model release with a useful demo");
   assert.deepEqual(state.external, [], "discovery does not load X or images automatically");
   await panel.getByRole("combobox", { name: "Order", exact: true }).selectOption("new");
@@ -84,18 +87,40 @@ try {
   await page.getByRole("button", { name: "Saved sources", exact: true }).click();
   await page.getByRole("button", { name: "Load embed", exact: true }).waitFor();
   assert.equal(await page.getByRole("heading", { name: "Build your X reading space", exact: true }).count(), 0, "first saved discovery is selected in the viewer");
+  await page.evaluate(() => {
+    window.__originalFocus = HTMLElement.prototype.focus;
+    window.__hiddenCardFocusAttempts = 0;
+    HTMLElement.prototype.focus = function (...args) {
+      if (this.matches("article[tabindex]") && !this.getClientRects().length) window.__hiddenCardFocusAttempts++;
+      return window.__originalFocus.apply(this, args);
+    };
+  });
+  await page.getByRole("button", { name: "Saved sources", exact: true }).focus();
+  await page.keyboard.press("j");
+  assert.equal(await page.evaluate(() => window.__hiddenCardFocusAttempts), 0, "keyboard navigation never attempts to focus a hidden discovery card");
+  await page.evaluate(() => { HTMLElement.prototype.focus = window.__originalFocus; delete window.__originalFocus; });
   await page.getByRole("button", { name: "Discover", exact: true }).click();
   await panel.locator("article").first().waitFor();
+  await panel.locator("article").first().focus();
+  await page.keyboard.press("j");
+  assert.equal(await panel.locator("article").nth(1).evaluate((element) => element === document.activeElement), true, "j moves to the next visible X card");
+  await page.keyboard.press("k");
+  assert.equal(await panel.locator("article").first().evaluate((element) => element === document.activeElement), true, "k returns to the previous visible X card");
 
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 844 });
+    if (width < 1024) await page.getByRole("button", { name: "Jump to X column", exact: true }).click();
+    const xColumn = page.getByRole("region", { name: "AI on X column", exact: true });
+    await release.getByRole("button", { name: "Load post from X", exact: true }).scrollIntoViewIfNeeded();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `discovery fits ${width}px`);
+    const columnBounds = await xColumn.boundingBox();
+    assert.ok(columnBounds.x >= -1 && columnBounds.x + columnBounds.width <= width + 1, `X column is visible at ${width}px`);
     for (const name of ["Load post from X", "Saved"]) {
       const bounds = await release.getByRole("button", { name, exact: true }).boundingBox();
       assert.ok(bounds && bounds.height >= 44 && bounds.width >= 44, `${name} meets touch target at ${width}`);
     }
     if ([390, 1440].includes(width)) {
-      await page.getByRole("main", { name: "X reading", exact: true }).evaluate((element) => { element.scrollTop = 0; });
+      await xColumn.locator("[data-x-scroll]").evaluate((element) => { element.scrollTop = 0; });
       await page.screenshot({ path: join(tmpdir(), `gcdsignal-x-discovery-${width}.png`) });
     }
   }
@@ -134,7 +159,7 @@ try {
   const blocked = await setup({ blockWidgets: true, blockStorage: true });
   const first = blocked.panel.locator("article").first();
   await first.getByRole("button", { name: "Save post", exact: true }).click();
-  await blocked.page.getByRole("main", { name: "X reading", exact: true }).getByRole("alert").waitFor();
+  await blocked.page.getByRole("region", { name: "AI on X column", exact: true }).getByRole("alert").waitFor();
   await first.getByRole("button", { name: "Load post from X", exact: true }).click();
   const blockedDialog = blocked.page.getByRole("dialog", { name: "X post preview", exact: true });
   await blockedDialog.getByText(/X could not display this post/).waitFor();

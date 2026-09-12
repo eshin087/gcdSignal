@@ -2,21 +2,29 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { load } from "./load-ts.mjs";
 const { DEFAULT_PREFS, parsePrefs } = load("../lib/use-prefs.ts");
+const { DEFAULT_ORDER, PANEL_LABELS, SOURCE_IDS, deckKnownIds, effectiveOrder, isPanelId } = load("../lib/feeds.ts");
 const { parseXLink } = load("../lib/x-links.ts");
 
-test("new readers get Broad, All AI and Brief, with raw advanced feeds hidden", () => {
+test("new readers get Broad, All AI and Brief with a visible X discovery column", () => {
+  assert.equal(DEFAULT_PREFS.v, 9);
   assert.equal(DEFAULT_PREFS.contentMode, "broad");
   assert.equal(DEFAULT_PREFS.category, "trending");
   assert.equal(DEFAULT_PREFS.view, "brief");
   assert.ok(DEFAULT_PREFS.hidden.includes("top10"));
   assert.ok(DEFAULT_PREFS.hidden.includes("bluesky"));
+  assert.ok(!DEFAULT_PREFS.hidden.includes("x-discovery"));
+  assert.equal(DEFAULT_ORDER[DEFAULT_ORDER.indexOf("rss") + 1], "x-discovery");
+  assert.ok(isPanelId("x-discovery"));
+  assert.equal(PANEL_LABELS["x-discovery"], "AI on X");
+  assert.ok(!SOURCE_IDS.includes("x-discovery"), "X uses its discovery contract, not a native source feed");
+  assert.ok(deckKnownIds([]).includes("x-discovery"));
   assert.deepEqual(parsePrefs(null), DEFAULT_PREFS);
 });
 test("legacy defaults migrate once without losing custom feeds, mutes, display or interests", () => {
   const old = { v: 6, contentMode: "builder", view: "deck", category: "research", followedTopics: ["research"], mutedAuthors: ["reddit:reader"], hidden: ["youtube"],
     custom: [{ id: "custom:123", source: "rss", label: "My feed", params: { url: "https://example.com/rss" } }], textScale: "lg", density: "compact" };
   const next = parsePrefs(JSON.stringify(old));
-  assert.equal(next.v, 8); assert.equal(next.contentMode, "broad"); assert.equal(next.view, "brief");
+  assert.equal(next.v, 9); assert.equal(next.contentMode, "broad"); assert.equal(next.view, "brief");
   for (const key of ["category", "followedTopics", "mutedAuthors", "custom", "textScale", "density"]) assert.deepEqual(next[key], old[key]);
   assert.deepEqual(next.hidden, ["youtube", "top10", "bluesky"]);
   const optedIn = parsePrefs(JSON.stringify({ ...next, contentMode: "builder", view: "deck" }));
@@ -29,12 +37,31 @@ test("v7 readers keep their chosen mode, view and settings while Bluesky becomes
       category: "research", textScale: "lg", density: "compact", order: ["youtube", "bluesky", "rss"],
       followedTopics: ["research"], mutedAuthors: ["reddit:reader"], mutedOutlets: ["example.com"], refreshMs: 0 };
     const migrated = parsePrefs(JSON.stringify(previous));
-    assert.deepEqual(migrated, { ...previous, v: 8, hidden: ["youtube", "bluesky"] });
+    assert.deepEqual(migrated, { ...previous, v: 9, hidden: ["youtube", "bluesky"], order: ["youtube", "bluesky", "rss", "x-discovery"] });
   }
 });
-test("a v8 Bluesky opt-in and X view survive preference reloads", () => {
-  const optedIn = { ...DEFAULT_PREFS, hidden: DEFAULT_PREFS.hidden.filter((id) => id !== "bluesky"), view: "x" };
-  assert.deepEqual(parsePrefs(JSON.stringify(optedIn)), optedIn);
+test("legacy X view opens the homepage without losing Bluesky opt-in or other choices", () => {
+  const previous = { ...DEFAULT_PREFS, v: 8, hidden: DEFAULT_PREFS.hidden.filter((id) => id !== "bluesky"), view: "x",
+    contentMode: "builder", category: "research", order: ["youtube", "rss", "custom:123", "reddit"],
+    custom: [{ id: "custom:123", source: "rss", label: "My feed", params: { url: "https://example.com/rss" } }],
+    mutedAuthors: ["reddit:reader"], mutedOutlets: ["example.com"], followedTopics: ["research"], textScale: "lg", refreshMs: 0 };
+  const migrated = parsePrefs(JSON.stringify(previous));
+  assert.deepEqual(migrated, { ...previous, v: 9, view: "brief", order: ["youtube", "rss", "x-discovery", "custom:123", "reddit"] });
+  assert.deepEqual(parsePrefs(JSON.stringify(migrated)), migrated, "migration applies only once");
+});
+test("v8 readers retain their view and relative column order while X is added", () => {
+  for (const view of ["brief", "deck", "library"]) {
+    const previous = { ...DEFAULT_PREFS, v: 8, view, order: ["youtube", "reddit"] };
+    assert.deepEqual(parsePrefs(JSON.stringify(previous)), { ...previous, v: 9, order: ["x-discovery", "youtube", "reddit"] });
+  }
+  const alreadyPlaced = { ...DEFAULT_PREFS, v: 8, order: ["x-discovery", "youtube", "rss", "reddit"] };
+  assert.deepEqual(parsePrefs(JSON.stringify(alreadyPlaced)).order, alreadyPlaced.order);
+});
+test("v9 readers keep explicit X visibility and order choices", () => {
+  const chosen = { ...DEFAULT_PREFS, view: "deck", hidden: [...DEFAULT_PREFS.hidden.filter((id) => id !== "bluesky"), "x-discovery"],
+    order: ["reddit", "x-discovery", "youtube", "rss"] };
+  assert.deepEqual(parsePrefs(JSON.stringify(chosen)), chosen);
+  assert.deepEqual(effectiveOrder(chosen.order, deckKnownIds([])).slice(0, chosen.order.length), chosen.order);
 });
 test("invalid preference payloads fall back safely", () => {
   for (const raw of ["null", "[]", "{", '{"v":99}', '{"v":0}']) assert.deepEqual(parsePrefs(raw), DEFAULT_PREFS);

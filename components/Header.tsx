@@ -19,8 +19,8 @@ export default function Header({
         <span className="hidden sm:inline">gcd</span><span className="text-teal-700 max-[359px]:hidden dark:text-teal-300">signal</span><span aria-hidden="true" className="hidden text-2xl text-teal-700 max-[359px]:inline dark:text-teal-300">s</span>
       </button>
       <nav aria-label="Main navigation" className="flex items-center gap-0.5 max-[359px]:gap-0">
-        {(["brief", "deck", "library", "x"] as const).map((destination) => <button key={destination} className="reader-nav" aria-current={view === destination ? "page" : undefined} onClick={() => { onQueryInputChange(""); onViewChange(destination); }}>
-          {destination === "brief" ? "Brief" : destination === "deck" ? "Deck" : destination === "library" ? "Library" : "X"}
+        {(["brief", "deck", "library"] as const).map((destination) => <button key={destination} className="reader-nav" aria-current={view === destination ? "page" : undefined} onClick={() => { onQueryInputChange(""); onViewChange(destination); }}>
+          {destination === "brief" ? "Brief" : destination === "deck" ? "Deck" : "Library"}
         </button>)}
       </nav>
       <label className="order-last flex min-h-11 w-full items-center gap-2 rounded-xl border border-transparent bg-zinc-100 px-3 focus-within:border-teal-600 md:order-none md:ml-auto md:w-72 dark:bg-zinc-800/70">

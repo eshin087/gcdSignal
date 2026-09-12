@@ -1,8 +1,17 @@
 # Automatic X discovery
 
 The accepted direction is a smaller selection from public sources that link to
-X posts. Discover is the default within X; saved profiles, lists and posts stay
-under Saved sources. The site's overall landing view remains Brief.
+X posts. AI on X is a default homepage column beside the Brief, not a separate
+page or main-navigation tab. Discover shows automatically; saved profiles,
+lists and posts stay under Saved sources inside the column.
+
+Wide screens show both home columns together. Narrow screens keep full-width
+columns with horizontal swiping and labeled jump controls. Deck also includes
+AI on X after AI News by default, with hide, reorder and focus controls. The
+Settings visibility toggle applies to both home and Deck. Preferences v9 map
+the retired X-page setting to Brief and preserve saved links and other choices.
+X covers All AI with its own text/date filters, independent of the Brief/Deck
+topic and Builder filters.
 
 ## Sources and selection
 
@@ -50,7 +59,7 @@ and pauses in background tabs; manual checks also respect caching. Changed
 cards wait behind Show updated discoveries. Source refresh schedules can lag
 the original posts by hours or longer, irrespective of polling frequency.
 
-Opening Discover does not contact X. It loads no external thumbnails. Load post
+Displaying the default column does not contact X. It loads no external thumbnails. Load post
 from X explicitly starts an official widget in a dialog; Open on X remains
 available when embedding fails. Save post uses the existing local 50-link
 store, with visible storage failures and export through Saved sources. Search
@@ -84,6 +93,15 @@ returned 57 post links, 39 shared within three days, with all three contributor
 requests successful. Parameter-bypass and custom-URL requests returned 400.
 These are dated observations, not a continuous uptime or delivery claim.
 
-This feature branches from the merged Settings/X work. The project-playbook
-documentation PR remains separate. Verify the discovery PR and Vercel target
-before assuming this source tree is the public production build.
+The homepage-column update was verified on 2026-09-11 (America/Los_Angeles)
+on codex/x-home-column: 91 unit tests, lint, production build and all three
+reader/X browser suites passed. Fixture checks include populated side-by-side
+home columns, 320–1440px layouts, swipe/jump controls, resize highlighting,
+column hide/show persistence, Deck focus, legacy X-view migration and keyboard
+navigation that skips hidden cards. Desktop and phone screenshots were reviewed.
+No new live-source availability or performance measurement was made for this
+layout change. GitHub Actions remained disabled.
+
+The original automatic-discovery implementation was merged separately from
+the homepage-column placement update. Verify the current PR and Vercel target
+before assuming a source tree is the public production build.
