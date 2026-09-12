@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { parseXLink, type XLink } from "@/lib/x-links";
 import { loadWidgets } from "@/lib/x-widgets";
+import { useDeckHealth } from "@/lib/feed-health";
 import XDiscoveryFeed from "./XDiscoveryFeed";
 import { COLUMN_HEADER, COLUMN_SHELL } from "./column-shell";
-import { XBrandIcon } from "./icons";
+import { BookmarkIcon, RefreshIcon, XBrandIcon } from "./icons";
 
 const KEY = "gcdsignal:x-links:v1";
 const LIMIT = 50;
@@ -28,6 +29,10 @@ export default function XReadingPanel({ refreshKey = 0, dragHandleProps }: {
   refreshKey?: number; dragHandleProps?: React.HTMLAttributes<HTMLElement>;
 }) {
   const [section, setSection] = useState<"discover" | "sources">("discover");
+  const [manualRefresh, setManualRefresh] = useState(0);
+  const [refreshing, setRefreshing] = useState(true);
+  const feedHealth = useDeckHealth().get("x-discovery");
+  const health = feedHealth?.status ?? "loading";
   const [input, setInput] = useState("");
   const [links, setLinks] = useState<XLink[]>([]);
   const [selected, setSelected] = useState<XLink | null>(null);
@@ -182,18 +187,23 @@ export default function XReadingPanel({ refreshKey = 0, dragHandleProps }: {
   };
 
   return <section className={COLUMN_SHELL} aria-label="AI on X column">
-    <header className={COLUMN_HEADER} {...dragHandleProps}>
-      <XBrandIcon /><h2 className="text-sm font-semibold">AI on X</h2>
-      <span className="ml-auto text-xs text-zinc-500 dark:text-zinc-400">All AI · source picks</span>
+    <div aria-hidden className="h-[2px] shrink-0 bg-gradient-to-r from-zinc-500/60 via-zinc-500/10 to-transparent dark:from-zinc-300/60 dark:via-zinc-300/10" />
+    <header {...dragHandleProps} className={`${COLUMN_HEADER} ${dragHandleProps ? "select-none md:cursor-grab md:active:cursor-grabbing" : ""}`}>
+      <span className={`led led-${health}`} aria-label={`Status: ${health}`} />
+      <XBrandIcon />
+      <h2 className="truncate font-mono text-[length:var(--fs-colhead)] font-semibold lowercase tracking-tight text-zinc-600 dark:text-zinc-300"><span className="text-cyan-500/80 dark:text-cyan-400/80">&gt;&nbsp;</span>AI on X</h2>
+      <span className="ml-auto flex items-center gap-1">
+        {feedHealth && <span className="rounded-full bg-black/[0.04] px-2 py-px font-mono text-[length:var(--fs-ui-sm)] tabular-nums text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400" title={`${feedHealth.count} available discoveries before filters`}>{feedHealth.count}</span>}
+        <button className={`flex h-11 w-11 shrink-0 items-center justify-center rounded transition-colors hover:bg-black/[0.05] focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:hover:bg-white/[0.06] ${section === "sources" ? "text-cyan-600 dark:text-cyan-300" : "text-zinc-500 dark:text-zinc-400"}`} draggable={false} aria-label="Saved sources" title="Saved X sources" aria-pressed={section === "sources"} onClick={() => { choose(selected); setSection(section === "sources" ? "discover" : "sources"); scroll.current?.scrollTo({ top: 0 }); }}><BookmarkIcon filled={section === "sources"} /></button>
+        <button className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-black/[0.05] hover:text-zinc-600 focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:text-zinc-500 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300" draggable={false} aria-label="Refresh AI on X" title="Refresh AI on X" disabled={refreshing} aria-busy={refreshing} onClick={() => setManualRefresh((value) => value + 1)}><RefreshIcon className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} /></button>
+      </span>
     </header>
-    <div role="group" aria-label="X sections" className="flex shrink-0 flex-wrap gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
-      {([['discover', 'Discover'], ['sources', 'Saved sources']] as const).map(([id, label]) => <button key={id} className={`action-button min-h-11 ${section === id ? 'reader-primary' : ''}`} aria-pressed={section === id} onClick={() => { choose(selected); setSection(id); scroll.current?.scrollTo({ top: 0 }); }}>{label}</button>)}
-    </div>
-    <div ref={scroll} data-x-scroll className="feed-scroll min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 pb-8 pt-3">
+    {section === "sources" && <div className="flex shrink-0 items-center gap-3 border-b border-black/[0.06] px-3 dark:border-white/[0.06]"><button aria-label="Discover" className="min-h-11 text-[length:var(--fs-ui-sm)] font-medium text-cyan-700 dark:text-cyan-300" onClick={() => { choose(selected); setSection("discover"); scroll.current?.scrollTo({ top: 0 }); }}>← Discover</button><span className="ml-auto font-mono text-[length:var(--fs-ui-sm)] text-zinc-500 dark:text-zinc-400">Saved sources · {links.length}</span></div>}
+    <div ref={scroll} data-x-scroll className="feed-scroll relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
 
-      {storageError && <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"><p>{storageError}</p>{canSave && <button className="action-button mt-3" onClick={() => persist(links)}>Retry saving links</button>}</div>}
+      {storageError && <div role="alert" className="m-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.07] p-3 text-xs leading-6 text-amber-900 dark:text-amber-200"><p>{storageError}</p>{canSave && <button className="action-button mt-3" onClick={() => persist(links)}>Retry saving links</button>}</div>}
 
-      <div hidden={section !== "discover"}><XDiscoveryFeed refreshKey={refreshKey} savedUrls={links.map((link) => link.url)} ready={restored} onSave={(url) => {
+      <div hidden={section !== "discover"}><XDiscoveryFeed refreshKey={refreshKey + manualRefresh} onLoadingChange={setRefreshing} savedUrls={links.map((link) => link.url)} ready={restored} onSave={(url) => {
         const link = parseXLink(url);
         if (!link || !restored) return false;
         if (links.some((saved) => saved.postId === link.postId)) return true;
@@ -202,8 +212,8 @@ export default function XReadingPanel({ refreshKey = 0, dragHandleProps }: {
         if (!selected) choose(link);
         return true;
       }} /></div>
-      {section === "sources" && <div className="grid min-w-0 items-start gap-4">
-        <aside className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-4 sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/40" aria-label="Saved X sources">
+      {section === "sources" && <div className="min-w-0">
+        <aside className="min-w-0 border-b border-black/[0.06] p-3 dark:border-white/[0.06]" aria-label="Saved X sources">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="font-semibold">Your X sources</h2>
             <span className="text-xs text-zinc-500 dark:text-zinc-400">{links.length} saved</span>
@@ -232,14 +242,14 @@ export default function XReadingPanel({ refreshKey = 0, dragHandleProps }: {
           </> : <p className="mt-5 border-t border-zinc-100 pt-4 text-sm leading-6 text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">{restored ? "Your saved accounts, lists, and posts will appear here." : "Loading your saved links…"}</p>}
         </aside>
 
-        <section className="min-w-0 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900/40" aria-label="X viewer">
+        <section className="min-w-0 overflow-hidden" aria-label="X viewer">
           {selected ? <>
-            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 p-4 sm:p-5 dark:border-zinc-800">
+            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] p-3 dark:border-white/[0.06]">
               <div className="min-w-0 flex-1"><h2 className="break-words font-semibold">{labelFor(selected)}</h2><p className="mt-1 break-all text-xs text-zinc-600 dark:text-zinc-400">{selected.url}</p></div>
               <a className="action-button shrink-0" href={selected.url} target="_blank" rel="noopener noreferrer">Open on X ↗</a>
             </header>
-            <div className="p-4 sm:p-5">
-              {status === "idle" && <div className="flex min-h-72 flex-col items-center justify-center px-2 py-8 text-center">
+            <div className="p-3">
+              {status === "idle" && <div className="flex flex-col items-center justify-center px-2 py-5 text-center">
                 <p className="text-lg font-semibold">Ready when you are</p>
                 <p className="mt-3 max-w-sm text-sm leading-6 text-zinc-600 dark:text-zinc-400">Loading this source connects your browser to X. X controls the posts and their order; updates are not guaranteed to be real time.</p>
                 <button className="action-button reader-primary mt-5 px-5" onClick={load}>Load embed</button>
@@ -253,7 +263,7 @@ export default function XReadingPanel({ refreshKey = 0, dragHandleProps }: {
               <div ref={host} className="min-w-0 overflow-hidden [&_iframe]:max-w-full" aria-busy={status === "loading"} />
               {status === "ready" && <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-zinc-600 dark:text-zinc-400">Content supplied by X · updates may be delayed</p><button className="action-button" onClick={load}>Reload embed</button></div>}
             </div>
-          </> : <div className="flex min-h-80 flex-col items-center justify-center px-6 py-12 text-center sm:min-h-[28rem]">
+          </> : <div className="flex flex-col items-center justify-center px-4 py-6 text-center">
             <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-100 text-2xl font-semibold dark:bg-zinc-800" aria-hidden="true">𝕏</span>
             <h2 className="mt-5 text-xl font-semibold">Build your X reading space</h2>
             <p className="mt-3 max-w-md text-sm leading-6 text-zinc-600 dark:text-zinc-400">Add an AI researcher, a company account, or a public list you trust. Save individual posts to come back to later.</p>

@@ -169,7 +169,7 @@ original X post. Filters and coverage limits are detailed in
 [X discovery](x-discovery.md).
 
 Saved sources retains public profile/list/post bookmarks. Official widgets load
-only after Load embed or Load post from X; original links remain available when
+only after Load embed or Load from X; original links remain available when
 widgets fail. Discovery and saved links remain separate from Brief story ranking
 and Library storage. The column covers All AI with its own text/date controls;
 the main topic and Builder filters do not change its selection. No paid X API
