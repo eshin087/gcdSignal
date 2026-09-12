@@ -155,17 +155,23 @@ contain personal notes in plain JSON, so store/share them accordingly.
 
 ## X reading tab
 
-The main X tab stores public profile/list/post links locally and loads the
-official X widget only after **Load embed**. That action contacts X; availability
-may depend on sign-in, privacy settings or X changing its embed support.
-A normal external link remains usable when embedding fails.
-X controls timeline contents and ordering; embeds have no guaranteed real-time
-refresh interval. Selecting a saved source does not load it automatically.
+The X tab defaults to Discover: dated links to X posts surfaced through Hacker
+News and Latent Space's public RSS. AI relevance uses the citing headline or
+individual paragraph; selection cannot inspect undiscovered X posts. Popular
+ranking uses bounded HN points/comments, recency and inclusion by both public
+sources. It does not measure X likes, reposts or trending velocity.
 
-Embedded posts are not discovered, ranked, searched or archived into Signal's
-news algorithm. There is no X API ingestion, paid subscription or revived
-unofficial timeline scraper. X link bookmarks have a separate export and are
-not included in the Library backup.
+Post IDs deduplicate x.com/twitter.com links and account-name changes. Repeated
+HN submissions do not add their scores together. Descriptions are attributed
+source context, and sharing dates belong to that source, not necessarily the
+original X post. Filters and coverage limits are detailed in
+[X discovery](x-discovery.md).
+
+Saved sources retains public profile/list/post bookmarks. Official widgets load
+only after Load embed or Load post from X; original links remain available when
+widgets fail. Discovery and saved links remain separate from the main Brief
+and Library. No paid X API or unofficial timeline scraping is used. X bookmarks
+have their own export and are not included in Library backups.
 
 ## Verification
 
@@ -177,7 +183,8 @@ helpers.
 
 Optional node tests/library-browser.mjs exercises real IndexedDB with an
 isolated browser origin. node tests/browser-smoke.mjs runs fixture-based UI
-checks against a local app. Both need Playwright/Chrome; use PLAYWRIGHT_PATH
+checks against a local app. The x-browser and x-discovery-browser suites cover
+saved widgets and automatic discovery. These need Playwright/Chrome; use PLAYWRIGHT_PATH
 and BROWSER_CHANNEL for an existing installation, and APP_URL for a nondefault
 local app address. Functional browser tests are not measured Lighthouse or
 Core Web Vitals results.

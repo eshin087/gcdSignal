@@ -2,7 +2,7 @@
 
 A local-first AI news reader: a concise **Brief** for important developments,
 an optional source **Deck** for deeper browsing, a searchable **Library**
-for material you want to keep, and an **X** tab for your public sources.
+for material you want to keep, and an **X** tab that discovers AI post links.
 
 The default is **Brief + All AI**, not Builder. Selection uses transparent
 rules and source evidence, not a paid language-model classifier. It is a
@@ -77,17 +77,26 @@ Use [.env.example](.env.example) for optional server credentials. Never place
 secrets in client-prefixed variables or commit your local environment file.
 Email signup, broadcast delivery and Resend configuration have been removed.
 
-### X: a main reading tab with free embeds
+### X: automatic discovery and saved sources
 
-Open **X** in the main navigation. Save a public X profile, list or individual-post URL, then choose **Load embed**
-if you want X to render it. No X widget request is made before that action.
-Loading an embed contacts X and may depend on sign-in, browser restrictions or
-X availability; **Open on X** remains available if embedding fails. Embeds do not
-provide a guaranteed real-time or chronological feed.
+Open **X → Discover** to find AI-related X links shared on Hacker News and in
+Latent Space's public AI coverage. No handles or credentials are needed.
+**Popular** uses source discussion activity, recency and cross-source selection;
+it does not measure X-wide virality. Filter by text or sharing date, inspect why
+a post appears, and save links for later. Descriptions and dates belong to the
+citing source; the original post may be older or unavailable.
 
-Signal does not discover, rank, archive or search the embedded posts. No paid
-X API or unofficial timeline scraping is used. The panel keeps up to 50 link
-bookmarks locally and has its own link export, separate from Library backups.
+Choose **Load post from X** to view an original post in a dialog, or **Open on X**.
+The **Saved sources** section retains public profiles, lists and individual
+posts with click-to-load widgets. X is contacted only after those actions;
+embedding may be blocked or require sign-in.
+
+This uses public source APIs/RSS and optional official embeds. There is no paid
+X API, unofficial X scraper, new account, or scheduled job. Discovery is cached
+and may lag source coverage. The panel keeps up to 50 link bookmarks locally,
+with its own export separate from Library backups. Its source descriptions are
+not archived in Library. See [X discovery](docs/x-discovery.md) for selection
+rules and coverage limits.
 
 ## Local data and backups
 
@@ -144,6 +153,7 @@ Browser suites use the pinned Playwright dev dependency and Chrome by default
 node tests/library-browser.mjs
 node tests/browser-smoke.mjs
 node tests/x-browser.mjs
+node tests/x-discovery-browser.mjs
 ~~~
 
 The library suite uses an isolated page and real IndexedDB; it does not need a
