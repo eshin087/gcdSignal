@@ -54,6 +54,7 @@ async function setup(prefs) {
     if (!url.pathname.startsWith("/api/")) return route.continue();
     requests.push(url.href);
     if (url.pathname === "/api/brief") return route.fulfill({ json: briefFixture(url) });
+    if (url.pathname === "/api/feeds/x-discovery") return route.fulfill({ json: { schemaVersion: 1, items: [], fetchedAt: now(), health: health() } });
     const source = url.pathname.split("/").at(-1);
     if (source === "bluesky") return route.fulfill({ json: { schemaVersion: 2, source, items: [], error: "QA upstream unavailable", fetchedAt: now(), health: { total: 1, failed: 1, succeeded: 0, degraded: true } } });
     return route.fulfill({ json: { schemaVersion: 2, source, fetchedAt: now(), health: health(), items: Array.from({ length: 35 }, (_, i) => storyItem(source, i, url.searchParams.get("category") || "trending")) } });
@@ -240,6 +241,8 @@ try {
   await xPanel.waitFor();
   assert.equal(await page.getByRole("dialog").count(), 0, "X opens as a main destination");
   assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "X", exact: true }).getAttribute("aria-current"), "page");
+  assert.equal(await xPanel.getByRole("button", { name: "Discover", exact: true }).getAttribute("aria-current"), "page", "X starts with automatic discovery");
+  await xPanel.getByRole("button", { name: "Saved sources", exact: true }).click();
   await xPanel.getByRole("heading", { name: "Build your X reading space", exact: true }).waitFor();
   await xPanel.getByRole("button", { name: "Add your first source", exact: true }).click();
   assert.equal(await page.evaluate(() => document.activeElement.id), "x-link-input", "X onboarding focuses the source field");
@@ -272,6 +275,7 @@ try {
   assert.equal(await xPanel.getByRole("link", { name: "Open on X ↗", exact: true }).getAttribute("href"), "https://x.com/OpenAI", "X accepts a simple account handle");
   assert.equal(external.filter((url) => url === "https://platform.twitter.com/widgets.js").length, attempts + 1, "choosing another account requires fresh consent");
   await page.reload();
+  await page.getByRole("main", { name: "X reading", exact: true }).getByRole("button", { name: "Saved sources", exact: true }).click();
   await page.getByRole("main", { name: "X reading", exact: true }).getByRole("button", { name: "Load embed", exact: true }).waitFor();
   assert.equal(await page.getByRole("main", { name: "X reading", exact: true }).getByRole("link", { name: "Open on X ↗", exact: true }).getAttribute("href"), "https://x.com/i/lists/123456789", "saved X sources survive reload");
   assert.equal(external.filter((url) => url === "https://platform.twitter.com/widgets.js").length, attempts + 1, "restoring an X source does not load it automatically");

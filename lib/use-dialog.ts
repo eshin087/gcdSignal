@@ -13,7 +13,7 @@ export function useDialog(open: boolean) {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
       const stops = [...dialog.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, summary, [tabindex]:not([tabindex="-1"])'
       )].filter((element) => element.tabIndex >= 0 && element.getClientRects().length > 0);
       const first = stops[0], last = stops[stops.length - 1];
       if (!first) { event.preventDefault(); return; }

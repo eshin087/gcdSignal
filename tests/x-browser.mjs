@@ -78,6 +78,7 @@ async function setup({ stored = null, blockWrites = false, blockReads = false } 
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(appUrl);
   const panel = page.getByRole("main", { name: "X reading", exact: true });
+  await panel.getByRole("button", { name: "Saved sources", exact: true }).click();
   await panel.getByRole("button", { name: "Save source", exact: true }).waitFor();
   return { context, page, panel, widgetRequests };
 }
@@ -93,6 +94,7 @@ async function switchAwayAndBack(page) {
   await nav.getByRole("button", { name: "Brief", exact: true }).click();
   await page.getByRole("main", { name: "Essential Brief", exact: true }).waitFor();
   await nav.getByRole("button", { name: "X", exact: true }).click();
+  await page.getByRole("main", { name: "X reading", exact: true }).getByRole("button", { name: "Saved sources", exact: true }).click();
   await page.getByRole("main", { name: "X reading", exact: true }).getByRole("button", { name: "Load embed", exact: true }).waitFor();
 }
 

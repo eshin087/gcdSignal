@@ -232,7 +232,7 @@ export default function Dashboard() {
       ) : prefs.view === "brief" ? (
         <BriefView category={prefs.category} refreshKey={refresh.key} />
       ) : prefs.view === "x" ? (
-        <XReadingPanel />
+        <XReadingPanel refreshKey={refresh.key} />
       ) : prefs.view === "library" ? (
         <ResearchScreen
           feeds={visibleFeeds}
