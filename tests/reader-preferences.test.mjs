@@ -6,12 +6,13 @@ const { DEFAULT_ORDER, PANEL_LABELS, SOURCE_IDS, deckKnownIds, effectiveOrder, i
 const { parseXLink } = load("../lib/x-links.ts");
 
 test("new readers get Broad, All AI and Brief with a visible X discovery column", () => {
-  assert.equal(DEFAULT_PREFS.v, 9);
+  assert.equal(DEFAULT_PREFS.v, 10);
   assert.equal(DEFAULT_PREFS.contentMode, "broad");
   assert.equal(DEFAULT_PREFS.category, "trending");
   assert.equal(DEFAULT_PREFS.view, "brief");
   assert.ok(DEFAULT_PREFS.hidden.includes("top10"));
   assert.ok(DEFAULT_PREFS.hidden.includes("bluesky"));
+  assert.ok(DEFAULT_PREFS.hidden.includes("fourchan"));
   assert.ok(!DEFAULT_PREFS.hidden.includes("x-discovery"));
   assert.equal(DEFAULT_ORDER[DEFAULT_ORDER.indexOf("rss") + 1], "x-discovery");
   assert.ok(isPanelId("x-discovery"));
@@ -24,9 +25,9 @@ test("legacy defaults migrate once without losing custom feeds, mutes, display o
   const old = { v: 6, contentMode: "builder", view: "deck", category: "research", followedTopics: ["research"], mutedAuthors: ["reddit:reader"], hidden: ["youtube"],
     custom: [{ id: "custom:123", source: "rss", label: "My feed", params: { url: "https://example.com/rss" } }], textScale: "lg", density: "compact" };
   const next = parsePrefs(JSON.stringify(old));
-  assert.equal(next.v, 9); assert.equal(next.contentMode, "broad"); assert.equal(next.view, "brief");
+  assert.equal(next.v, 10); assert.equal(next.contentMode, "broad"); assert.equal(next.view, "brief");
   for (const key of ["category", "followedTopics", "mutedAuthors", "custom", "textScale", "density"]) assert.deepEqual(next[key], old[key]);
-  assert.deepEqual(next.hidden, ["youtube", "top10", "bluesky"]);
+  assert.deepEqual(next.hidden, ["youtube", "top10", "bluesky", "fourchan"]);
   const optedIn = parsePrefs(JSON.stringify({ ...next, contentMode: "builder", view: "deck" }));
   assert.equal(optedIn.contentMode, "builder"); assert.equal(optedIn.view, "deck");
 });
@@ -37,7 +38,7 @@ test("v7 readers keep their chosen mode, view and settings while Bluesky becomes
       category: "research", textScale: "lg", density: "compact", order: ["youtube", "bluesky", "rss"],
       followedTopics: ["research"], mutedAuthors: ["reddit:reader"], mutedOutlets: ["example.com"], refreshMs: 0 };
     const migrated = parsePrefs(JSON.stringify(previous));
-    assert.deepEqual(migrated, { ...previous, v: 9, hidden: ["youtube", "bluesky"], order: ["youtube", "bluesky", "rss", "x-discovery"] });
+    assert.deepEqual(migrated, { ...previous, v: 10, hidden: ["youtube", "bluesky", "fourchan"], order: ["youtube", "bluesky", "rss", "x-discovery"] });
   }
 });
 test("legacy X view opens the homepage without losing Bluesky opt-in or other choices", () => {
@@ -46,19 +47,22 @@ test("legacy X view opens the homepage without losing Bluesky opt-in or other ch
     custom: [{ id: "custom:123", source: "rss", label: "My feed", params: { url: "https://example.com/rss" } }],
     mutedAuthors: ["reddit:reader"], mutedOutlets: ["example.com"], followedTopics: ["research"], textScale: "lg", refreshMs: 0 };
   const migrated = parsePrefs(JSON.stringify(previous));
-  assert.deepEqual(migrated, { ...previous, v: 9, view: "brief", order: ["youtube", "rss", "x-discovery", "custom:123", "reddit"] });
+  assert.deepEqual(migrated, { ...previous, v: 10, view: "brief", order: ["youtube", "rss", "x-discovery", "custom:123", "reddit"] });
   assert.deepEqual(parsePrefs(JSON.stringify(migrated)), migrated, "migration applies only once");
 });
 test("v8 readers retain their view and relative column order while X is added", () => {
   for (const view of ["brief", "deck", "library"]) {
     const previous = { ...DEFAULT_PREFS, v: 8, view, order: ["youtube", "reddit"] };
-    assert.deepEqual(parsePrefs(JSON.stringify(previous)), { ...previous, v: 9, order: ["x-discovery", "youtube", "reddit"] });
+    assert.deepEqual(parsePrefs(JSON.stringify(previous)), { ...previous, v: 10, order: ["x-discovery", "youtube", "reddit"] });
   }
   const alreadyPlaced = { ...DEFAULT_PREFS, v: 8, order: ["x-discovery", "youtube", "rss", "reddit"] };
   assert.deepEqual(parsePrefs(JSON.stringify(alreadyPlaced)).order, alreadyPlaced.order);
 });
-test("v9 readers keep explicit X visibility and order choices", () => {
-  const chosen = { ...DEFAULT_PREFS, view: "deck", hidden: [...DEFAULT_PREFS.hidden.filter((id) => id !== "bluesky"), "x-discovery"],
+test("v10 readers keep explicit X, 4chan and order choices after the one-time migration", () => {
+  const old = { ...DEFAULT_PREFS, v: 9, hidden: ["x-discovery"], order: ["reddit", "x-discovery", "youtube", "rss"] };
+  const migrated = parsePrefs(JSON.stringify(old));
+  assert.deepEqual(migrated.hidden, ["x-discovery", "fourchan"]);
+  const chosen = { ...migrated, view: "deck", hidden: [...migrated.hidden.filter((id) => id !== "fourchan")],
     order: ["reddit", "x-discovery", "youtube", "rss"] };
   assert.deepEqual(parsePrefs(JSON.stringify(chosen)), chosen);
   assert.deepEqual(effectiveOrder(chosen.order, deckKnownIds([])).slice(0, chosen.order.length), chosen.order);
@@ -66,6 +70,7 @@ test("v9 readers keep explicit X visibility and order choices", () => {
 test("invalid preference payloads fall back safely", () => {
   for (const raw of ["null", "[]", "{", '{"v":99}', '{"v":0}']) assert.deepEqual(parsePrefs(raw), DEFAULT_PREFS);
   assert.equal(parsePrefs('{"v":7,"category":"__proto__","view":"foryou","contentMode":"invalid"}').category, "trending");
+  assert.deepEqual(parsePrefs('{"v":10}').hidden, DEFAULT_PREFS.hidden, "partial payloads retain safe default-hidden sources");
 });
 test("X panel only accepts public-profile/list/post identifiers and strips tracking", () => {
   assert.deepEqual(parseXLink("https://x.com/OpenAI/status/123?s=20"), { url: "https://x.com/OpenAI/status/123", kind: "post", postId: "123" });

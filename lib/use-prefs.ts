@@ -19,7 +19,7 @@ const isTextScale = (v: unknown): v is TextScale =>
   v === "sm" || v === "md" || v === "lg" || v === "xl";
 
 export const DEFAULT_PREFS: Prefs = {
-  v: 9,
+  v: 10,
   contentMode: "broad",
   followedTopics: [],
   mutedAuthors: [],
@@ -53,10 +53,10 @@ export function parsePrefs(raw: string | null): Prefs {
   try {
     if (!raw) return DEFAULT_PREFS;
     const p = JSON.parse(raw) as Omit<Partial<Prefs>, "v"> & { v?: number };
-    if (typeof p?.v !== "number" || p.v < 1 || p.v > 9) return DEFAULT_PREFS;
+    if (typeof p?.v !== "number" || !Number.isInteger(p.v) || p.v < 1 || p.v > 10) return DEFAULT_PREFS;
     let hidden = Array.isArray(p.hidden)
       ? p.hidden.filter((x): x is string => typeof x === "string")
-      : [];
+      : [...DEFAULT_HIDDEN];
     // v1 → hide the sources that shipped default-hidden AT THE TIME; the user's
     // own hides and custom feeds are preserved through every migration.
     if (p.v === 1) hidden = [...new Set([...hidden, ...V1_DEFAULT_HIDDEN])];
@@ -71,6 +71,9 @@ export function parsePrefs(raw: string | null): Prefs {
     // v7 → v8: unreliable Bluesky search becomes opt-in. Apply this once so
     // readers can explicitly enable it again without losing that choice.
     if (p.v < 8) hidden = [...new Set([...hidden, "bluesky"])];
+    // v9 → v10: keep 4chan opt-in for existing readers as well as new ones.
+    // Later explicit choices are preserved; the source adapter stays available.
+    if (p.v < 10) hidden = [...new Set([...hidden, "fourchan"])];
     let order = Array.isArray(p.order)
       ? p.order.filter((x): x is string => typeof x === "string")
       : DEFAULT_ORDER;
@@ -82,7 +85,7 @@ export function parsePrefs(raw: string | null): Prefs {
       order.splice(order.indexOf("rss") + 1, 0, "x-discovery");
     }
     return {
-      v: 9,
+      v: 10,
       contentMode: p.v >= 7 && p.contentMode === "builder" ? "builder" : "broad",
       followedTopics: Array.isArray(p.followedTopics) ? [...new Set(p.followedTopics.filter((t) => typeof t === "string" && Object.hasOwn(CATEGORIES, t) && t !== "trending"))] : [],
       mutedAuthors: Array.isArray(p.mutedAuthors) ? p.mutedAuthors.filter((s): s is string => typeof s === "string").slice(0, 200) : [],

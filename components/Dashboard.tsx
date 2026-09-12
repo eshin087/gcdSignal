@@ -28,6 +28,8 @@ const SettingsDrawer = dynamic(() => import("./SettingsDrawer"));
 const ShortcutsOverlay = dynamic(() => import("./ShortcutsOverlay"));
 import StatusBar from "./StatusBar";
 import { toggleTheme } from "./ThemeToggle";
+import { useReadingQueue } from "@/lib/reading-queue";
+const ReadingQueue = dynamic(() => import("./ReadingQueue"));
 
 const TEXT_SIZES: Array<{ id: TextScale; label: string }> = [
   { id: "sm", label: "Small" },
@@ -50,6 +52,9 @@ export default function Dashboard() {
   const library = useLibrary();
   const [helpOpen, setHelpOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const queue = useReadingQueue();
 
   // Session-only search query, debounced so columns don't filter per keystroke.
   const [queryInput, setQueryInput] = useState("");
@@ -202,6 +207,7 @@ export default function Dashboard() {
     { id: "theme", group: "display", label: "Toggle light / dark theme", run: toggleTheme },
     { id: "refresh", group: "feeds", label: "Refresh all feeds", hint: "r = one column", run: bumpRefresh },
     { id: "open:saved", group: "open", label: "Search your collection / saved items", run: () => setPrefs((p) => ({ ...p, view: "library" })) },
+    { id: "open:queue", group: "open", label: "Must read queue", run: () => setQueueOpen(true) },
     { id: "open:settings", group: "open", label: "Settings", run: () => setSettingsOpen(true) },
     { id: "open:add", group: "open", label: "Add a feed", run: () => setAddFeedOpen(true) },
     { id: "open:help", group: "open", label: "Keyboard shortcuts", hint: "?", run: () => setHelpOpen(true) },
@@ -213,7 +219,7 @@ export default function Dashboard() {
 
   return (
     <ReadingProvider>
-      <Header
+      <div hidden={focusMode} className="contents"><Header
         category={prefs.category}
         onCategoryChange={setCategory}
         view={prefs.view}
@@ -222,13 +228,16 @@ export default function Dashboard() {
         onQueryInputChange={setQueryInput}
         onOpenSettings={() => setSettingsOpen(true)}
         settingsOpen={settingsOpen}
-      />
+        onOpenQueue={() => setQueueOpen(true)}
+        queueOpen={queueOpen}
+        queueCount={queue.ready ? queue.items.length : 0}
+      /></div>
 
       {library.storageWarning && <div role="status" className="shrink-0 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">{library.storageWarning} Keep this tab open and export a backup from Library.</div>}
       {!ready ? (
         <DeckPlaceholder />
       ) : prefs.view === "brief" ? (
-        <HomeColumns category={prefs.category} refreshKey={refresh.key} showX={!prefs.hidden.includes("x-discovery")} />
+        <HomeColumns category={prefs.category} refreshKey={refresh.key} showX={!prefs.hidden.includes("x-discovery")} onFocusChange={setFocusMode} />
       ) : prefs.view === "library" ? (
         <ResearchScreen
           feeds={visibleFeeds}
@@ -245,10 +254,11 @@ export default function Dashboard() {
           sortMode={prefs.sortMode}
           query={query}
           onReorder={handleReorder}
+          onFocusChange={setFocusMode}
         />
       )}
 
-      {prefs.view === "deck" ? <StatusBar
+      <div hidden={focusMode} className="contents">{prefs.view === "deck" ? <StatusBar
         items={deckItems}
         lastRefreshAt={refresh.at}
         refreshMs={prefs.refreshMs}
@@ -257,7 +267,7 @@ export default function Dashboard() {
       /> : <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-zinc-200 px-4 py-1 text-xs text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
         <span>Personal library · stored in this browser</span>
         <div className="flex gap-2"><button className="action-button" onClick={() => setHelpOpen(true)} aria-label="Keyboard shortcuts">?</button><button className="action-button" onClick={() => setPaletteOpen(true)} aria-label="Open command palette">⌘ K</button></div>
-      </footer>}
+      </footer>}</div>
 
       {settingsOpen && <SettingsDrawer
         open={settingsOpen}
@@ -278,6 +288,7 @@ export default function Dashboard() {
       />}
       {helpOpen && <ShortcutsOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />}
       {paletteOpen && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />}
+      {queueOpen && <ReadingQueue open={queueOpen} onClose={() => setQueueOpen(false)} />}
     </ReadingProvider>
   );
 }

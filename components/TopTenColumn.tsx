@@ -8,9 +8,11 @@ import { publisher } from "@/lib/stories";
 import { usePrefs } from "@/lib/use-prefs";
 import { useReading } from "./ReadingContext";
 import { useBrief } from "@/lib/use-brief";
-import { COLUMN_HEADER, COLUMN_SHELL } from "./column-shell";
-import { CommentIcon, RefreshIcon, TrophyIcon } from "./icons";
+import { COLUMN_SHELL } from "./column-shell";
+import ColumnHeader from "./ColumnHeader";
+import { CommentIcon, TrophyIcon } from "./icons";
 import SourceIcon from "./SourceIcon";
+import QueueButton from "./QueueButton";
 
 const MANUAL_COOLDOWN_MS = 30_000;
 
@@ -22,9 +24,11 @@ function formatCount(n: number): string {
 export default function TopTenColumn({
   refreshKey,
   dragHandleProps,
+  headerAction,
 }: {
   refreshKey: number;
   dragHandleProps?: React.HTMLAttributes<HTMLElement>;
+  headerAction?: React.ReactNode;
 }) {
   const { prefs } = usePrefs();
   const read = useReading();
@@ -69,29 +73,9 @@ export default function TopTenColumn({
         }}
       />
 
-      <header
-        {...dragHandleProps}
-        className={`${COLUMN_HEADER} ${dragHandleProps ? "select-none md:cursor-grab md:active:cursor-grabbing" : ""}`}
-      >
-        <span className={`led led-${health}`} aria-label={`Status: ${health}`} />
-        <TrophyIcon className="h-4 w-4 text-amber-500" />
-        <h2 className="truncate font-mono text-[length:var(--fs-colhead)] font-semibold lowercase tracking-tight text-zinc-600 dark:text-zinc-300">
-          <span className="text-cyan-500/80 dark:text-cyan-400/80">&gt;&nbsp;</span>
-          daily top 10
-        </h2>
-        <span className="font-mono text-[length:var(--fs-ui-sm)] text-zinc-400 dark:text-zinc-600">{dateLabel}</span>
-        <span className="ml-auto flex items-center gap-1">
-          <button
-            onClick={manualRefresh}
-            aria-label="Refresh Daily Top 10"
-            title="Refresh Daily Top 10"
-            draggable={false}
-            className="rounded p-1 text-zinc-400 transition-colors hover:bg-black/[0.05] hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 dark:text-zinc-600 dark:hover:bg-white/[0.06] dark:hover:text-zinc-300"
-          >
-            <RefreshIcon className={`h-3.5 w-3.5 ${status === "loading" ? "animate-spin" : ""}`} />
-          </button>
-        </span>
-      </header>
+      <ColumnHeader icon={<TrophyIcon className="h-4 w-4 text-amber-500" />} label="Daily Top 10" health={health}
+        title={`Daily Top 10 · ${dateLabel}`} count={status === "ok" ? count : undefined} countTitle={`${count} stories`}
+        onRefresh={manualRefresh} refreshing={status === "loading"} extraAction={headerAction} dragHandleProps={dragHandleProps} />
 
       {status === "ok" && data?.stale && (
         <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/[0.07] px-3 py-1.5 text-[10px] leading-tight text-amber-700 dark:border-amber-400/15 dark:text-amber-300/90">
@@ -162,7 +146,6 @@ export default function TopTenColumn({
                   >
                     {story.title}
                   </a>
-                  <button className="action-button mt-2" onClick={() => read(story.members)}>{story.members.length} {story.members.length === 1 ? "post" : "posts"} · {story.publishers.length} {story.publishers.length === 1 ? "publisher / platform" : "publishers / platforms"} →</button>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[length:var(--fs-meta)]">
                     <span
                       className="inline-flex items-center gap-1.5"
@@ -178,7 +161,7 @@ export default function TopTenColumn({
                         target="_blank"
                         rel="noopener noreferrer"
                         title="Open discussion"
-                        className="inline-flex items-center gap-1 rounded-md bg-black/[0.04] px-1.5 py-0.5 text-[length:var(--fs-chip)] font-medium tabular-nums text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400"
+                        className="inline-flex items-center gap-1 font-medium tabular-nums text-zinc-500 hover:text-cyan-700 dark:text-zinc-400 dark:hover:text-cyan-300"
                       >
                         <CommentIcon className="h-3 w-3" />
                         {formatCount(story.comments)}
@@ -188,6 +171,13 @@ export default function TopTenColumn({
                       {timeAgo(story.timestamp)}
                     </span>
                   </div>
+                  <details data-story-details className="text-[length:var(--fs-meta)] text-zinc-600 dark:text-zinc-400">
+                    <summary className="story-details-summary" aria-label={`Details for ${story.title}`}>Details</summary>
+                    <div className="story-details-body">
+                      <button className="story-action" onClick={() => read(story.members)}>{story.members.length} {story.members.length === 1 ? "source" : "sources"} & discussion</button>
+                      <QueueButton id={`feed:${story.id}`} title={story.title} url={story.primaryUrl ?? story.url} source="Daily Top 10" />
+                    </div>
+                  </details>
                 </div>
               </div>
             </article>

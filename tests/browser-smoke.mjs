@@ -13,7 +13,7 @@ const errors = [];
 const requests = [];
 const external = [];
 let generation = 0;
-const hidden = ["top10", "github", "papers", "fourchan"];
+const hidden = ["top10", "github", "papers", "fourchan", "bluesky"];
 const now = () => new Date().toISOString();
 const health = (all = false) => ({ total: all ? 5 : 2, succeeded: all ? 4 : 2, failed: all ? 1 : 0, degraded: all, details: [
   { id: "Primary newsroom", status: "ok", checkedAt: now(), lastSuccessAt: now() },
@@ -86,6 +86,67 @@ async function touchTarget(locator, label) {
   const bounds = await locator.boundingBox();
   assert.ok(bounds && bounds.width >= 44 && bounds.height >= 44, `${label} has a 44px touch target`);
 }
+async function assertNoPageOverflow(page, width, label) {
+  const layout = await page.evaluate(() => {
+    const currentX = window.scrollX;
+    return {
+      innerWidth,
+      bodyWidth: document.body.scrollWidth,
+      currentX,
+      rootOverflowX: getComputedStyle(document.documentElement).overflowX,
+    };
+  });
+  assert.ok(layout.bodyWidth <= layout.innerWidth, `${label}: page body fits at ${width}: ${JSON.stringify(layout)}`);
+  assert.equal(layout.rootOverflowX, "clip", `${label}: the root clips unintended overflow at ${width}`);
+  assert.equal(layout.currentX, 0, `${label}: column controls did not shift the document sideways at ${width}: ${JSON.stringify(layout)}`);
+}
+async function openStoryDetails(article) {
+  const details = article.locator("details[data-story-details]");
+  if (await details.getAttribute("open") === null) await details.locator("summary").click();
+  await details.locator(".story-details-body").waitFor({ state: "visible" });
+  return details;
+}
+async function assertColumnHeadersAtZoomReflow(page, percent) {
+  // Desktop browser zoom reduces the CSS layout viewport. Playwright does not
+  // expose Chrome's browser-level zoom control, so reproduce the exact reflow
+  // pressure from a 1440 × 900 display while XL text is selected.
+  const scale = percent / 100;
+  const viewport = { width: Math.round(1440 / scale), height: Math.round(900 / scale) };
+  await page.setViewportSize(viewport);
+  assert.deepEqual(await page.evaluate(() => ({ width: innerWidth, height: innerHeight })), viewport, `${percent}% zoom-equivalent layout viewport is applied`);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const layouts = await page.locator(".col-header").evaluateAll((headers) => {
+    const rect = (element) => {
+      const bounds = element.getBoundingClientRect();
+      return { left: bounds.left, right: bounds.right, top: bounds.top, width: bounds.width, height: bounds.height };
+    };
+    return headers.flatMap((header) => {
+      if (!header.getClientRects().length) return [];
+      const icon = header.querySelector("[data-column-icon]");
+      const heading = header.querySelector("h2");
+      const controls = header.querySelector(":scope > span:last-child");
+      if (!icon || !heading || !controls) return [];
+      return [{ label: heading.getAttribute("title") || heading.textContent.trim(), header: rect(header), icon: rect(icon), heading: rect(heading), controls: rect(controls) }];
+    });
+  });
+  assert.ok(layouts.length >= 3, `${percent}% zoom checks several mounted column headers`);
+  const tolerance = 2;
+  for (const layout of layouts) {
+    assert.ok(layout.icon.right <= layout.heading.left + tolerance, `${percent}% ${layout.label}: icon does not overlap heading`);
+    assert.ok(layout.heading.right <= layout.controls.left + tolerance, `${percent}% ${layout.label}: heading does not overlap controls`);
+    assert.ok(layout.heading.width > 0 && layout.controls.right <= layout.header.right + tolerance, `${percent}% ${layout.label}: heading and controls remain inside the header`);
+    const iconCenter = layout.icon.top + layout.icon.height / 2;
+    const headingCenter = layout.heading.top + layout.heading.height / 2;
+    const controlCenter = layout.controls.top + layout.controls.height / 2;
+    assert.ok(Math.abs(iconCenter - headingCenter) <= tolerance && Math.abs(headingCenter - controlCenter) <= tolerance, `${percent}% ${layout.label}: icon, text and controls stay vertically aligned`);
+  }
+  for (const [slot, offsets] of Object.entries({
+    icon: layouts.map((layout) => layout.icon.left - layout.header.left),
+    heading: layouts.map((layout) => layout.heading.left - layout.header.left),
+  })) {
+    assert.ok(Math.max(...offsets) - Math.min(...offsets) <= tolerance, `${percent}% ${slot} slots align across column headers`);
+  }
+}
 async function mainNav(page, name) { await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name, exact: true }).click(); }
 async function dbRecords(page) {
   return page.evaluate(() => new Promise((resolve, reject) => {
@@ -112,7 +173,7 @@ async function matchingXColumn(page, { compact = false, label = "default" } = {}
   const rssHeader = rss.locator(".col-header");
   assert.deepEqual(await styles(xHeader, ["height", "padding-left", "padding-right", "border-bottom-color"]), await styles(rssHeader, ["height", "padding-left", "padding-right", "border-bottom-color"]), `${label}: column headers align`);
   assert.equal((await xHeader.boundingBox()).height, 44, `${label}: X has the standard 44px header`);
-  assert.deepEqual(await styles(xHeader.locator("h2"), ["font-family", "font-size", "font-weight", "text-transform", "color"]), await styles(rssHeader.locator("h2"), ["font-family", "font-size", "font-weight", "text-transform", "color"]), `${label}: column heading typography matches`);
+  assert.deepEqual(await styles(xHeader.locator("h2"), ["font-family", "font-size", "font-weight", "line-height", "text-transform", "color"]), await styles(rssHeader.locator("h2"), ["font-family", "font-size", "font-weight", "line-height", "text-transform", "color"]), `${label}: column heading typography matches`);
   await xHeader.locator('.led[aria-label="Status: ok"]').waitFor();
   assert.equal(await xHeader.locator(".rounded-full").count(), 1, `${label}: X has a standard count badge`);
   assert.equal(await xHeader.getByRole("button", { name: "Refresh AI on X", exact: true }).locator("svg").count(), 1, `${label}: refresh is an icon in the header`);
@@ -153,6 +214,52 @@ try {
   assert.ok(requests.some((request) => request.includes("phase=primary") && request.includes("window=24")));
   assert.ok(requests.some((request) => request.includes("phase=all") && request.includes("window=24")));
   assert.equal(external.filter((url) => /(?:twitter|x)\.com/.test(url)).length, 0);
+  const jumpToXForFocus = page.getByRole("button", { name: "Jump to X column", exact: true });
+  await jumpToXForFocus.click();
+  await page.waitForFunction(() => document.querySelector('[data-feed-id="x-discovery"]')?.getBoundingClientRect().left >= -1);
+  const homeLeft = await page.locator(".home-columns").evaluate((element) => element.scrollLeft);
+  const homeFocus = page.getByRole("button", { name: "Focus AI on X", exact: true });
+  await homeFocus.click();
+  const homeExitFocus = page.getByRole("button", { name: "Exit focus", exact: true });
+  await homeExitFocus.waitFor();
+  await page.locator(".reader-header").waitFor({ state: "hidden" });
+  await page.locator("footer").waitFor({ state: "hidden" });
+  assert.equal(await homeExitFocus.count(), 1, "home focus exposes one clear exit control");
+  assert.equal(await homeExitFocus.evaluate((element) => element === document.activeElement), true, "entering home focus moves keyboard focus to Exit focus");
+  assert.deepEqual(await page.locator("[data-feed-id]:visible").evaluateAll((elements) => elements.map((element) => element.dataset.feedId)), ["x-discovery"], "home focus isolates the selected column");
+  await page.keyboard.press("Escape");
+  await homeFocus.waitFor();
+  await page.locator(".reader-header").waitFor({ state: "visible" });
+  await page.locator("footer").waitFor({ state: "visible" });
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Focus AI on X");
+  assert.equal(await homeFocus.evaluate((element) => element === document.activeElement), true, "Escape restores focus to the home entry control");
+  assert.ok(Math.abs(await page.locator(".home-columns").evaluate((element) => element.scrollLeft) - homeLeft) <= 1, "home focus exit restores the horizontal column position");
+  await page.getByRole("button", { name: "Jump to Brief column", exact: true }).click();
+  const briefFocus = page.getByRole("button", { name: "Focus Brief", exact: true });
+  await briefFocus.click();
+  await page.setViewportSize({ width: 768, height: 844 });
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Focus Brief");
+  assert.equal(await briefFocus.evaluate((element) => element === document.activeElement), true, "Focus returns to the visible Brief control after crossing its responsive breakpoint");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Jump to X column", exact: true }).click();
+  await page.getByRole("button", { name: "Focus AI on X", exact: true }).click();
+  await page.keyboard.press("Control+k");
+  const hideFocused = page.getByRole("dialog", { name: "Command palette", exact: true });
+  await hideFocused.getByRole("textbox", { name: "Command", exact: true }).fill("hide ai on x");
+  await hideFocused.getByRole("textbox", { name: "Command", exact: true }).press("Enter");
+  await page.locator('.home-columns [data-feed-id="x-discovery"]').waitFor({ state: "detached" });
+  await page.locator('.home-columns').evaluate((element) => { if (element.parentElement?.dataset.focusMode !== "false") throw new Error("Focus remained active after hiding its source"); });
+  await page.locator(".reader-header").waitFor({ state: "visible" });
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Focus Brief");
+  assert.equal(await page.getByRole("button", { name: "Focus Brief", exact: true }).evaluate((element) => element === document.activeElement), true, "hiding the focused X source moves focus to the visible Brief control");
+  await page.keyboard.press("Control+k");
+  const showFocused = page.getByRole("dialog", { name: "Command palette", exact: true });
+  await showFocused.getByRole("textbox", { name: "Command", exact: true }).fill("show ai on x");
+  await showFocused.getByRole("textbox", { name: "Command", exact: true }).press("Enter");
+  await page.getByRole("region", { name: "AI on X column", exact: true }).waitFor();
+  assert.equal(await page.locator('[data-focus-mode="true"]').count(), 0, "re-enabling a hidden focused source does not silently re-enter Focus");
+  await page.getByRole("button", { name: "Jump to Brief column", exact: true }).click();
   for (const width of [320, 360, 390, 430, 768, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     const trigger = page.getByRole("button", { name: "Settings", exact: true });
@@ -162,7 +269,7 @@ try {
     const logo = await page.getByRole("button", { name: "Signal home", exact: true }).boundingBox();
     assert.ok(Math.abs(bounds.y - logo.y) < 2, `Settings stays in the first row at ${width}`);
     assert.equal(await trigger.locator("svg").count(), 1, "Settings has a visible gear icon");
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no document overflow at ${width}`);
+    await assertNoPageOverflow(page, width, "reader layout");
     if (width < 1024) {
       const jumpX = page.getByRole("button", { name: "Jump to X column", exact: true });
       await touchTarget(jumpX, `Jump to X at ${width}`);
@@ -212,6 +319,9 @@ try {
   assert.equal((await dbRecords(page)).filter((record) => record.readAt).length, 0, "scrolling never marks stories read");
   await page.getByRole("main", { name: "Essential Brief" }).evaluate((element) => { element.scrollTop = 0; });
   const first = page.locator("main article").first();
+  assert.equal(await first.locator("details[data-story-details]").getAttribute("open"), null, "Brief story Details start collapsed");
+  assert.equal(await first.locator(".story-details-body").isVisible(), false, "collapsed Brief stories keep secondary actions out of the reading flow");
+  await openStoryDetails(first);
   await first.getByRole("button", { name: "Save story", exact: true }).click();
   await first.getByRole("button", { name: "Remove from saved", exact: true }).waitFor();
   await first.getByRole("button", { name: "Mark read", exact: true }).click();
@@ -322,6 +432,14 @@ try {
     assert.ok(style.fontSize > previousSize, `${textSize}: X headline size increases with the shared preference`);
     previousSize = style.fontSize;
   }
+  assert.equal(await page.locator("html").getAttribute("data-text"), "xl", "Largest selects the XL text scale before zoom checks");
+  const longHeader = page.locator('[data-feed-id="hackernews"]');
+  await longHeader.scrollIntoViewIfNeeded();
+  const longHeading = longHeader.locator(".col-header h2");
+  await longHeading.waitFor();
+  assert.equal(await longHeading.getAttribute("title"), "Hacker News", "a longer truncated column heading retains its full tooltip");
+  for (const percent of [125, 150, 200]) await assertColumnHeadersAtZoomReflow(page, percent);
+  await page.setViewportSize({ width: 1440, height: 844 });
   await page.screenshot({ path: join(tmpdir(), "gcdsignal-x-matched-columns-qa.png") });
   const restoreStyle = await settings(page, true);
   await restoreStyle.getByRole("button", { name: "Medium", exact: true }).click();
@@ -329,19 +447,41 @@ try {
   await restoreStyle.getByRole("button", { name: originalDark ? "Switch to dark mode" : "Switch to light mode", exact: true }).click();
   await settings(page, false);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "Focus Reddit ↗", exact: true }).waitFor();
+  const redditFocus = page.getByRole("button", { name: "Focus Reddit", exact: true });
+  await redditFocus.waitFor();
   await page.locator('[data-feed-id="reddit"] article').first().waitFor();
-  await page.getByRole("button", { name: "Focus Reddit ↗", exact: true }).scrollIntoViewIfNeeded();
+  await redditFocus.scrollIntoViewIfNeeded();
+  const redditScroll = page.locator('[data-feed-id="reddit"] .feed-scroll');
+  await redditScroll.evaluate((element) => { element.scrollTop = 260; });
+  const redditTop = await redditScroll.evaluate((element) => element.scrollTop);
   const deckLeft = await page.locator(".deck-scroll").evaluate((element) => element.scrollLeft);
-  await page.getByRole("button", { name: "Focus Reddit ↗", exact: true }).click();
+  await redditFocus.click();
+  const deckExitFocus = page.getByRole("button", { name: "Exit focus", exact: true });
+  await deckExitFocus.waitFor();
+  await page.locator(".reader-header").waitFor({ state: "hidden" });
+  await page.getByRole("contentinfo", { name: "Deck status", exact: true }).waitFor({ state: "hidden" });
+  assert.equal(await deckExitFocus.count(), 1, "Deck focus exposes one Exit focus control");
+  assert.equal(await deckExitFocus.evaluate((element) => element === document.activeElement), true, "Deck focus moves keyboard focus to its exit control");
   assert.equal(await page.locator("[data-feed-id]:visible").count(), 1);
-  await page.getByRole("button", { name: "← Back to deck", exact: true }).click();
-  await page.getByRole("button", { name: "Focus Reddit ↗", exact: true }).waitFor();
+  await redditScroll.evaluate((element) => { element.scrollTop += 180; });
+  const focusedRedditTop = await redditScroll.evaluate((element) => element.scrollTop);
+  assert.ok(focusedRedditTop > redditTop, "the focused column remains independently scrollable");
+  await page.keyboard.press("Escape");
+  await redditFocus.waitFor();
+  await page.locator(".reader-header").waitFor({ state: "visible" });
+  await page.getByRole("contentinfo", { name: "Deck status", exact: true }).waitFor({ state: "visible" });
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Focus Reddit");
+  assert.equal(await redditFocus.evaluate((element) => element === document.activeElement), true, "Escape restores focus to the Deck entry control");
   assert.ok(Math.abs(await page.locator(".deck-scroll").evaluate((element) => element.scrollLeft) - deckLeft) <= 1, "focus exit restores deck position");
-  await page.getByRole("button", { name: "Focus AI on X ↗", exact: true }).click();
+  assert.ok(Math.abs(await redditScroll.evaluate((element) => element.scrollTop) - focusedRedditTop) <= 1, "focus exit preserves the column reading position");
+  const xFocus = page.getByRole("button", { name: "Focus AI on X", exact: true });
+  await xFocus.click();
   assert.deepEqual(await page.locator("[data-feed-id]:visible").evaluateAll((elements) => elements.map((element) => element.dataset.feedId)), ["x-discovery"], "Deck focus isolates the X column");
   await page.getByRole("region", { name: "AI on X column", exact: true }).getByRole("heading", { name: "AI model release from public coverage", exact: true }).waitFor();
-  await page.getByRole("button", { name: "← Back to deck", exact: true }).click();
+  await page.getByRole("button", { name: "Exit focus", exact: true }).click();
+  await xFocus.waitFor();
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Focus AI on X");
+  assert.equal(await xFocus.evaluate((element) => element === document.activeElement), true, "Exit focus restores focus to the selected column entry");
   await page.keyboard.press("Control+k");
   await page.getByRole("dialog", { name: "Command palette", exact: true }).waitFor();
   await page.getByRole("textbox", { name: "Command", exact: true }).fill("text size");
@@ -382,7 +522,7 @@ try {
   assert.equal(external.filter((url) => /(?:twitter|x)\.com/.test(url)).length, 0, "X stays unrequested until explicit consent");
   for (const width of [320, 360, 390, 430, 768, 1440]) {
     await page.setViewportSize({ width, height: 844 });
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `X has no document overflow at ${width}`);
+    await assertNoPageOverflow(page, width, "X source layout");
     await touchTarget(xPanel.getByRole("button", { name: "Load embed", exact: true }), `X consent at ${width}`);
     if (width === 390 || width === 1440) {
       await xPanel.locator("[data-x-scroll]").evaluate((element) => { element.scrollTop = 0; });
@@ -446,7 +586,7 @@ try {
   assert.equal(await scroll.evaluate((element) => element.scrollTop), 0);
   await held.context.close();
   assert.deepEqual(errors, [], "no client runtime errors");
-  console.log("PASS: Brief/Broad and X home-column defaults, opt-in Bluesky, preference migrations, coverage, window/category requests, explicit read/save, library search/notes/reload, 320–1440px layouts, mobile column jumps, desktop side-by-side columns, matching X/RSS column and row styles, light/dark themes, all text scales and compact density, X hide/show/reload, one-click Settings gear/drawer, touch targets, settings controls/focus, deck focus, X consent/retry/fallback/reload, held refresh.");
+  console.log("PASS: Brief/Broad and X home-column defaults, opt-in Bluesky, preference migrations, collapsed story Details, coverage, window/category requests, explicit read/save, library search/notes/reload, 320–1440px layouts, mobile column jumps, desktop side-by-side columns, matching X/RSS column and row styles, light/dark themes, all text scales plus 125–200% browser-zoom-equivalent layout reflow, X hide/show/reload, one-click Settings gear/drawer, touch targets, settings controls/focus, home/deck focus exit and restoration, X consent/retry/fallback/reload, held refresh.");
   console.log("Screenshots: " + join(tmpdir(), "gcdsignal-mobile-qa.png") + " and " + join(tmpdir(), "gcdsignal-desktop-qa.png"));
   console.log("Settings and X screenshots: " + ["settings-mobile", "settings-desktop", "x-mobile", "x-desktop"].map((name) => join(tmpdir(), `gcdsignal-${name}-qa.png`)).join(", "));
 } finally { await browser.close(); }

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { CategoryId, DeckItem, SortMode } from "@/lib/types";
 import FeedColumn from "./FeedColumn";
 import { TrophyIcon, XBrandIcon } from "./icons";
 import SourceIcon from "./SourceIcon";
 import TopTenColumn from "./TopTenColumn";
+import { scrollColumnInRail } from "@/lib/scroll-rail";
 
 const XReadingPanel = dynamic(() => import("./XReadingPanel"));
 
@@ -29,6 +30,7 @@ export default function ColumnDeck({
   sortMode,
   query,
   onReorder,
+  onFocusChange,
 }: {
   items: DeckItem[];
   category: CategoryId;
@@ -36,10 +38,15 @@ export default function ColumnDeck({
   sortMode: SortMode;
   query: string;
   onReorder: (dragId: string, targetId: string, side: DropSide) => void;
+  onFocusChange?: (focused: boolean) => void;
 }) {
   const deckRef = useRef<HTMLDivElement>(null);
   const deckPosition = useRef(0);
   const wasFocused = useRef(false);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const returnFocusName = useRef("");
+  const exitButton = useRef<HTMLButtonElement>(null);
+  const scrollPositions = useRef(new Map<HTMLElement, number>());
   const [focusId, setFocusId] = useState<string | null>(null);
   const focused = items.some((it) => it.id === focusId) ? focusId : null;
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -65,33 +72,57 @@ export default function ColumnDeck({
   }, [items]);
 
   useEffect(() => {
-    if (!focused && wasFocused.current) deckRef.current?.scrollTo({ left: deckPosition.current, behavior: "instant" });
+    onFocusChange?.(Boolean(focused));
+    const shouldRestore = wasFocused.current || Boolean(focused);
     wasFocused.current = Boolean(focused);
-  }, [focused]);
+    if (!shouldRestore) return;
+    const frame = requestAnimationFrame(() => {
+      for (const [element, top] of scrollPositions.current) element.scrollTop = top;
+      deckRef.current?.scrollTo({ left: focused ? 0 : deckPosition.current, behavior: "instant" });
+      if (focused) exitButton.current?.focus({ preventScroll: true });
+      else {
+        const original = returnFocus.current;
+        const named = [...document.querySelectorAll<HTMLButtonElement>("button[aria-label]")].find((button) => button.getAttribute("aria-label") === returnFocusName.current && button.getClientRects().length > 0);
+        const fallback = [...document.querySelectorAll<HTMLButtonElement>('button[aria-label^="Focus "], .reader-nav[aria-current="page"]')].find((button) => button.getClientRects().length > 0);
+        (original?.isConnected && original.getClientRects().length > 0 ? original : named ?? fallback)?.focus({ preventScroll: true });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focused, onFocusChange]);
+  useEffect(() => () => onFocusChange?.(false), [onFocusChange]);
+  useEffect(() => {
+    if (!focusId || items.some((item) => item.id === focusId)) return;
+    const timer = setTimeout(() => setFocusId(null), 0);
+    return () => clearTimeout(timer);
+  }, [focusId, items]);
 
-  const toggleFocus = (id: string) => {
-    if (!focused) deckPosition.current = deckRef.current?.scrollLeft ?? 0;
-    setFocusId(focused ? null : id);
+  const enterFocus = (id: string, trigger: HTMLElement) => {
+    deckPosition.current = deckRef.current?.scrollLeft ?? 0;
+    returnFocus.current = trigger;
+    returnFocusName.current = `Focus ${itemLabel(items.find((item) => item.id === id)!)}`;
+    scrollPositions.current = new Map(Array.from(deckRef.current?.querySelectorAll<HTMLElement>(".feed-scroll") ?? [], (element) => [element, element.scrollTop]));
+    setFocusId(id);
   };
+  const exitFocus = useCallback(() => {
+    for (const element of deckRef.current?.querySelectorAll<HTMLElement>('[data-feed-id]:not([hidden]) .feed-scroll') ?? []) {
+      scrollPositions.current.set(element, element.scrollTop);
+    }
+    setFocusId(null);
+  }, []);
   const jumpTo = (id: string) => {
-    if (focused) { setFocusId(id); return; }
     const el = deckRef.current?.querySelector(`[data-feed-id="${id}"]`);
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el?.scrollIntoView({
-      behavior: reduced ? "auto" : "smooth",
-      inline: "center",
-      block: "nearest",
-    });
+    scrollColumnInRail(deckRef.current, el ?? null, "center", reduced ? "auto" : "smooth");
   };
 
   useEffect(() => {
     if (!focused) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !document.querySelector("dialog[open]")) setFocusId(null);
+      if (e.key === "Escape" && !document.querySelector("dialog[open]")) { e.preventDefault(); exitFocus(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focused]);
+  }, [focused, exitFocus]);
 
   const clearDrag = () => {
     setDragId(null);
@@ -120,6 +151,7 @@ export default function ColumnDeck({
     },
     onDragEnd: clearDrag,
   });
+  const focusAction = (id: string, label: string) => <button hidden={Boolean(focused)} draggable={false} className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-zinc-500 hover:bg-black/[0.05] hover:text-teal-700 focus-visible:ring-2 focus-visible:ring-teal-500/40 dark:text-zinc-400 dark:hover:bg-white/[0.06] dark:hover:text-teal-300" aria-label={`Focus ${label}`} title={`Focus ${label}`} onClick={(event) => enterFocus(id, event.currentTarget)}><span aria-hidden>↗</span></button>;
 
   if (!items.length) {
     return (
@@ -130,9 +162,13 @@ export default function ColumnDeck({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div data-focus-mode={Boolean(focused)} className="flex min-h-0 flex-1 flex-col">
+      {focused && <div className="flex min-h-11 shrink-0 items-center gap-3 border-b border-zinc-200 px-3 dark:border-zinc-800">
+        <span className="min-w-0 flex-1 truncate text-sm text-zinc-600 dark:text-zinc-400">Focus · {itemLabel(items.find((it) => it.id === focused)!)}</span>
+        <button ref={exitButton} className="min-h-11 shrink-0 px-3 text-sm font-medium text-teal-700 focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-teal-300" onClick={exitFocus}>Exit focus <span aria-hidden>↙</span></button>
+      </div>}
       {/* Mobile source chips */}
-      <div className={`flex shrink-0 gap-1.5 overflow-x-auto border-b border-black/[0.06] px-3 py-2 ${focused ? "" : "md:hidden"} dark:border-white/[0.06]`}>
+      <div hidden={Boolean(focused)} className={`${focused ? "hidden" : "flex"} shrink-0 gap-1.5 overflow-x-auto border-b border-black/[0.06] px-3 py-2 md:hidden dark:border-white/[0.06]`}>
         {items.map((it) => (
           <button
             key={it.id}
@@ -163,6 +199,7 @@ export default function ColumnDeck({
               <div
                 key={it.id}
                 data-feed-id={it.id}
+                hidden={Boolean(focused && focused !== it.id)}
                 onDragOver={(e) => {
                   if (!dragId || dragId === it.id) return;
                   e.preventDefault();
@@ -194,12 +231,11 @@ export default function ColumnDeck({
                     }`}
                   />
                 )}
-                <button className="min-h-8 shrink-0 rounded-t-md text-xs text-zinc-600 hover:text-cyan-700 dark:text-zinc-400" aria-pressed={focused === it.id} onClick={() => toggleFocus(it.id)}>{focused ? "← Back to deck" : `Focus ${itemLabel(it)} ↗`}</button>
                 <DeferredColumn label={itemLabel(it)}>
                 {it.kind === "panel" ? (
                   it.id === "x-discovery"
-                    ? <XReadingPanel refreshKey={refreshKey} dragHandleProps={dragHandleProps(it.id)} />
-                    : <TopTenColumn refreshKey={refreshKey} dragHandleProps={dragHandleProps(it.id)} />
+                    ? <XReadingPanel refreshKey={refreshKey} dragHandleProps={dragHandleProps(it.id)} headerAction={focusAction(it.id, itemLabel(it))} />
+                    : <TopTenColumn refreshKey={refreshKey} dragHandleProps={dragHandleProps(it.id)} headerAction={focusAction(it.id, itemLabel(it))} />
                 ) : (
                   <FeedColumn
                     feed={it.feed}
@@ -208,6 +244,7 @@ export default function ColumnDeck({
                     sortMode={sortMode}
                     query={query}
                     dragHandleProps={dragHandleProps(it.id)}
+                    headerAction={focusAction(it.id, itemLabel(it))}
                   />
                 )}
                 </DeferredColumn>

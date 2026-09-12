@@ -85,7 +85,7 @@ async function setup({ stored = null, blockWrites = false, blockReads = false } 
   assert.equal(await briefNav.getAttribute("aria-current"), "page", "legacy X selection opens the Brief homepage");
   await briefNav.click(); // In-memory preference migrations persist on the next explicit preference change.
   const prefs = await page.evaluate(() => JSON.parse(localStorage.getItem("gcdsignal:prefs")));
-  assert.equal(prefs.v, 9);
+  assert.equal(prefs.v, 10);
   assert.equal(prefs.view, "brief");
   await panel.getByRole("button", { name: "Saved sources", exact: true }).click();
   await panel.getByRole("button", { name: "Save source", exact: true }).waitFor();
