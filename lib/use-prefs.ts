@@ -13,13 +13,13 @@ const KEY = "gcdsignal:prefs";
 const V1_DEFAULT_HIDDEN = ["fourchan", "papers"];
 
 /** Built-ins that start hidden — full coverage is one Settings toggle away. */
-const DEFAULT_HIDDEN: string[] = ["top10", "github", "papers", "fourchan"];
+const DEFAULT_HIDDEN: string[] = ["top10", "github", "papers", "fourchan", "bluesky"];
 
 const isTextScale = (v: unknown): v is TextScale =>
   v === "sm" || v === "md" || v === "lg" || v === "xl";
 
 export const DEFAULT_PREFS: Prefs = {
-  v: 7,
+  v: 8,
   contentMode: "broad",
   followedTopics: [],
   mutedAuthors: [],
@@ -53,7 +53,7 @@ export function parsePrefs(raw: string | null): Prefs {
   try {
     if (!raw) return DEFAULT_PREFS;
     const p = JSON.parse(raw) as Omit<Partial<Prefs>, "v"> & { v?: number };
-    if (typeof p?.v !== "number" || p.v < 1 || p.v > 7) return DEFAULT_PREFS;
+    if (typeof p?.v !== "number" || p.v < 1 || p.v > 8) return DEFAULT_PREFS;
     let hidden = Array.isArray(p.hidden)
       ? p.hidden.filter((x): x is string => typeof x === "string")
       : [];
@@ -68,9 +68,12 @@ export function parsePrefs(raw: string | null): Prefs {
     // v4 → v5: 4chan leaves the default deck again (Momentum takes its slot).
     if (p.v <= 4) hidden = [...new Set([...hidden, "fourchan"])];
     if (p.v < 7) hidden = [...new Set([...hidden, "top10"])];
+    // v7 → v8: unreliable Bluesky search becomes opt-in. Apply this once so
+    // readers can explicitly enable it again without losing that choice.
+    if (p.v < 8) hidden = [...new Set([...hidden, "bluesky"])];
     return {
-      v: 7,
-      contentMode: p.v === 7 && p.contentMode === "builder" ? "builder" : "broad",
+      v: 8,
+      contentMode: p.v >= 7 && p.contentMode === "builder" ? "builder" : "broad",
       followedTopics: Array.isArray(p.followedTopics) ? [...new Set(p.followedTopics.filter((t) => typeof t === "string" && Object.hasOwn(CATEGORIES, t) && t !== "trending"))] : [],
       mutedAuthors: Array.isArray(p.mutedAuthors) ? p.mutedAuthors.filter((s): s is string => typeof s === "string").slice(0, 200) : [],
       mutedOutlets: Array.isArray(p.mutedOutlets) ? p.mutedOutlets.filter((s): s is string => typeof s === "string").slice(0, 200) : [],
@@ -80,7 +83,7 @@ export function parsePrefs(raw: string | null): Prefs {
       refreshMs: isValidRefreshMs(p.refreshMs) ? p.refreshMs : DEFAULT_REFRESH_MS,
       textScale: isTextScale(p.textScale) ? p.textScale : "md",
       sortMode: isSortMode(p.sortMode) ? p.sortMode : "signal",
-      view: p.v === 7 && (p.view === "deck" || p.view === "library") ? p.view : "brief",
+      view: p.v >= 7 && (p.view === "deck" || p.view === "library" || (p.v === 8 && p.view === "x")) ? p.view : "brief",
       order: Array.isArray(p.order)
         ? p.order.filter((x): x is string => typeof x === "string")
         : DEFAULT_ORDER,

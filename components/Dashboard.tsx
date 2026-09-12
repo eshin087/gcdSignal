@@ -48,7 +48,6 @@ export default function Dashboard() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addFeedOpen, setAddFeedOpen] = useState(false);
-  const [xOpen, setXOpen] = useState(false);
   const library = useLibrary();
   const [helpOpen, setHelpOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -204,9 +203,9 @@ export default function Dashboard() {
     { id: "theme", group: "display", label: "Toggle light / dark theme", run: toggleTheme },
     { id: "refresh", group: "feeds", label: "Refresh all feeds", hint: "r = one column", run: bumpRefresh },
     { id: "open:saved", group: "open", label: "Search your collection / saved items", run: () => setPrefs((p) => ({ ...p, view: "library" })) },
-    { id: "open:settings", group: "open", label: "Feed settings", run: () => setSettingsOpen(true) },
+    { id: "open:settings", group: "open", label: "Settings", run: () => setSettingsOpen(true) },
     { id: "open:add", group: "open", label: "Add a feed", run: () => setAddFeedOpen(true) },
-    { id: "open:x", group: "open", label: "Optional X reading panel", run: () => setXOpen(true) },
+    { id: "open:x", group: "open", label: "X reading panel", run: () => setPrefs((p) => ({ ...p, view: "x" })) },
     { id: "open:help", group: "open", label: "Keyboard shortcuts", hint: "?", run: () => setHelpOpen(true) },
     ...(queryInput
       ? [{ id: "clear:search", group: "feeds", label: `Clear search filter (“${queryInput}”)`, run: () => setQueryInput("") }]
@@ -219,22 +218,12 @@ export default function Dashboard() {
       <Header
         category={prefs.category}
         onCategoryChange={setCategory}
-        lastRefreshAt={refresh.at}
-        onRefresh={bumpRefresh}
-        refreshMs={prefs.refreshMs}
-        onRefreshMsChange={(ms) => setPrefs((p) => ({ ...p, refreshMs: ms }))}
         view={prefs.view}
         onViewChange={(view) => setPrefs((p) => ({ ...p, view }))}
-        sortMode={prefs.sortMode}
-        onSortModeChange={(sortMode) => setPrefs((p) => ({ ...p, sortMode }))}
-        textScale={prefs.textScale}
-        onTextScaleChange={(t) => setPrefs((p) => ({ ...p, textScale: t }))}
-        density={prefs.density}
-        onDensityChange={(d) => setPrefs((p) => ({ ...p, density: d }))}
         queryInput={queryInput}
         onQueryInputChange={setQueryInput}
         onOpenSettings={() => setSettingsOpen(true)}
-        onOpenX={() => setXOpen(true)}
+        settingsOpen={settingsOpen}
       />
 
       {library.storageWarning && <div role="status" className="shrink-0 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">{library.storageWarning} Keep this tab open and export a backup from Library.</div>}
@@ -242,6 +231,8 @@ export default function Dashboard() {
         <DeckPlaceholder />
       ) : prefs.view === "brief" ? (
         <BriefView category={prefs.category} refreshKey={refresh.key} />
+      ) : prefs.view === "x" ? (
+        <XReadingPanel />
       ) : prefs.view === "library" ? (
         <ResearchScreen
           feeds={visibleFeeds}
@@ -277,6 +268,9 @@ export default function Dashboard() {
         onClose={() => setSettingsOpen(false)}
         prefs={prefs}
         setPrefs={setPrefs}
+        onRefresh={bumpRefresh}
+        onOpenX={() => { setSettingsOpen(false); setPrefs((p) => ({ ...p, view: "x" })); }}
+        onOpenHelp={() => { setSettingsOpen(false); setHelpOpen(true); }}
         onAddFeed={() => {
           setSettingsOpen(false);
           setAddFeedOpen(true);
@@ -287,7 +281,6 @@ export default function Dashboard() {
         onClose={() => setAddFeedOpen(false)}
         onAdd={(feed) => setPrefs((p) => ({ ...p, custom: [...p.custom, feed] }))}
       />}
-      {xOpen && <XReadingPanel onClose={() => setXOpen(false)} />}
       {helpOpen && <ShortcutsOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />}
       {paletteOpen && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />}
     </ReadingProvider>

@@ -15,9 +15,9 @@ const external = [];
 let generation = 0;
 const hidden = ["top10", "github", "papers", "fourchan"];
 const now = () => new Date().toISOString();
-const health = (all = false) => ({ total: all ? 6 : 2, succeeded: all ? 5 : 2, failed: all ? 1 : 0, degraded: all, details: [
+const health = (all = false) => ({ total: all ? 5 : 2, succeeded: all ? 4 : 2, failed: all ? 1 : 0, degraded: all, details: [
   { id: "Primary newsroom", status: "ok", checkedAt: now(), lastSuccessAt: now() },
-  ...(all ? [{ id: "Bluesky", status: "error", checkedAt: now(), message: "QA upstream unavailable" }] : []),
+  ...(all ? [{ id: "YouTube", status: "error", checkedAt: now(), message: "QA upstream unavailable" }] : []),
 ] });
 function storyItem(source, i, category = "trending", gen = generation) {
   const topic = category === "research" ? "AI research evaluation" : category === "security" ? "AI safety regulation" : "AI compute contract";
@@ -63,9 +63,21 @@ async function setup(prefs) {
   page.on("pageerror", (error) => errors.push(error.message));
   return { context, page };
 }
-async function controls(page, open) {
-  const button = page.getByRole("button", { name: "More controls", exact: true });
-  if ((await button.getAttribute("aria-expanded") === "true") !== open) await button.click();
+async function settings(page, open) {
+  const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
+  if (open) {
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await dialog.waitFor();
+  } else {
+    await dialog.getByRole("button", { name: "Done", exact: true }).click();
+    await dialog.waitFor({ state: "detached" });
+  }
+  return dialog;
+}
+async function touchTarget(locator, label) {
+  await locator.scrollIntoViewIfNeeded();
+  const bounds = await locator.boundingBox();
+  assert.ok(bounds && bounds.width >= 44 && bounds.height >= 44, `${label} has a 44px touch target`);
 }
 async function mainNav(page, name) { await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name, exact: true }).click(); }
 async function dbRecords(page) {
@@ -89,12 +101,29 @@ try {
   assert.ok(requests.some((request) => request.includes("phase=primary") && request.includes("window=24")));
   assert.ok(requests.some((request) => request.includes("phase=all") && request.includes("window=24")));
   assert.equal(external.filter((url) => /(?:twitter|x)\.com/.test(url)).length, 0);
-  for (const width of [360, 390, 430, 768, 1440]) {
+  for (const width of [320, 360, 390, 430, 768, 1440]) {
     await page.setViewportSize({ width, height: 844 });
-    const bounds = await page.getByRole("button", { name: "More controls", exact: true }).boundingBox();
-    assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width, `controls fit at ${width}`);
+    const trigger = page.getByRole("button", { name: "Settings", exact: true });
+    await touchTarget(trigger, `Settings at ${width}`);
+    const bounds = await trigger.boundingBox();
+    assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width, `Settings fits at ${width}`);
+    const logo = await page.getByRole("button", { name: "Signal home", exact: true }).boundingBox();
+    assert.ok(Math.abs(bounds.y - logo.y) < 2, `Settings stays in the first row at ${width}`);
+    assert.equal(await trigger.locator("svg").count(), 1, "Settings has a visible gear icon");
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no document overflow at ${width}`);
     assert.equal(await page.getByRole("main", { name: "Essential Brief", exact: true }).getByRole("button", { name: "Refresh", exact: true }).count(), 1, `exactly one visible Brief refresh at ${width}`);
+    const headerBefore = await page.locator(".reader-header").boundingBox();
+    const drawer = await settings(page, true);
+    assert.equal(await page.getByRole("dialog").count(), 1, "one Settings click opens one dialog");
+    assert.deepEqual(await page.locator(".reader-header").boundingBox(), headerBefore, `Settings does not shift the header at ${width}`);
+    const drawerBounds = await drawer.boundingBox();
+    assert.ok(drawerBounds.x >= 0 && drawerBounds.x + drawerBounds.width <= width + 1, `Settings fits the viewport at ${width}`);
+    assert.ok(drawerBounds.height > drawerBounds.width, `Settings stays a vertical panel at ${width}`);
+    assert.ok(await drawer.evaluate((element) => element.scrollWidth <= element.clientWidth), `Settings has no horizontal overflow at ${width}`);
+    await touchTarget(drawer.getByRole("button", { name: "Close settings", exact: true }), `Close settings at ${width}`);
+    if (width === 390 || width === 1440) await page.screenshot({ path: join(tmpdir(), `gcdsignal-settings-${width === 390 ? "mobile" : "desktop"}-qa.png`) });
+    await settings(page, false);
+    assert.equal(await page.evaluate(() => document.activeElement.getAttribute("aria-label")), "Settings", "closing Settings returns focus to its gear");
   }
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok((await page.locator("main article h2").first().boundingBox()).y < 500, "first mobile headline is above the 500px mark");
@@ -114,17 +143,38 @@ try {
   await page.getByRole("dialog").waitFor();
   await page.getByRole("button", { name: "Close story", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "detached" });
-  await controls(page, true);
-  assert.equal(await page.getByRole("button", { name: "Broad", exact: true }).getAttribute("aria-pressed"), "true");
-  await page.getByRole("button", { name: "Feed settings", exact: true }).click();
-  await page.getByRole("dialog", { name: "Feed settings", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Close settings", exact: true }).focus();
+  const drawer = await settings(page, true);
+  assert.equal(await drawer.getByRole("button", { name: "Broad", exact: true }).getAttribute("aria-pressed"), "true");
+  assert.equal(await drawer.getByRole("checkbox", { name: "Show Bluesky", exact: true }).isChecked(), false, "Bluesky starts disabled");
+  for (const name of ["Small", "Medium", "Large", "Largest", "Comfortable", "Compact", "Broad", "Builder"]) {
+    await touchTarget(drawer.getByRole("button", { name, exact: true }), name);
+  }
+  for (const name of ["Auto-refresh", "Deck sorting"]) {
+    const control = drawer.getByRole("combobox", { name, exact: true });
+    assert.equal(await control.evaluate((element) => element.tagName), "SELECT", `${name} uses an accessible native select`);
+    await touchTarget(control, name);
+  }
+  await touchTarget(drawer.getByRole("checkbox", { name: "Show Bluesky", exact: true }).locator(".."), "Bluesky source label");
+  await drawer.getByRole("button", { name: "Large", exact: true }).click();
+  assert.equal(await page.locator("html").getAttribute("data-text"), "lg", "text size applies immediately");
+  await drawer.getByRole("button", { name: "Medium", exact: true }).click();
+  const longTerm = "A".repeat(80);
+  await drawer.getByRole("textbox", { name: "Follow a company or product", exact: true }).fill(longTerm);
+  await drawer.getByRole("button", { name: "Follow", exact: true }).click();
+  assert.ok(await drawer.locator(".feed-scroll").evaluate((element) => element.scrollWidth <= element.clientWidth), "long followed terms wrap inside Settings");
+  await drawer.getByRole("button", { name: "Unfollow " + longTerm, exact: true }).click();
+  await drawer.getByRole("combobox", { name: "Auto-refresh", exact: true }).selectOption("0");
+  await drawer.getByRole("combobox", { name: "Deck sorting", exact: true }).selectOption("new");
+  await drawer.getByRole("button", { name: "Close settings", exact: true }).focus();
   await page.keyboard.press("Shift+Tab");
   assert.ok(await page.evaluate(() => !!document.activeElement.closest("dialog")), "settings wraps keyboard focus");
   await page.keyboard.press("Escape");
   await page.getByRole("dialog").waitFor({ state: "detached" });
-  assert.equal(await page.evaluate(() => document.activeElement.getAttribute("aria-label")), "Feed settings");
-  await controls(page, false);
+  assert.equal(await page.evaluate(() => document.activeElement.getAttribute("aria-label")), "Settings");
+  const reopened = await settings(page, true);
+  assert.equal(await reopened.getByRole("combobox", { name: "Auto-refresh", exact: true }).inputValue(), "0");
+  assert.equal(await reopened.getByRole("combobox", { name: "Deck sorting", exact: true }).inputValue(), "new");
+  await settings(page, false);
 
   await page.getByRole("button", { name: "Expand to the last 72 hours", exact: true }).click();
   await page.locator("main .reader-eyebrow").filter({ hasText: "72h" }).waitFor();
@@ -185,28 +235,58 @@ try {
   assert.ok(await page.evaluate(() => !!document.activeElement.closest("dialog")));
   await page.keyboard.press("Escape");
   await page.getByRole("dialog").waitFor({ state: "detached" });
-  await controls(page, true);
-  await page.getByRole("button", { name: "X reading panel", exact: true }).click();
-  const xPanel = page.getByRole("dialog", { name: "X reading panel", exact: true });
+  await mainNav(page, "X");
+  const xPanel = page.getByRole("main", { name: "X reading", exact: true });
   await xPanel.waitFor();
-  await xPanel.getByRole("textbox", { name: "Public X URL", exact: true }).fill("https://x.com/i/lists/123456789");
-  await xPanel.getByRole("button", { name: "Save link", exact: true }).click();
+  assert.equal(await page.getByRole("dialog").count(), 0, "X opens as a main destination");
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "X", exact: true }).getAttribute("aria-current"), "page");
+  await xPanel.getByRole("heading", { name: "Build your X reading space", exact: true }).waitFor();
+  await xPanel.getByRole("button", { name: "Add your first source", exact: true }).click();
+  assert.equal(await page.evaluate(() => document.activeElement.id), "x-link-input", "X onboarding focuses the source field");
+  await xPanel.getByRole("textbox", { name: "Add an account or link", exact: true }).fill("https://x.com/i/lists/123456789");
+  await xPanel.getByRole("button", { name: "Save source", exact: true }).click();
   await xPanel.getByRole("button", { name: "Load embed", exact: true }).waitFor();
+  assert.equal(await xPanel.getByRole("link", { name: "Open on X ↗", exact: true }).getAttribute("href"), "https://x.com/i/lists/123456789", "Open on X is available before consent");
   assert.equal(external.filter((url) => /(?:twitter|x)\.com/.test(url)).length, 0, "X stays unrequested until explicit consent");
+  for (const width of [320, 360, 390, 430, 768, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `X has no document overflow at ${width}`);
+    await touchTarget(xPanel.getByRole("button", { name: "Load embed", exact: true }), `X consent at ${width}`);
+    if (width === 390 || width === 1440) {
+      await xPanel.evaluate((element) => { element.scrollTop = 0; });
+      await page.screenshot({ path: join(tmpdir(), `gcdsignal-x-${width === 390 ? "mobile" : "desktop"}-qa.png`) });
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
   await xPanel.getByRole("button", { name: "Load embed", exact: true }).click();
-  await xPanel.getByText("X is unavailable or blocked. Use Open on X below.", { exact: true }).waitFor();
+  await xPanel.getByText("X could not display this source", { exact: true }).waitFor();
   assert.ok(external.some((url) => url === "https://platform.twitter.com/widgets.js"));
-  assert.equal(await xPanel.getByRole("link", { name: "Open on X ↗", exact: true }).first().getAttribute("href"), "https://x.com/i/lists/123456789");
-  await xPanel.getByRole("button", { name: "Close X panel", exact: true }).click();
+  assert.equal(await xPanel.getByRole("link", { name: "Open on X ↗", exact: true }).getAttribute("href"), "https://x.com/i/lists/123456789");
+  const attempts = external.filter((url) => url === "https://platform.twitter.com/widgets.js").length;
+  await xPanel.getByRole("button", { name: "Retry embed", exact: true }).click();
+  await xPanel.getByText("X could not display this source", { exact: true }).waitFor();
+  assert.equal(external.filter((url) => url === "https://platform.twitter.com/widgets.js").length, attempts + 1, "a blocked widget can be retried");
+  await xPanel.getByRole("textbox", { name: "Add an account or link", exact: true }).fill("@OpenAI");
+  await xPanel.getByRole("button", { name: "Save source", exact: true }).click();
+  await xPanel.getByRole("button", { name: "Load embed", exact: true }).waitFor();
+  assert.equal(await xPanel.getByRole("link", { name: "Open on X ↗", exact: true }).getAttribute("href"), "https://x.com/OpenAI", "X accepts a simple account handle");
+  assert.equal(external.filter((url) => url === "https://platform.twitter.com/widgets.js").length, attempts + 1, "choosing another account requires fresh consent");
+  await page.reload();
+  await page.getByRole("main", { name: "X reading", exact: true }).getByRole("button", { name: "Load embed", exact: true }).waitFor();
+  assert.equal(await page.getByRole("main", { name: "X reading", exact: true }).getByRole("link", { name: "Open on X ↗", exact: true }).getAttribute("href"), "https://x.com/i/lists/123456789", "saved X sources survive reload");
+  assert.equal(external.filter((url) => url === "https://platform.twitter.com/widgets.js").length, attempts + 1, "restoring an X source does not load it automatically");
+  assert.ok(!requests.some((request) => new URL(request).pathname === "/api/feeds/bluesky"), "default Brief, Deck and Library do not request Bluesky");
   await context.close();
 
   for (const version of [6, 7]) {
     const migration = await setup({ v: version, view: version === 6 ? "foryou" : "brief", contentMode: "builder", hidden, refreshMs: 0, followedTopics: ["research"], density: "compact", textScale: "lg" });
     await migration.page.goto(appUrl);
     await migration.page.getByRole("heading", { name: "The essential Brief", exact: true }).waitFor();
-    await controls(migration.page, true);
-    assert.equal(await migration.page.getByRole("button", { name: version === 6 ? "Broad" : "Builder", exact: true }).getAttribute("aria-pressed"), "true", `v${version} content-mode migration`);
+    const migratedSettings = await settings(migration.page, true);
+    assert.equal(await migratedSettings.getByRole("button", { name: version === 6 ? "Broad" : "Builder", exact: true }).getAttribute("aria-pressed"), "true", `v${version} content-mode migration`);
+    assert.equal(await migratedSettings.getByRole("checkbox", { name: "Show Bluesky", exact: true }).isChecked(), false, `v${version} disables Bluesky`);
     assert.equal(await migration.page.locator("html").getAttribute("data-text"), "lg", "migration preserves display preference");
+    await settings(migration.page, false);
     if (version === 6) await migration.page.locator("main article").nth(9).waitFor();
     else await migration.page.getByText("Builder filter is on.", { exact: false }).waitFor();
     await migration.context.close();
@@ -232,6 +312,7 @@ try {
   assert.equal(await scroll.evaluate((element) => element.scrollTop), 0);
   await held.context.close();
   assert.deepEqual(errors, [], "no client runtime errors");
-  console.log("PASS: Brief/Broad defaults, preference migrations, coverage, window/category requests, explicit read/save, library search/notes/reload, mobile widths, native dialogs, deck focus, X consent/fallback, held refresh.");
+  console.log("PASS: Brief/Broad defaults, opt-in Bluesky, preference migrations, coverage, window/category requests, explicit read/save, library search/notes/reload, 320–1440px layouts, one-click Settings gear/drawer, touch targets, settings controls/focus, deck focus, main X consent/retry/fallback/reload, held refresh.");
   console.log("Screenshots: " + join(tmpdir(), "gcdsignal-mobile-qa.png") + " and " + join(tmpdir(), "gcdsignal-desktop-qa.png"));
+  console.log("Settings and X screenshots: " + ["settings-mobile", "settings-desktop", "x-mobile", "x-desktop"].map((name) => join(tmpdir(), `gcdsignal-${name}-qa.png`)).join(", "));
 } finally { await browser.close(); }

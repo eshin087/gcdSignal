@@ -41,8 +41,9 @@ known publication time and revive yesterday's unchanged story in the 24-hour lis
 Primary announcements and research papers can qualify without votes. Otherwise,
 a story needs substantive reporting evidence; popularity alone cannot admit
 an opinion or sponsored headline. The fixed source roster includes news/RSS,
-Hacker News, Reddit, Bluesky, YouTube and Papers; the Brief is not simply the
+Hacker News, Reddit, YouTube and Papers; the Brief is not simply the
 visible Deck columns combined.
+Bluesky is an optional Deck source and is not requested for the Brief.
 
 Ranking favors primary sources, bounded reporting breadth and freshness.
 Engagement is a small tie-breaker, not proof of importance. Primary papers have
@@ -152,12 +153,14 @@ sync. Browsing still makes requests to the site's feed endpoints and may load
 publisher thumbnails. Opening an original link contacts that website. Backups
 contain personal notes in plain JSON, so store/share them accordingly.
 
-## Optional X reading
+## X reading tab
 
-The X panel stores public profile/list/post links locally and loads the
+The main X tab stores public profile/list/post links locally and loads the
 official X widget only after **Load embed**. That action contacts X; availability
 may depend on sign-in, privacy settings or X changing its embed support.
 A normal external link remains usable when embedding fails.
+X controls timeline contents and ordering; embeds have no guaranteed real-time
+refresh interval. Selecting a saved source does not load it automatically.
 
 Embedded posts are not discovered, ranked, searched or archived into Signal's
 news algorithm. There is no X API ingestion, paid subscription or revived

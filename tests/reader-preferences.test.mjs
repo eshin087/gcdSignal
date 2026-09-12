@@ -9,17 +9,32 @@ test("new readers get Broad, All AI and Brief, with raw advanced feeds hidden", 
   assert.equal(DEFAULT_PREFS.category, "trending");
   assert.equal(DEFAULT_PREFS.view, "brief");
   assert.ok(DEFAULT_PREFS.hidden.includes("top10"));
+  assert.ok(DEFAULT_PREFS.hidden.includes("bluesky"));
   assert.deepEqual(parsePrefs(null), DEFAULT_PREFS);
 });
 test("legacy defaults migrate once without losing custom feeds, mutes, display or interests", () => {
   const old = { v: 6, contentMode: "builder", view: "deck", category: "research", followedTopics: ["research"], mutedAuthors: ["reddit:reader"], hidden: ["youtube"],
     custom: [{ id: "custom:123", source: "rss", label: "My feed", params: { url: "https://example.com/rss" } }], textScale: "lg", density: "compact" };
   const next = parsePrefs(JSON.stringify(old));
-  assert.equal(next.v, 7); assert.equal(next.contentMode, "broad"); assert.equal(next.view, "brief");
+  assert.equal(next.v, 8); assert.equal(next.contentMode, "broad"); assert.equal(next.view, "brief");
   for (const key of ["category", "followedTopics", "mutedAuthors", "custom", "textScale", "density"]) assert.deepEqual(next[key], old[key]);
-  assert.deepEqual(next.hidden, ["youtube", "top10"]);
+  assert.deepEqual(next.hidden, ["youtube", "top10", "bluesky"]);
   const optedIn = parsePrefs(JSON.stringify({ ...next, contentMode: "builder", view: "deck" }));
   assert.equal(optedIn.contentMode, "builder"); assert.equal(optedIn.view, "deck");
+});
+test("v7 readers keep their chosen mode, view and settings while Bluesky becomes opt-in", () => {
+  for (const view of ["brief", "deck", "library"]) {
+    const previous = { ...DEFAULT_PREFS, v: 7, contentMode: "builder", view, hidden: ["youtube"],
+      custom: [{ id: "custom:bluesky", source: "bluesky", label: "My Bluesky feed", params: { q: "OpenAI" } }],
+      category: "research", textScale: "lg", density: "compact", order: ["youtube", "bluesky", "rss"],
+      followedTopics: ["research"], mutedAuthors: ["reddit:reader"], mutedOutlets: ["example.com"], refreshMs: 0 };
+    const migrated = parsePrefs(JSON.stringify(previous));
+    assert.deepEqual(migrated, { ...previous, v: 8, hidden: ["youtube", "bluesky"] });
+  }
+});
+test("a v8 Bluesky opt-in and X view survive preference reloads", () => {
+  const optedIn = { ...DEFAULT_PREFS, hidden: DEFAULT_PREFS.hidden.filter((id) => id !== "bluesky"), view: "x" };
+  assert.deepEqual(parsePrefs(JSON.stringify(optedIn)), optedIn);
 });
 test("invalid preference payloads fall back safely", () => {
   for (const raw of ["null", "[]", "{", '{"v":99}', '{"v":0}']) assert.deepEqual(parsePrefs(raw), DEFAULT_PREFS);
@@ -30,5 +45,7 @@ test("X panel only accepts public-profile/list/post identifiers and strips track
   assert.equal(parseXLink("https://twitter.com/OpenAI").url, "https://x.com/OpenAI");
   assert.equal(parseXLink("https://x.com/i/lists/123").kind, "list");
   assert.equal(parseXLink("https://x.com/reader/lists/ai-news").kind, "list");
+  for (const account of ["@OpenAI", "OpenAI", "  @OpenAI  "]) assert.deepEqual(parseXLink(account), { url: "https://x.com/OpenAI", kind: "profile" });
+  for (const account of ["@bad-name", "@@name", "@home", "@handle/evil", "@abcdefghijklmnop"]) assert.equal(parseXLink(account), null, account);
   for (const url of ["http://x.com/OpenAI", "javascript:alert(1)", "https://x.com.evil.example/OpenAI", "https://x.com@evil.example/OpenAI", "https://user:pass@x.com/OpenAI", "https://x.com:444/OpenAI", "https://x.com/home", "https://x.com/search?q=AI", "https://x.com/i/lists/not-a-number", "<script src='x'>"]) assert.equal(parseXLink(url), null, url);
 });

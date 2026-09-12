@@ -1,8 +1,8 @@
 # gcd signal
 
 A local-first AI news reader: a concise **Brief** for important developments,
-an optional source **Deck** for deeper browsing, and a searchable **Library**
-for material you want to keep.
+an optional source **Deck** for deeper browsing, a searchable **Library**
+for material you want to keep, and an **X** tab for your public sources.
 
 The default is **Brief + All AI**, not Builder. Selection uses transparent
 rules and source evidence, not a paid language-model classifier. It is a
@@ -22,6 +22,8 @@ reports failures instead of promising that every feed always works.
 
 ## Reading workflow
 
+- **Settings:** the gear in the header opens a vertical side panel for appearance,
+  sources, refresh, interests and reading controls. Changes apply immediately.
 - **Brief:** up to ten substantive stories from the last 24 hours, with an
   explicit 72-hour expansion, original links, excerpts, selection reasons and
   reporting/discussion counts. “Since your last visit” means new to your local
@@ -43,8 +45,9 @@ reports failures instead of promising that every feed always works.
 
 [How selection, ranking and storage work](docs/feed-selection.md) describes the
 heuristics and limitations. Existing pre-v7 preferences migrate to Broad/Brief;
-other preferences and custom feeds are retained. Builder remains an explicit
-opt-in after migration.
+other preferences and custom feeds are retained. The v8 update turns the built-in
+Bluesky column off once; re-enabling it in Settings is remembered. Existing v7
+Builder and view choices are preserved.
 
 ## Sources and optional configuration
 
@@ -58,9 +61,10 @@ and coverage vary; no source supplies an exhaustive view of AI news.
   best-effort fallbacks. Missing engagement is not fabricated.
 - **YouTube:** an optional YOUTUBE_API_KEY enables API search; curated channel
   RSS is the fallback. Quotas and channel availability still apply.
-- **Hacker News / Bluesky:** category queries over available posts. Bluesky
-  uses configured app-password authentication first when provided, with public
-  hosts as best-effort alternatives.
+- **Hacker News:** category queries over available posts.
+- **Bluesky:** an optional Deck source, disabled by default and excluded from
+  the Brief because of recurring connection errors. Explicit custom feeds and
+  a later choice to enable its column remain available.
 - **Papers / GitHub / 4chan:** optional Deck columns. GitHub shows recently
   active repositories ranked by existing stars, not measured star growth.
   Papers combine Hugging Face and arXiv; 4chan is text-only and hidden by default.
@@ -73,12 +77,13 @@ Use [.env.example](.env.example) for optional server credentials. Never place
 secrets in client-prefixed variables or commit your local environment file.
 Email signup, broadcast delivery and Resend configuration have been removed.
 
-### X: optional reading panel, not an algorithmic feed
+### X: a main reading tab with free embeds
 
-Save a public X profile, list or individual-post URL, then choose **Load embed**
+Open **X** in the main navigation. Save a public X profile, list or individual-post URL, then choose **Load embed**
 if you want X to render it. No X widget request is made before that action.
 Loading an embed contacts X and may depend on sign-in, browser restrictions or
-X availability; **Open on X** remains available if embedding fails.
+X availability; **Open on X** remains available if embedding fails. Embeds do not
+provide a guaranteed real-time or chronological feed.
 
 Signal does not discover, rank, archive or search the embedded posts. No paid
 X API or unofficial timeline scraping is used. The panel keeps up to 50 link
@@ -138,9 +143,10 @@ Browser suites use the pinned Playwright dev dependency and Chrome by default
 ~~~bash
 node tests/library-browser.mjs
 node tests/browser-smoke.mjs
+node tests/x-browser.mjs
 ~~~
 
 The library suite uses an isolated page and real IndexedDB; it does not need a
-running server. The UI suite uses local fixture feeds; run the app first and set
+running server. The UI and X suites use local fixtures; run the app first and set
 APP_URL if it is not at http://127.0.0.1:3001. These are functional regressions,
 not Lighthouse or Core Web Vitals measurements.

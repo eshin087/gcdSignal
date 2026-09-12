@@ -1,102 +1,288 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useDialog } from "@/lib/use-dialog";
 import { parseXLink, type XLink } from "@/lib/x-links";
 
 interface Widgets {
   createTimeline: (source: { sourceType: "url"; url: string }, element: HTMLElement, options: object) => Promise<HTMLElement | undefined>;
   createTweet: (id: string, element: HTMLElement, options: object) => Promise<HTMLElement | undefined>;
 }
+
+function availableWidgets(): Widgets | undefined {
+  const widgets = (window as Window & { twttr?: { widgets?: Widgets } }).twttr?.widgets;
+  return typeof widgets?.createTimeline === "function" && typeof widgets?.createTweet === "function" ? widgets : undefined;
+}
+
 let scriptTask: Promise<Widgets> | undefined;
 function loadWidgets(): Promise<Widgets> {
+  const existing = availableWidgets();
+  if (existing) return Promise.resolve(existing);
   if (scriptTask) return scriptTask;
   scriptTask = new Promise<Widgets>((resolve, reject) => {
     const script = document.createElement("script");
+    let settled = false;
+    const finish = (widgets?: Widgets) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      script.onload = null;
+      script.onerror = null;
+      if (widgets) resolve(widgets);
+      else {
+        script.remove();
+        reject(new Error("X widgets are unavailable."));
+      }
+    };
+    const timeout = setTimeout(() => finish(), 8000);
     script.src = "https://platform.twitter.com/widgets.js";
     script.async = true;
-    const timeout = setTimeout(() => reject(new Error("X did not respond.")), 8000);
-    script.onload = () => {
-      clearTimeout(timeout);
-      const widgets = (window as Window & { twttr?: { widgets?: Widgets } }).twttr?.widgets;
-      if (widgets) resolve(widgets); else reject(new Error("X widgets unavailable."));
-    };
-    script.onerror = () => { clearTimeout(timeout); script.remove(); reject(new Error("X could not load.")); };
+    script.onload = () => finish(availableWidgets());
+    script.onerror = () => finish();
     document.head.appendChild(script);
   }).catch((error) => { scriptTask = undefined; throw error; });
   return scriptTask;
 }
+
 const KEY = "gcdsignal:x-links:v1";
-export default function XReadingPanel({ onClose }: { onClose: () => void }) {
-  const dialog = useDialog(true);
+const LIMIT = 50;
+const READ_WARNING = "Saved X links could not be read. To protect them, new changes are kept in this tab. Export a backup before reloading or closing it.";
+const WRITE_WARNING = "These links are kept in this tab while you browse Signal. Browser storage is unavailable or full. Export a backup before reloading or closing this tab.";
+// Keep failed saves when this view unmounts during navigation. Never replace
+// storage that could not be read; it may contain links we could not recover.
+let linkRecovery: { links: XLink[]; warning: string; canPersist: boolean } | null = null;
+type EmbedStatus = "idle" | "loading" | "ready" | "error";
+
+function labelFor(link: XLink): string {
+  const parts = new URL(link.url).pathname.split("/").filter(Boolean);
+  if (link.kind === "profile") return "@" + parts[0];
+  if (link.kind === "post") return "@" + parts[0] + " · post " + link.postId;
+  return parts[0] === "i" ? "List · " + parts[2] : parts[2].replace(/-/g, " ") + " · @" + parts[0];
+}
+
+export default function XReadingPanel() {
   const [input, setInput] = useState("");
   const [links, setLinks] = useState<XLink[]>([]);
-  const [active, setActive] = useState<XLink | null>(null);
-  const [message, setMessage] = useState("");
+  const [selected, setSelected] = useState<XLink | null>(null);
+  const [request, setRequest] = useState<{ link: XLink; id: number } | null>(null);
+  const [status, setStatus] = useState<EmbedStatus>("idle");
+  const [inputError, setInputError] = useState("");
+  const [storageError, setStorageError] = useState("");
+  const [canSave, setCanSave] = useState(true);
+  const [restored, setRestored] = useState(false);
   const host = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const generation = useRef(0);
+  const storageReadable = useRef(true);
+
   useEffect(() => {
-    Promise.resolve().then(() => {
+    let disposed = false;
+    void Promise.resolve().then(() => {
+      if (disposed) return;
+      if (linkRecovery) {
+        storageReadable.current = linkRecovery.canPersist;
+        setCanSave(linkRecovery.canPersist);
+        setLinks(linkRecovery.links);
+        setSelected(linkRecovery.links[0] ?? null);
+        setStorageError(linkRecovery.warning);
+        setRestored(true);
+        return;
+      }
       try {
         const stored: unknown = JSON.parse(localStorage.getItem(KEY) ?? "[]");
-        if (Array.isArray(stored)) setLinks(stored.slice(0, 50).flatMap((r) => typeof r === "string" && parseXLink(r) ? [parseXLink(r)!] : []));
-      } catch { setMessage("Link storage is unavailable. Links still work for this visit."); }
+        if (!Array.isArray(stored) || stored.length > LIMIT) throw new Error("Invalid saved links.");
+        const urls = new Set<string>();
+        const saved = stored.flatMap((raw): XLink[] => {
+          const link = typeof raw === "string" ? parseXLink(raw) : null;
+          if (!link) throw new Error("Invalid saved link.");
+          if (urls.has(link.url)) return [];
+          urls.add(link.url);
+          return [link];
+        });
+        setLinks(saved);
+        setSelected(saved[0] ?? null);
+      } catch {
+        storageReadable.current = false;
+        setCanSave(false);
+        linkRecovery = { links: [], warning: READ_WARNING, canPersist: false };
+        setStorageError(READ_WARNING);
+      }
+      setRestored(true);
     });
+    return () => { disposed = true; };
   }, []);
+
   useEffect(() => {
-    if (!active || !host.current) return;
-    let alive = true;
-    const element = host.current;
-    element.replaceChildren();
-    const timeout = setTimeout(() => { if (alive) setMessage("The embed may be blocked or require sign-in. Open on X still works."); }, 10000);
+    if (!request || !host.current) return;
+    let disposed = false;
+    let timedOut = false;
+    const element = document.createElement("div");
+    const container = host.current;
+    container.replaceChildren(element);
+    const current = () => !disposed && !timedOut && generation.current === request.id;
+    const timeout = setTimeout(() => {
+      if (!current()) return;
+      timedOut = true;
+      element.remove();
+      setStatus("error");
+    }, 15000);
     void loadWidgets().then((widgets) => {
-      if (!alive) return;
-      const options = { theme: document.documentElement.classList.contains("dark") ? "dark" : "light", dnt: true, height: 550 };
-      return active.kind === "post" ? widgets.createTweet(active.postId!, element, options) : widgets.createTimeline({ sourceType: "url", url: active.url }, element, options);
+      if (!current()) return;
+      const options = {
+        theme: document.documentElement.classList.contains("dark") ? "dark" : "light",
+        dnt: true,
+        height: 640,
+      };
+      return request.link.kind === "post"
+        ? widgets.createTweet(request.link.postId!, element, options)
+        : widgets.createTimeline({ sourceType: "url", url: request.link.url }, element, options);
     }).then((embed) => {
-      if (!alive) return;
+      if (!current()) return;
       clearTimeout(timeout);
-      setMessage(embed ? "" : "X did not provide an embed. Open the link directly instead.");
+      if (!embed) element.remove();
+      setStatus(embed ? "ready" : "error");
     }).catch(() => {
-      if (alive) setMessage("X is unavailable or blocked. Use Open on X below.");
+      if (!current()) return;
       clearTimeout(timeout);
+      element.remove();
+      setStatus("error");
     });
-    return () => { alive = false; clearTimeout(timeout); element.replaceChildren(); };
-  }, [active]);
+    return () => {
+      disposed = true;
+      clearTimeout(timeout);
+      // Pending widget work can only write into this detached element.
+      element.remove();
+    };
+  }, [request]);
+
+  const choose = (link: XLink | null) => {
+    generation.current += 1;
+    setSelected(link);
+    setRequest(null);
+    setStatus("idle");
+  };
+  const load = () => {
+    if (!selected) return;
+    const id = ++generation.current;
+    setStatus("loading");
+    setRequest({ link: selected, id });
+  };
   const persist = (next: XLink[]) => {
     setLinks(next);
-    try { localStorage.setItem(KEY, JSON.stringify(next.map((l) => l.url))); }
-    catch { setMessage("Could not save these links. Export a backup before closing this tab."); }
+    if (!storageReadable.current) {
+      linkRecovery = { links: next, warning: READ_WARNING, canPersist: false };
+      setStorageError(READ_WARNING);
+      return;
+    }
+    try {
+      localStorage.setItem(KEY, JSON.stringify(next.map((link) => link.url)));
+      linkRecovery = null;
+      setStorageError("");
+    } catch {
+      linkRecovery = { links: next, warning: WRITE_WARNING, canPersist: true };
+      setStorageError(WRITE_WARNING);
+    }
   };
   const add = () => {
-    const link = parseXLink(input.trim());
-    if (!link) { setMessage("Enter a public HTTPS X profile, list, or individual post URL."); return; }
-    if (!links.some((l) => l.url === link.url)) {
-      if (links.length >= 50) { setMessage("This panel holds 50 links. Remove one before adding another."); return; }
-      persist([...links, link]);
+    const link = parseXLink(input);
+    if (!link) {
+      setInputError("Enter an @handle or a public HTTPS X profile, list, or post URL.");
+      return;
     }
+    const existing = links.find((saved) => saved.url === link.url);
+    if (!existing && links.length >= LIMIT) {
+      setInputError("You have 50 saved links. Remove one before adding another.");
+      return;
+    }
+    if (!existing) persist([...links, link]);
+    choose(existing ?? link);
     setInput("");
+    setInputError("");
+  };
+  const remove = (link: XLink) => {
+    const next = links.filter((saved) => saved.url !== link.url);
+    persist(next);
+    if (selected?.url === link.url) choose(next[0] ?? null);
   };
   const backup = () => {
-    const url = URL.createObjectURL(new Blob([JSON.stringify(links.map((l) => l.url), null, 2)], { type: "application/json" }));
-    const a = document.createElement("a"); a.href = url; a.download = "signal-x-links.json"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const url = URL.createObjectURL(new Blob([JSON.stringify(links.map((link) => link.url), null, 2)], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "signal-x-links.json";
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
-  return <dialog ref={dialog} className="reader-dialog" aria-labelledby="x-heading" onCancel={onClose} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-    <div className="flex h-full flex-col">
-      <header className="flex items-start justify-between gap-3 border-b border-zinc-200 p-5 dark:border-zinc-800"><div><p className="reader-eyebrow">Optional · external content</p><h2 id="x-heading" className="mt-1 text-xl font-semibold">X reading panel</h2></div><button className="action-button" aria-label="Close X panel" onClick={onClose}>✕</button></header>
-      <div className="min-h-0 flex-1 overflow-y-auto p-5">
-        <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-400">Keep a public list, profile, or post close by. Embeds are provided by X and may require sign-in or stop working. Signal does not discover, rank, or search these posts.</p>
-        <form className="mt-4 flex gap-2" onSubmit={(e) => { e.preventDefault(); add(); }}><input type="url" required maxLength={500} className="reader-input min-w-0 flex-1" aria-label="Public X URL" placeholder="https://x.com/i/lists/…" value={input} onChange={(e) => setInput(e.target.value)} /><button className="action-button">Save link</button></form>
-        <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">Nothing is requested from X until you choose Load embed. Loading shares your request with X.</p>
-        {message && <p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">{message}</p>}
-        <div className="mt-4 space-y-3">{links.map((link) => <div key={link.url} className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
-          <p className="break-all text-sm">{link.url}</p><div className="mt-2 flex flex-wrap gap-2">
-            <button className="action-button" onClick={() => { setMessage("Loading from X…"); setActive({ ...link }); }}>Load embed</button>
-            <a className="action-button" href={link.url} target="_blank" rel="noopener noreferrer">Open on X ↗</a>
-            <button className="action-button" onClick={() => { persist(links.filter((l) => l.url !== link.url)); if (active?.url === link.url) setActive(null); }}>Remove link</button>
-          </div></div>)}</div>
-        {!!links.length && <button className="action-button mt-3" onClick={backup}>Export X links</button>}
-        {active && <div className="mt-4"><a href={active.url} target="_blank" rel="noopener noreferrer" className="text-sm underline">Open on X ↗</a><div className="mt-2 min-h-20" ref={host} /></div>}
+
+  return <main className="feed-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label="X reading">
+    <div className="reader-page mx-auto max-w-6xl px-4 pb-12 pt-5 sm:px-8 sm:pt-9">
+      <header className="mb-6">
+        <p className="reader-eyebrow">Your accounts and lists</p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">Read on X</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">Keep the people you trust close to your news. Save a public profile, list, or post and choose when to load it.</p>
+      </header>
+
+      {storageError && <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"><p>{storageError}</p>{canSave && <button className="action-button mt-3" onClick={() => persist(links)}>Retry saving links</button>}</div>}
+
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
+        <aside className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-4 sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/40" aria-label="Saved X sources">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="font-semibold">Your X sources</h2>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">{links.length} saved</span>
+          </div>
+          <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); add(); }}>
+            <label htmlFor="x-link-input" className="block text-sm font-medium">Add an account or link</label>
+            <input ref={inputRef} id="x-link-input" type="text" required maxLength={500} autoCapitalize="none" autoCorrect="off" spellCheck={false} disabled={!restored} className="reader-input w-full min-w-0" placeholder="@handle or https://x.com/…" value={input} aria-invalid={Boolean(inputError)} aria-describedby={inputError ? "x-input-error" : "x-source-help"} onChange={(event) => { setInput(event.target.value); setInputError(""); }} />
+            <button className="action-button reader-primary w-full" disabled={!restored}>Save source</button>
+            {inputError && <p id="x-input-error" role="alert" className="text-sm leading-5 text-red-700 dark:text-red-300">{inputError}</p>}
+            <p id="x-source-help" className="text-xs leading-5 text-zinc-600 dark:text-zinc-400">Public accounts and lists only. Saved on this browser.</p>
+          </form>
+
+          {links.length > 0 ? <>
+            <ul className="mt-5 max-h-64 space-y-2 overflow-y-auto px-1 py-1 lg:max-h-[30rem]">
+              {links.map((link) => <li key={link.url} className="flex items-start gap-1">
+                <button type="button" className={`min-h-16 min-w-0 flex-1 rounded-xl border px-3 py-3 text-left transition-colors ${selected?.url === link.url ? "border-teal-600 bg-teal-50 dark:border-teal-700 dark:bg-teal-950/50" : "border-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800"}`} aria-pressed={selected?.url === link.url} onClick={() => choose(link)}>
+                  <span className="block break-words text-sm font-medium">{labelFor(link)}</span>
+                  <span className="mt-1 block text-xs capitalize text-zinc-600 dark:text-zinc-400">{link.kind === "post" ? "Saved post" : link.kind}</span>
+                </button>
+                <button type="button" className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-red-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-red-300" aria-label={`Remove ${labelFor(link)}`} title="Remove saved source" onClick={() => remove(link)}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6" /></svg>
+                </button>
+              </li>)}
+            </ul>
+            <button className="action-button mt-4 w-full" onClick={backup}>Export saved links</button>
+          </> : <p className="mt-5 border-t border-zinc-100 pt-4 text-sm leading-6 text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">{restored ? "Your saved accounts, lists, and posts will appear here." : "Loading your saved links…"}</p>}
+        </aside>
+
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900/40" aria-label="X viewer">
+          {selected ? <>
+            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 p-4 sm:p-5 dark:border-zinc-800">
+              <div className="min-w-0 flex-1"><h2 className="break-words font-semibold">{labelFor(selected)}</h2><p className="mt-1 break-all text-xs text-zinc-600 dark:text-zinc-400">{selected.url}</p></div>
+              <a className="action-button shrink-0" href={selected.url} target="_blank" rel="noopener noreferrer">Open on X ↗</a>
+            </header>
+            <div className="p-4 sm:p-5">
+              {status === "idle" && <div className="flex min-h-72 flex-col items-center justify-center px-2 py-8 text-center">
+                <p className="text-lg font-semibold">Ready when you are</p>
+                <p className="mt-3 max-w-sm text-sm leading-6 text-zinc-600 dark:text-zinc-400">Loading this source connects your browser to X. X controls the posts and their order; updates are not guaranteed to be real time.</p>
+                <button className="action-button reader-primary mt-5 px-5" onClick={load}>Load embed</button>
+              </div>}
+              {status === "loading" && <p role="status" className="rounded-xl bg-zinc-50 p-4 text-sm dark:bg-zinc-800">Loading from X… You can also open this source directly.</p>}
+              {status === "error" && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
+                <p className="text-sm font-semibold text-amber-950 dark:text-amber-200">X could not display this source</p>
+                <p className="mt-2 text-sm leading-6 text-amber-900 dark:text-amber-200">It may be blocked, unavailable, private, or require sign-in. Use Open on X, or try loading it again.</p>
+                <button className="action-button mt-3" onClick={load}>Retry embed</button>
+              </div>}
+              <div ref={host} className="min-w-0 overflow-hidden [&_iframe]:max-w-full" aria-busy={status === "loading"} />
+              {status === "ready" && <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-zinc-600 dark:text-zinc-400">Content supplied by X · updates may be delayed</p><button className="action-button" onClick={load}>Reload embed</button></div>}
+            </div>
+          </> : <div className="flex min-h-80 flex-col items-center justify-center px-6 py-12 text-center sm:min-h-[28rem]">
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-100 text-2xl font-semibold dark:bg-zinc-800" aria-hidden="true">𝕏</span>
+            <h2 className="mt-5 text-xl font-semibold">Build your X reading space</h2>
+            <p className="mt-3 max-w-md text-sm leading-6 text-zinc-600 dark:text-zinc-400">Add an AI researcher, a company account, or a public list you trust. Save individual posts to come back to later.</p>
+            <button className="action-button reader-primary mt-5 px-5" disabled={!restored} onClick={() => inputRef.current?.focus()}>Add your first source</button>
+            <p className="mt-4 max-w-sm text-xs leading-5 text-zinc-500 dark:text-zinc-400">Nothing loads from X until you choose Load embed.</p>
+          </div>}
+          <footer className="border-t border-zinc-100 px-4 py-4 sm:px-5 dark:border-zinc-800"><p className="text-xs leading-5 text-zinc-600 dark:text-zinc-400">Free official embeds. X posts are separate from Signal’s Brief and collection search. Embedded timelines may be incomplete or require sign-in.</p></footer>
+        </section>
       </div>
     </div>
-  </dialog>;
+  </main>;
 }
