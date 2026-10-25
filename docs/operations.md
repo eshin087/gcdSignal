@@ -40,3 +40,27 @@ Newsletter UI, subscriber/digest endpoints, email cron and email dependency were
 - Both use the pinned Playwright dependency and installed Chrome by default; CI installs Chromium and selects BROWSER_CHANNEL=chromium.
 
 Browser fixtures must intercept upstream API requests and test local servers only. The automated reader tests are not field Core Web Vitals; the separate browser spot check should state cache state and network conditions.
+
+## Security and deployment
+
+Deploy with the normal Next.js production build. Keep all optional credentials in the hosting provider's encrypted server-side environment; never commit a populated environment file or expose credentials through client-prefixed variables. Use `.env.example` only as a list of supported settings.
+
+The application validates custom feed destinations, bounds external responses and requests, and reports partial source failures. Deployment owners should also keep framework dependencies patched, retain API rate limiting and security headers, and review logs without recording authorization headers or personal Library exports.
+
+Browser Library data and exported backups can contain reading history and personal notes. Backups are not encrypted, so store and share them accordingly. Server caches are performance aids rather than durable storage or availability guarantees.
+
+## Browser test suites
+
+The deterministic suite (`npm test`) covers selection, unbiased ranking, clustering, version-aware identity, cache behavior, local-library validation and security helpers without depending on live news.
+
+Browser suites use the pinned Playwright dev dependency and Chrome by default (or BROWSER_CHANNEL). Set PLAYWRIGHT_PATH only to use a different installation.
+
+~~~bash
+node tests/library-browser.mjs
+node tests/browser-smoke.mjs
+node tests/x-browser.mjs
+node tests/x-discovery-browser.mjs
+node tests/reading-queue-browser.mjs
+~~~
+
+The library suite uses an isolated page and real IndexedDB; it does not need a running server. The UI and X suites use local fixtures; run the app first and set APP_URL if it is not at http://127.0.0.1:3001. These are functional regressions, not Lighthouse or Core Web Vitals measurements.
