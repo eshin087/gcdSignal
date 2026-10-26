@@ -2,6 +2,8 @@
 
 **A local-first AI news reader: a daily Brief of what matters, source columns for browsing deeper, and a searchable Library that lives in your browser.**
 
+[Project guide](docs/README.md) · [Current status](docs/STATUS.md) · [Product decisions](docs/DECISIONS.md)
+
 Live at [gcdsignal.vercel.app](https://gcdsignal.vercel.app). No account, no paid AI service, no hosted database.
 
 <a href="https://gcdsignal.vercel.app"><img src="docs/media/brief.webp" alt="The gcd signal home page: a Brief column listing the day's essential AI stories with sources and excerpts, next to an AI on X column of posts found through Hacker News discussion" width="100%"></a>
