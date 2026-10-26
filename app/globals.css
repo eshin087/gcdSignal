@@ -153,6 +153,7 @@ body::before { display: none; }
 .reader-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #0f766e; }
 .dark .reader-eyebrow { color: #5eead4; }
 .reader-nav, .reader-icon { min-height: 44px; min-width: 44px; border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+.reader-nav { display: inline-flex; align-items: center; justify-content: center; }
 .reader-nav[aria-current="page"] { color: #115e59; background: #e6f1ef; font-weight: 600; }
 .dark .reader-nav[aria-current="page"] { color: #99f6e4; background: #163530; }
 .reader-nav:hover, .reader-icon:hover { background-color: #f0f1f3; }

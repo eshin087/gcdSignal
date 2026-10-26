@@ -80,8 +80,8 @@ async function setup({ stored = null, blockWrites = false, blockReads = false } 
   await page.goto(appUrl);
   const panel = page.getByRole("region", { name: "AI on X column", exact: true });
   await page.getByRole("button", { name: "Jump to X column", exact: true }).click();
-  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "X", exact: true }).count(), 0, "legacy X destination migrates to an inline home column");
-  const briefNav = page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "Brief", exact: true });
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "X", exact: true }).count(), 0, "legacy X destination migrates to an inline home column");
+  const briefNav = page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Brief", exact: true });
   assert.equal(await briefNav.getAttribute("aria-current"), "page", "legacy X selection opens the Brief homepage");
   await briefNav.click(); // In-memory preference migrations persist on the next explicit preference change.
   const prefs = await page.evaluate(() => JSON.parse(localStorage.getItem("gcdsignal:prefs")));
@@ -100,9 +100,9 @@ async function add(panel, value) {
 
 async function switchAwayAndBack(page) {
   const nav = page.getByRole("navigation", { name: "Main navigation", exact: true });
-  await nav.getByRole("button", { name: "Library", exact: true }).click();
+  await nav.getByRole("link", { name: "Library", exact: true }).click();
   await page.getByRole("region", { name: "Research library", exact: true }).waitFor();
-  await nav.getByRole("button", { name: "Brief", exact: true }).click();
+  await nav.getByRole("link", { name: "Brief", exact: true }).click();
   await page.getByRole("button", { name: "Jump to X column", exact: true }).click();
   await page.getByRole("region", { name: "AI on X column", exact: true }).getByRole("button", { name: "Saved sources", exact: true }).click();
   await page.getByRole("region", { name: "AI on X column", exact: true }).getByRole("button", { name: "Load embed", exact: true }).waitFor();

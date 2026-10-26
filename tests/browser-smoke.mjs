@@ -147,7 +147,12 @@ async function assertColumnHeadersAtZoomReflow(page, percent) {
     assert.ok(Math.max(...offsets) - Math.min(...offsets) <= tolerance, `${percent}% ${slot} slots align across column headers`);
   }
 }
-async function mainNav(page, name) { await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name, exact: true }).click(); }
+// Clicking a view link navigates client-side; wait until it is the current page so a reload or count right after sees the new view.
+async function mainNav(page, name) {
+  const link = page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name, exact: true });
+  await link.click();
+  await link.and(page.locator('[aria-current="page"]')).waitFor();
+}
 async function dbRecords(page) {
   return page.evaluate(() => new Promise((resolve, reject) => {
     const open = indexedDB.open("gcdsignal:library", 1);
@@ -202,10 +207,10 @@ try {
   const homeX = page.getByRole("region", { name: "AI on X column", exact: true });
   await homeX.getByRole("region", { name: "X discoveries", exact: true }).waitFor();
   await homeX.getByRole("heading", { name: "AI model release from public coverage", exact: true }).waitFor();
-  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "X", exact: true }).count(), 0, "X is a home column, not a separate navigation destination");
-  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button").count(), 3, "main navigation contains only Brief, Deck and Library");
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "X", exact: true }).count(), 0, "X is a home column, not a separate navigation destination");
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link").count(), 3, "main navigation contains only Brief, Deck and Library links");
   assert.ok(requests.some((request) => new URL(request).pathname === "/api/feeds/x-discovery"), "the default homepage automatically requests X discoveries");
-  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "Brief", exact: true }).getAttribute("aria-current"), "page");
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Brief", exact: true }).getAttribute("aria-current"), "page");
   assert.equal(await page.locator("main article").count(), 10, "all ten non-builder news stories remain visible by default");
   await page.getByText("Partial coverage", { exact: true }).waitFor();
   await page.locator(".coverage-panel summary").click();
@@ -266,7 +271,7 @@ try {
     await touchTarget(trigger, `Settings at ${width}`);
     const bounds = await trigger.boundingBox();
     assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width, `Settings fits at ${width}`);
-    const logo = await page.getByRole("button", { name: "Signal home", exact: true }).boundingBox();
+    const logo = await page.getByRole("link", { name: "Signal home", exact: true }).boundingBox();
     assert.ok(Math.abs(bounds.y - logo.y) < 2, `Settings stays in the first row at ${width}`);
     assert.equal(await trigger.locator("svg").count(), 1, "Settings has a visible gear icon");
     await assertNoPageOverflow(page, width, "reader layout");
@@ -366,10 +371,10 @@ try {
 
   await page.getByRole("button", { name: "Expand to the last 72 hours", exact: true }).click();
   await page.locator("main .reader-eyebrow").filter({ hasText: "72h" }).waitFor();
-  await page.getByRole("navigation", { name: "AI category" }).getByRole("button", { name: "Research", exact: true }).click();
+  await page.getByRole("navigation", { name: "AI category" }).getByRole("link", { name: "Research", exact: true }).click();
   await page.locator("main article").first().filter({ hasText: "AI research evaluation" }).waitFor();
   assert.ok(requests.some((request) => request.includes("category=research") && request.includes("window=72")));
-  await page.getByRole("navigation", { name: "AI category" }).getByRole("button", { name: "All AI", exact: true }).click();
+  await page.getByRole("navigation", { name: "AI category" }).getByRole("link", { name: "All AI", exact: true }).click();
   await page.getByRole("button", { name: "Return to the last 24 hours", exact: true }).click();
   await page.locator("main .reader-eyebrow").filter({ hasText: "24h" }).waitFor();
 
@@ -509,7 +514,7 @@ try {
   await page.getByRole("button", { name: "Jump to X column", exact: true }).click();
   await xPanel.getByRole("region", { name: "X discoveries", exact: true }).waitFor();
   assert.equal(await page.getByRole("dialog").count(), 0, "X is inline, not a separate page or dialog");
-  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "Brief", exact: true }).getAttribute("aria-current"), "page");
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Brief", exact: true }).getAttribute("aria-current"), "page");
   assert.equal(await xPanel.getByRole("button", { name: "Saved sources", exact: true }).getAttribute("aria-pressed"), "false", "the X column starts with automatic discovery");
   await xPanel.getByRole("button", { name: "Saved sources", exact: true }).click();
   await xPanel.getByRole("heading", { name: "Build your X reading space", exact: true }).waitFor();
@@ -585,8 +590,52 @@ try {
   assert.notEqual(await held.page.locator("main article").first().getAttribute("data-item-key"), before, "new coverage applies only when requested");
   assert.equal(await scroll.evaluate((element) => element.scrollTop), 0);
   await held.context.close();
+
+  // Views and categories are URL-addressable: bare visits honor stored prefs, links update the URL, back/forward replay exactly what each entry showed.
+  const base = appUrl.replace(/\/$/, "");
+  const routed = await setup({ v: 10, view: "deck", category: "security", hidden, refreshMs: 0 });
+  await routed.page.goto(appUrl);
+  await routed.page.locator('[data-feed-id="rss"] article').first().waitFor();
+  assert.equal(new URL(routed.page.url()).pathname, "/deck", "a bare visit sends an existing reader to their stored view");
+  const routedNav = routed.page.getByRole("navigation", { name: "Main navigation" });
+  const routedTabs = routed.page.getByRole("navigation", { name: "AI category" });
+  assert.equal(await routedNav.getByRole("link", { name: "Deck", exact: true }).getAttribute("aria-current"), "page");
+  assert.equal(await routedTabs.getByRole("link", { name: "Security", exact: true }).getAttribute("aria-current"), "page", "a bare visit honors the stored category");
+  assert.equal(await routedNav.getByRole("link", { name: "Brief", exact: true }).getAttribute("href"), "/?cat=security", "view links carry the current category");
+  await routedTabs.getByRole("link", { name: "Research", exact: true }).click();
+  await routed.page.waitForURL((url) => url.pathname === "/deck" && url.searchParams.get("cat") === "research");
+  await routed.page.locator('[data-feed-id="rss"] article').first().filter({ hasText: "AI research evaluation" }).waitFor();
+  assert.equal(await routed.page.evaluate(() => JSON.parse(localStorage.getItem("gcdsignal:prefs")).category), "research", "a category choice is stored on click");
+  await routedNav.getByRole("link", { name: "Brief", exact: true }).click();
+  await routed.page.waitForURL((url) => url.pathname === "/" && url.searchParams.get("cat") === "research");
+  await routed.page.getByRole("heading", { name: "The essential Brief", exact: true }).waitFor();
+  assert.equal(await routed.page.title(), "gcd signal — your essential AI brief");
+  await routed.page.goBack();
+  await routed.page.waitForURL((url) => url.pathname === "/deck" && url.searchParams.get("cat") === "research");
+  await routed.page.locator('[data-feed-id="rss"] article').first().waitFor();
+  assert.equal(await routedNav.getByRole("link", { name: "Deck", exact: true }).getAttribute("aria-current"), "page", "back returns to the Deck");
+  assert.equal(await routed.page.title(), "Deck · gcd signal");
+  await routed.page.goBack();
+  await routed.page.waitForURL((url) => url.pathname === "/deck" && !url.searchParams.has("cat"));
+  assert.equal(await routedTabs.getByRole("link", { name: "Security", exact: true }).getAttribute("aria-current"), "page", "back to the landing entry shows the category it showed then, not the latest stored one");
+  await routed.page.goForward();
+  await routed.page.waitForURL((url) => url.searchParams.get("cat") === "research");
+  assert.equal(await routedTabs.getByRole("link", { name: "Research", exact: true }).getAttribute("aria-current"), "page", "forward replays the entry");
+  await routed.page.goto(`${base}/library`);
+  await routed.page.getByRole("region", { name: "Research library", exact: true }).waitFor();
+  assert.equal(await routedNav.getByRole("link", { name: "Library", exact: true }).getAttribute("aria-current"), "page", "/library deep-links to the Library");
+  assert.equal(await routedTabs.count(), 0, "the Library has no category row");
+  await routed.page.goto(`${base}/?cat=research`);
+  await routed.page.getByRole("heading", { name: "The essential Brief", exact: true }).waitFor();
+  assert.equal(new URL(routed.page.url()).pathname, "/", "an explicit ?cat deep link stays on the Brief even though Library was stored last");
+  assert.equal(await routedTabs.getByRole("link", { name: "Research", exact: true }).getAttribute("aria-current"), "page");
+  await routed.page.locator("main article").first().filter({ hasText: "AI research evaluation" }).waitFor();
+  await routed.page.goto(`${base}/?cat=nope`);
+  await routed.page.getByRole("heading", { name: "The essential Brief", exact: true }).waitFor();
+  assert.equal(await routedTabs.getByRole("link", { name: "Research", exact: true }).getAttribute("aria-current"), "page", "an unknown ?cat falls back to the stored category");
+  await routed.context.close();
   assert.deepEqual(errors, [], "no client runtime errors");
-  console.log("PASS: Brief/Broad and X home-column defaults, opt-in Bluesky, preference migrations, collapsed story Details, coverage, window/category requests, explicit read/save, library search/notes/reload, 320–1440px layouts, mobile column jumps, desktop side-by-side columns, matching X/RSS column and row styles, light/dark themes, all text scales plus 125–200% browser-zoom-equivalent layout reflow, X hide/show/reload, one-click Settings gear/drawer, touch targets, settings controls/focus, home/deck focus exit and restoration, X consent/retry/fallback/reload, held refresh.");
+  console.log("PASS: Brief/Broad and X home-column defaults, opt-in Bluesky, preference migrations, collapsed story Details, coverage, window/category requests, explicit read/save, library search/notes/reload, 320–1440px layouts, mobile column jumps, desktop side-by-side columns, matching X/RSS column and row styles, light/dark themes, all text scales plus 125–200% browser-zoom-equivalent layout reflow, X hide/show/reload, one-click Settings gear/drawer, touch targets, settings controls/focus, home/deck focus exit and restoration, X consent/retry/fallback/reload, held refresh, URL routes for views and categories with back/forward.");
   console.log("Screenshots: " + join(tmpdir(), "gcdsignal-mobile-qa.png") + " and " + join(tmpdir(), "gcdsignal-desktop-qa.png"));
   console.log("Settings and X screenshots: " + ["settings-mobile", "settings-desktop", "x-mobile", "x-desktop"].map((name) => join(tmpdir(), `gcdsignal-${name}-qa.png`)).join(", "));
 } finally { await browser.close(); }

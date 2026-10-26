@@ -4,6 +4,7 @@ How the reader is laid out, where its sources come from, and what it keeps in yo
 
 ## Reading workflow
 
+- **Addresses:** the Brief is `/`, the Deck `/deck` and the Library `/library`; `?cat=<category>` (for example `/deck?cat=research`) picks the topic row. Header and topic links update the address, so the back button, bookmarks and shared links all work. A bare address with no `?cat=` opens your stored topic, and `/` opens whichever view you used last.
 - **Settings:** the gear in the header opens a vertical side panel for appearance, sources, refresh, interests and reading controls. Changes apply immediately.
 - **Brief:** up to ten substantive stories from the last 24 hours, with an explicit 72-hour expansion, original links, excerpts, selection reasons and reporting/discussion counts. "Since your last visit" means new to your local collection, not every new post on the internet.
 - **Deck:** configurable source columns, focus mode, mobile navigation, sorting, optional Builder filtering and custom feeds. Topic selection remains meaningful in All AI; a thin topic is not silently filled with unrelated posts.

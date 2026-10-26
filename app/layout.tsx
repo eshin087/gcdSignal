@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "gcd signal — your essential AI brief",
+  title: { default: "gcd signal — your essential AI brief", template: "%s · gcd signal" },
   description:
     "Important AI developments, original sources, and a searchable personal research library. A focused brief with an optional source deck.",
 };
