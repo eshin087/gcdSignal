@@ -86,11 +86,7 @@ export default function TopTenColumn({
       <div className="feed-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {status === "loading" && (
           <div className="space-y-4 p-3" aria-label="Loading">
-            <p className="font-mono text-[11px] text-cyan-600/90 dark:text-cyan-400/90">
-              <span className="text-zinc-400 dark:text-zinc-600">▸ </span>
-              clustering stories across sources
-              <span className="cursor-blink">▍</span>
-            </p>
+            <p className="text-[length:var(--fs-ui-sm)] text-zinc-500 dark:text-zinc-400">Clustering stories across sources…</p>
             {Array.from({ length: 8 }, (_, i) => (
               <div key={i} className="flex gap-2.5">
                 <div className="skeleton h-4 w-5 shrink-0" />
@@ -106,10 +102,10 @@ export default function TopTenColumn({
         {status === "error" && (
           <div className="mx-3 my-4 rounded-lg border border-red-500/20 bg-red-500/[0.05] p-3 text-xs leading-relaxed text-red-700 dark:border-red-400/20 dark:text-red-300/90">
             <p className="mb-1 font-medium">Couldn&apos;t build today&apos;s Top 10.</p>
-            <p className="break-all font-mono text-[10px] opacity-60">{error}</p>
+            <p className="break-all text-[11px] opacity-70">{error}</p>
             <button
               onClick={() => refetch()}
-              className="mt-2 rounded-md border border-black/10 px-2.5 py-1 text-[11px] font-medium text-zinc-700 transition-colors hover:border-cyan-500/50 hover:text-cyan-600 dark:border-white/15 dark:text-zinc-300 dark:hover:border-cyan-400/50 dark:hover:text-cyan-300"
+              className="mt-2 rounded-md border border-black/10 px-2.5 py-1 text-[11px] font-medium text-zinc-700 transition-colors hover:border-teal-600/50 hover:text-teal-700 dark:border-white/15 dark:text-zinc-300 dark:hover:border-teal-400/50 dark:hover:text-teal-300"
             >
               Retry
             </button>
@@ -127,7 +123,7 @@ export default function TopTenColumn({
             <article
               key={story.id}
               tabIndex={-1}
-              className="card-enter card-glow group border-b border-black/[0.05] px-3 py-3 transition-[background-color,box-shadow] last:border-b-0 hover:bg-black/[0.03] focus:outline-none focus:ring-1 focus:ring-inset focus:ring-cyan-500/60 dark:border-white/[0.05] dark:hover:bg-white/[0.035]"
+              className="card-enter group border-b border-black/[0.05] px-3 py-3 transition-colors last:border-b-0 hover:bg-black/[0.03] focus:outline-none focus:ring-1 focus:ring-inset focus:ring-teal-500/60 dark:border-white/[0.05] dark:hover:bg-white/[0.035]"
             >
               <div className="flex gap-2.5">
                 <span
@@ -142,7 +138,7 @@ export default function TopTenColumn({
                     href={story.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block text-[length:var(--fs-title)] font-medium leading-snug tracking-[-0.01em] text-zinc-900 transition-colors visited:text-zinc-400 group-hover:text-cyan-700 dark:text-zinc-100 dark:visited:text-zinc-500 dark:group-hover:text-cyan-300"
+                    className="block text-[length:var(--fs-title)] font-medium leading-snug tracking-[-0.01em] text-zinc-900 transition-colors visited:text-zinc-400 group-hover:text-teal-700 dark:text-zinc-100 dark:visited:text-zinc-500 dark:group-hover:text-teal-300"
                   >
                     {story.title}
                   </a>
@@ -161,23 +157,27 @@ export default function TopTenColumn({
                         target="_blank"
                         rel="noopener noreferrer"
                         title="Open discussion"
-                        className="inline-flex items-center gap-1 font-medium tabular-nums text-zinc-500 hover:text-cyan-700 dark:text-zinc-400 dark:hover:text-cyan-300"
+                        className="inline-flex items-center gap-1 font-medium tabular-nums text-zinc-500 hover:text-teal-700 dark:text-zinc-400 dark:hover:text-teal-300"
                       >
                         <CommentIcon className="h-3 w-3" />
                         {formatCount(story.comments)}
                       </a>
                     )}
-                    <span className="tabular-nums text-sky-600/80 dark:text-sky-400/70">
+                    <span className="tabular-nums text-zinc-500 dark:text-zinc-400">
                       {timeAgo(story.timestamp)}
                     </span>
                   </div>
-                  <details data-story-details className="text-[length:var(--fs-meta)] text-zinc-600 dark:text-zinc-400">
-                    <summary className="story-details-summary" aria-label={`Details for ${story.title}`}>Details</summary>
-                    <div className="story-details-body">
-                      <button className="story-action" onClick={() => read(story.members)}>{story.members.length} {story.members.length === 1 ? "source" : "sources"} & discussion</button>
-                      <QueueButton id={`feed:${story.id}`} title={story.title} url={story.primaryUrl ?? story.url} source="Daily Top 10" />
+                  <div className="flex items-start gap-2">
+                    <details data-story-details className="min-w-0 flex-1 text-[length:var(--fs-meta)] text-zinc-600 dark:text-zinc-400">
+                      <summary className="story-details-summary" aria-label={`Details for ${story.title}`}>Details</summary>
+                      <div className="story-details-body">
+                        <button className="story-action" onClick={() => read(story.members)}>{story.members.length} {story.members.length === 1 ? "source" : "sources"} & discussion</button>
+                      </div>
+                    </details>
+                    <div className="flex shrink-0 items-center">
+                      <QueueButton variant="icon" id={`feed:${story.id}`} title={story.title} url={story.primaryUrl ?? story.url} source="Daily Top 10" />
                     </div>
-                  </details>
+                  </div>
                 </div>
               </div>
             </article>

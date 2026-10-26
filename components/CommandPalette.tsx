@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDialog } from "@/lib/use-dialog";
+import { SearchIcon } from "./icons";
 
 export interface Command {
   id: string;
@@ -76,10 +77,10 @@ export default function CommandPalette({
   return (
     <dialog ref={dialog} className="app-modal" aria-label="Command palette" onCancel={close} onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
       <div
-        className="relative w-full max-w-lg overflow-hidden rounded-xl border border-black/10 bg-white/95 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl dark:border-white/10 dark:bg-[#111114]/95"
+        className="relative w-full max-w-lg overflow-hidden rounded-xl border border-black/10 bg-white shadow-2xl shadow-black/10 dark:border-white/10 dark:bg-[#111114]"
       >
         <div className="flex items-center gap-2 border-b border-black/[0.07] px-3 dark:border-white/[0.07]">
-          <span className="font-mono text-cyan-500">&gt;</span>
+          <SearchIcon className="h-4 w-4 shrink-0 text-zinc-400" />
           <input
             autoFocus
             value={query}
@@ -105,7 +106,7 @@ export default function CommandPalette({
             }}
             placeholder="Type a command…"
             aria-label="Command"
-            className="h-11 w-full bg-transparent font-mono text-sm outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
+            className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
           />
           <kbd className="hidden rounded border border-black/10 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400 sm:inline dark:border-white/15">
             esc
@@ -113,7 +114,7 @@ export default function CommandPalette({
         </div>
         <ul ref={listRef} role="listbox" className="feed-scroll max-h-[50vh] overflow-y-auto p-1.5">
           {matches.length === 0 && (
-            <li className="px-3 py-6 text-center font-mono text-xs text-zinc-500">no matching command</li>
+            <li className="px-3 py-6 text-center text-xs text-zinc-500">No matching command</li>
           )}
           {matches.map((cmd, i) => (
             <li
@@ -125,16 +126,16 @@ export default function CommandPalette({
               onClick={() => run(cmd)}
               className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm ${
                 i === active
-                  ? "bg-cyan-500/[0.12] text-cyan-800 dark:bg-cyan-400/10 dark:text-cyan-200"
+                  ? "bg-teal-700/10 text-teal-800 dark:bg-teal-400/10 dark:text-teal-200"
                   : "text-zinc-700 dark:text-zinc-300"
               }`}
             >
-              <span className="w-20 shrink-0 truncate font-mono text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-600">
+              <span className="w-20 shrink-0 truncate text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
                 {cmd.group}
               </span>
               <span className="min-w-0 flex-1 truncate">{cmd.label}</span>
               {cmd.hint && (
-                <span className="shrink-0 font-mono text-[10px] text-zinc-400 dark:text-zinc-500">
+                <span className="shrink-0 text-[10px] text-zinc-400 dark:text-zinc-500">
                   {cmd.hint}
                 </span>
               )}

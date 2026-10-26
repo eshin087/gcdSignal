@@ -12,8 +12,8 @@ import {
 import type { FeedItem, SourceId } from "@/lib/types";
 
 const EMPTY_ITEMS: FeedItem[] = [];
-const CONTROL = "min-h-11 rounded-lg border border-zinc-300 bg-transparent px-3 text-sm text-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600 dark:border-zinc-700 dark:text-zinc-200";
-const ACTION = "min-h-11 rounded-lg px-3 text-sm text-zinc-600 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-cyan-600 dark:text-zinc-300 dark:hover:bg-zinc-800";
+const CONTROL = "min-h-11 rounded-lg border border-zinc-300 bg-transparent px-3 text-sm text-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 dark:border-zinc-700 dark:text-zinc-200";
+const ACTION = "min-h-11 rounded-lg px-3 text-sm text-zinc-600 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-zinc-300 dark:hover:bg-zinc-800";
 
 function NotesEditor({ record }: { record: LibraryRecord }) {
   // Null means untouched: remote saved changes remain visible, while a local
@@ -97,7 +97,7 @@ export default function LibraryView({ query, onQueryChange, items = EMPTY_ITEMS 
       <div className="mt-3 divide-y divide-zinc-200 dark:divide-zinc-800">
         {matching.slice(0, limit).map((record) => <article key={record.storyId} className="py-5">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-600 dark:text-zinc-400"><span>{record.item.sourceMeta || SOURCE_LABELS[record.item.source as SourceId]}</span><span>·</span><time dateTime={record.item.timestamp}>{new Date(record.item.timestamp).toLocaleDateString()}</time>{record.item.author && <span>· {record.item.author}</span>}{record.item.curation?.kind && <span>· {record.item.curation.kind}</span>}{record.readAt && <span>· Read</span>}{record.dismissedAt && <span>· Dismissed</span>}</div>
-          <h2 className="mt-2 text-lg font-semibold leading-snug"><a href={record.item.externalUrl ?? record.item.url} target="_blank" rel="noopener noreferrer" className="hover:underline focus-visible:outline-2 focus-visible:outline-cyan-600">{record.item.title}</a></h2>
+          <h2 className="mt-2 text-lg font-semibold leading-snug"><a href={record.item.externalUrl ?? record.item.url} target="_blank" rel="noopener noreferrer" className="hover:underline focus-visible:outline-2 focus-visible:outline-teal-600">{record.item.title}</a></h2>
           {record.item.excerpt && <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{record.item.excerpt}</p>}
           <div className="mt-2 flex flex-wrap gap-1"><button className={ACTION} aria-pressed={!!record.readAt} onClick={() => markRead(record.item, !record.readAt)}>{record.readAt ? "Mark unread" : "Mark read"}</button><button className={ACTION} aria-pressed={!!record.savedAt} onClick={() => toggleLibrarySaved(record.item)}>{record.savedAt ? "Unsave" : "Save"}</button><button className={ACTION} aria-pressed={!!record.followedAt} onClick={() => toggleFollowStory(record.item)}>{record.followedAt ? "Unfollow story" : "Follow story"}</button><button className={ACTION} onClick={() => setDismissed(record.item, !record.dismissedAt)}>{record.dismissedAt ? "Restore" : "Dismiss"}</button></div>
           <NotesEditor key={record.storyId} record={record} />
