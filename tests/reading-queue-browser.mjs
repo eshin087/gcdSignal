@@ -108,8 +108,8 @@ try {
   assert.equal(await failedDialog.locator("ol li").count(), 1);
   await failedDialog.getByRole("button", { name: "Close Must read queue", exact: true }).click();
   const nav = failed.page.getByRole("navigation", { name: "Main navigation" });
-  await nav.getByRole("button", { name: "Library", exact: true }).click();
-  await nav.getByRole("button", { name: "Deck", exact: true }).click();
+  await nav.getByRole("link", { name: "Library", exact: true }).click();
+  await nav.getByRole("link", { name: "Deck", exact: true }).click();
   failedDialog = await openQueue(failed.page);
   assert.equal(await failedDialog.locator("ol li").count(), 1, "failed saves survive in-app navigation");
   await failed.page.evaluate(() => { window.__queueFailWrite = false; });

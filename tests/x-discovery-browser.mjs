@@ -74,8 +74,8 @@ async function openStoryDetails(article) {
 try {
   const { context, page, panel, column, refresh, state } = await setup();
   assert.equal(await panel.locator("article").count(), 2, "automatic discoveries show without handles");
-  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "X", exact: true }).count(), 0, "X has no separate navigation tab");
-  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "Brief", exact: true }).getAttribute("aria-current"), "page", "automatic X appears on the default homepage");
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "X", exact: true }).count(), 0, "X has no separate navigation tab");
+  assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Brief", exact: true }).getAttribute("aria-current"), "page", "automatic X appears on the default homepage");
   const firstDiscovery = panel.locator("article").first();
   assert.equal(await firstDiscovery.getByRole("heading").innerText(), "AI model release with a useful demo");
   assert.equal(await firstDiscovery.locator("details[data-story-details]").getAttribute("open"), null, "story Details start collapsed");
