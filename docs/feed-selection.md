@@ -99,8 +99,9 @@ incorrectly.
 The stableStoryId helper normally follows the canonical outbound article URL
 across platform reposts. Clear evergreen changelog/release-notes/updates/release-index
 URLs also include an explicit model-version discriminator, so a new version
-does not inherit an old release's read state. Titles without a version are
-conservative separate aliases. Ordinary article title changes keep URL identity.
+does not inherit an old release's read state. Without a recognized version,
+titles sharing that evergreen URL still share its identity; the URL alone cannot
+identify every new event. Ordinary article title changes keep URL identity.
 Read actions on a group mark its known member identities; more linked coverage
 is not automatically treated as a new independent development.
 
@@ -177,7 +178,8 @@ helpers.
 
 Optional node tests/library-browser.mjs exercises real IndexedDB with an
 isolated browser origin. node tests/browser-smoke.mjs runs fixture-based UI
-checks against a local app. Both need Playwright/Chrome; use PLAYWRIGHT_PATH
+checks against a local app; node tests/x-browser.mjs checks X widgets and storage.
+These need Playwright/Chrome; use PLAYWRIGHT_PATH
 and BROWSER_CHANNEL for an existing installation, and APP_URL for a nondefault
 local app address. Functional browser tests are not measured Lighthouse or
 Core Web Vitals results.

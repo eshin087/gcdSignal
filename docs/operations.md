@@ -1,42 +1,110 @@
 # Operation and verification
 
-## Firewall
-Production project: gcdsignal. On 2026-09-07 the existing Vercel Hobby allowance had no custom rules and no pending draft changes.
+Use [STATUS.md](STATUS.md) for dated delivery evidence and
+[DECISIONS.md](DECISIONS.md) for product constraints. This document owns the
+procedures; private operator identifiers live outside the repository.
 
-The approved rule **Signal API budget** (ID: rule_signal_api_budget_5qB3k4) was published and verified live:
+## Local development and checks
 
-- Match path starts with /api/feeds/ OR path equals /api/brief.
-- Fixed window, 60 requests per 60 seconds, keyed by client IP.
-- Exceeded requests receive rate-limit mitigation.
-- No existing rule was overwritten; no paid plan or service was enabled.
+Install with npm ci when dependencies are missing or the lockfile changed.
+The package scripts are dev, build, start, lint and test; there is no separate
+typecheck or test:browser script.
 
-Check with "vercel firewall rules list" and "vercel firewall diff". Do not publish unrelated drafts. To adjust or disable this rule, inspect that exact ID first. The general "firewall overview" command may fail on Hobby because it also requests a paid IP-bypass feature; listing custom rules works.
+For application-code changes, the normal checks are:
+
+~~~bash
+npm test
+npm run lint
+npm run build
+~~~
+
+The production build includes TypeScript checking. For a docs-only change,
+review accuracy, local links, public exposure and git diff --check instead of
+rebuilding the app.
+
+Select additional checks for the affected contract:
+
+| Change area | Focused verification |
+| --- | --- |
+| Relevance, categories, ranking, identity/progress | Unit suites curation, dependable-ranking and story-progress |
+| Source normalization and partial Brief failures | Unit suites source-quality, papers-contract and brief-resilience |
+| Caches, fetch boundaries and headers | Unit suites security, server-cache, feed-cache and rss-cache |
+| Preferences and X URL validation | Unit suite reader-preferences |
+| Library/backup contracts | Unit suite library; node tests/library-browser.mjs for real IndexedDB |
+| Reader layout, Settings, navigation and keyboard | node tests/browser-smoke.mjs |
+| X widgets, consent, storage recovery and stale work | node tests/x-browser.mjs |
+
+Unit suites are `tests/<name>.test.mjs`; run them with node --test and the
+corresponding filenames when a focused check is sufficient. Record actual
+commands/results rather than inferring a pass from the presence of a test.
+
+For the UI and X browser suites, build and start the app in another terminal:
+
+~~~bash
+node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3001
+~~~
+
+Then run the selected suite. APP_URL defaults to http://127.0.0.1:3001.
+The pinned Playwright dependency uses installed Chrome by default;
+BROWSER_CHANNEL selects another installed browser, and PLAYWRIGHT_PATH can
+select an existing installation for the reader/library/X suites. Do not add
+GitHub Actions to run these checks.
+
+The library browser suite does not need a running application. UI and X suites
+intercept external requests and run against local servers only. Stop the local
+server started for the task after verification.
+
+## Performance and live-source diagnostics
+
+tests/performance-spot.mjs is optional and contacts real upstream sources through
+a local production server. It reports cold-browser and warm-browser observations;
+the server cache may already be warm. Its first-headline time is not LCP.
+
+Use live requests only when useful for the task. Separate build success, fixture
+regressions, live coverage observations and measured performance. Do not call
+ordinary browser regressions Lighthouse or Core Web Vitals measurements.
 
 ## Cache and coverage
-Both views share normalized five-minute source results. The server's shared result and last-good caches are bounded per-instance caches, not a durable database or a cross-instance distributed lock. CDN/framework caches reduce repeated work; a cold instance may have no last-good value. Never describe the local cache as a coverage guarantee.
 
-Brief starts with the primary reporting phase, then loads the complete phase. Failed publishers remain in health details. The browser displays available cached content and holds reordered Brief results while the reader is scrolled down. Manual refresh does not bypass upstream caches.
+Brief loads its reporting phase before complete coverage. Failed publishers
+remain in health details; fresh response timestamps and HTTP 200 do not imply
+healthy sources. Server and last-good caches are bounded per-instance memory.
+Manual refresh does not bypass upstream caching.
 
-## Security policy rollout
-Security headers are enabled; CSP remains **report-only**. The two pre-paint scripts are hash-allowed. Official X widget origins are narrowly listed, and X is click-to-load. Next-generated inline hydration/RSC scripts still require a deliberate policy before CSP enforcement; no claim is made that report-only CSP blocks attacks.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for ownership and
+[feed-selection.md](feed-selection.md) for selection/cache semantics.
 
-After deployment, inspect a cold page and an X widget in a browser, review legitimate policy violations, and only enforce a policy after valid content and scripts work. Do not add broad wildcards or enable arbitrary inline scripts to silence reports.
+## Hosting, firewall and release evidence
 
-## Personal data
-Library data stays in this browser's IndexedDB. Backups contain story links, excerpts, personal notes, saved searches and follows, and should be treated as personal data. No server-side account/sync service exists. Do not clear browser site data before exporting. X link bookmarks have a separate Export X links action.
+GitHub Actions is intentionally disabled; workflow files and the warm endpoint
+were removed. Vercel's Git integration can still build previews independently.
+A successful Vercel check is not evidence that GitHub Actions was re-enabled.
 
-Newsletter UI, subscriber/digest endpoints, email cron and email dependency were removed. No external subscriber record, account or secret was deleted.
+Inspect the target project's current firewall rules and pending draft before
+adjusting a rule. Match the intended API paths and preserve unrelated settings;
+never publish someone else's pending firewall changes. Account-specific IDs
+and plan snapshots do not belong in this public procedure.
 
-## Verification commands
+The desired operating cost is zero. Verify current provider plan, enabled
+products and upstream API policies for cost questions. Do not turn a historical
+free-tier snapshot into a perpetual no-charge guarantee.
 
-- npm ci
-- npm test
-- npm run lint
-- npm run build
-- npm audit
-- Start production locally: node node_modules/next/dist/bin/next start -p 3001.
-- Run node tests/browser-smoke.mjs with APP_URL=http://127.0.0.1:3001 for reader regressions.
-- Run node tests/library-browser.mjs for real IndexedDB migration/reload checks.
-- Both use the pinned Playwright dependency and installed Chrome by default; CI installs Chromium and selects BROWSER_CHANNEL=chromium.
+For delivery, verify the PR's current base/head, merge state, deployed commit and
+target environment. Respect the scope already authorized by the user. A preview
+URL is not the production deployment. Update STATUS after material changes.
 
-Browser fixtures must intercept upstream API requests and test local servers only. The automated reader tests are not field Core Web Vitals; the separate browser spot check should state cache state and network conditions.
+## Security policy and private data
+
+CSP remains report-only. Hashes track the two prepaint scripts; X widget origins
+are scoped. Next-generated hydration scripts still need a deliberate policy
+before enforcement. Review legitimate policy violations and exercise the normal
+page plus X loading before changing enforcement; do not add broad wildcards to
+silence reports.
+
+Keep credentials in server-side environment configuration, not public notes or
+client-prefixed variables. Review logs without recording secret values.
+
+Library backups contain personal reading data and notes; export before clearing
+site data. X bookmarks use Export saved links separately. See README for retention
+and backup limits. Removal of newsletter code did not authorize deleting
+external subscriber records.
