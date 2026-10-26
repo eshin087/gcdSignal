@@ -5,7 +5,7 @@ import type { CustomFeed, SourceId } from "@/lib/types";
 import Modal from "./Modal";
 
 const INPUT_CLS =
-  "w-full rounded-lg border border-black/10 bg-black/[0.02] px-2.5 py-1.5 text-sm outline-none placeholder:text-zinc-400 focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/20 dark:border-white/15 dark:bg-white/[0.03] dark:placeholder:text-zinc-600";
+  "w-full rounded-lg border border-black/10 bg-black/[0.02] px-2.5 py-1.5 text-sm outline-none placeholder:text-zinc-400 focus:border-teal-500/60 focus:ring-2 focus:ring-teal-500/20 dark:border-white/15 dark:bg-white/[0.03] dark:placeholder:text-zinc-600";
 
 const SOURCE_OPTIONS: Array<{ id: SourceId; label: string }> = [
   { id: "reddit", label: "Subreddit" },
@@ -203,7 +203,7 @@ export default function AddFeedDialog({
         <button
           onClick={submit}
           disabled={testing}
-          className="w-full rounded-lg bg-cyan-500 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-400 disabled:opacity-50 dark:bg-cyan-400 dark:text-cyan-950 dark:hover:bg-cyan-300"
+          className="w-full rounded-lg bg-teal-700 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-600 disabled:opacity-50 dark:bg-teal-400 dark:text-teal-950 dark:hover:bg-teal-300"
         >
           {testing ? "Testing feed…" : "Test & add"}
         </button>

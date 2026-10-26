@@ -11,6 +11,7 @@ import { toggleSaved, useSavedKeys } from "@/lib/use-saved";
 import type { BriefStory, CategoryId, FeedItem } from "@/lib/types";
 import { useReading } from "./ReadingContext";
 import CoveragePanel from "./CoveragePanel";
+import { StarIcon } from "./icons";
 import QueueButton from "./QueueButton";
 
 const EMPTY: FeedItem[] = [];
@@ -36,20 +37,27 @@ export default function BriefView({ refreshKey, category, onFocus, focusActive =
   const display = catchupOnly ? stories.filter(isNew) : stories;
   const snapshotAt = data?.fetchedAt ? Date.parse(data.fetchedAt) : library.sessionStartedAt;
   const followed = followedBriefRecords(library.records, prefs, library.followedTerms, snapshotAt);
+  const dateLabel = new Date(snapshotAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
   return <main ref={scroll} className="feed-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label="Essential Brief">
-    <div className="reader-page mx-auto max-w-[850px] px-4 pb-12 pt-4 sm:px-8 sm:pt-9">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div><p className="reader-eyebrow">Your AI reading room <span className="sm:hidden">· {windowHours}h</span></p><h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">The essential Brief</h1>
-          <p className="mt-2 hidden max-w-xl text-sm leading-6 text-zinc-600 sm:block dark:text-zinc-400">Major developments. Original sources. A clear place to stop.</p></div>
-        <div className="hidden gap-1 sm:flex">{onFocus && <button hidden={focusActive} className="story-action px-2" aria-label="Focus Brief" onClick={(event) => onFocus(event.currentTarget)}>Focus Brief ↗</button>}<button className="action-button" onClick={() => refetch()} disabled={status === "loading"}>Refresh</button></div>
-      </div>
-      <CoveragePanel health={data?.health} stale={data?.stale || Boolean(error && data)} fetchedAt={data?.fetchedAt} phase={data?.phase} />
-      <div className="my-4 flex flex-wrap items-center gap-2">
-        <button className="action-button" aria-pressed={!catchupOnly} onClick={() => setCatchupOnly(false)}>Essential</button>
-        <button className="action-button" aria-pressed={catchupOnly} onClick={() => setCatchupOnly(true)}>Since your last visit{library.previousVisitAt ? " · " + stories.filter(isNew).length : ""}</button>
-        <span className="ml-auto hidden text-xs text-zinc-600 sm:inline dark:text-zinc-400">Last {windowHours} hours</span>
-        <div className="ml-auto flex gap-1 sm:hidden">{onFocus && <button hidden={focusActive} className="story-action px-2" aria-label="Focus Brief" onClick={(event) => onFocus(event.currentTarget)}>Focus</button>}<button className="action-button" onClick={() => refetch()} disabled={status === "loading"}>Refresh</button></div>
+    <div className="reader-page mx-auto max-w-[850px] px-4 pb-12 pt-3 sm:px-8 sm:pt-6">
+      {/* Compact hero. Desktop: title, window and controls on one row, then the
+          toggles with coverage at the right. Phones: title and controls, then
+          window and coverage, then the toggles. The order classes and the
+          zero-height break element arrange the same elements for both. */}
+      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h1 className="order-1 text-xl font-semibold tracking-tight sm:text-2xl">The essential Brief</h1>
+        <p className="reader-eyebrow order-4 sm:order-2">Last {windowHours}h · {dateLabel}</p>
+        <div className="order-2 ml-auto flex items-center gap-1 sm:order-3">
+          {onFocus && <button hidden={focusActive} className="story-action px-2" aria-label="Focus Brief" title="Focus Brief" onClick={(event) => onFocus(event.currentTarget)}>Focus <span aria-hidden>↗</span></button>}
+          <button className="action-button" onClick={() => refetch()} disabled={status === "loading"}>Refresh</button>
+        </div>
+        <span aria-hidden className="order-3 h-0 basis-full sm:order-4" />
+        <div className="order-6 flex basis-full flex-wrap items-center gap-2 sm:order-5 sm:basis-auto">
+          <button className="action-button" aria-pressed={!catchupOnly} onClick={() => setCatchupOnly(false)}>Essential</button>
+          <button className="action-button" aria-pressed={catchupOnly} onClick={() => setCatchupOnly(true)}>Since your last visit{library.previousVisitAt ? " · " + stories.filter(isNew).length : ""}</button>
+        </div>
+        <CoveragePanel className="order-5 ml-auto sm:order-6" health={data?.health} stale={data?.stale || Boolean(error && data)} fetchedAt={data?.fetchedAt} phase={data?.phase} />
       </div>
       {prefs.contentMode === "builder" && <p className="mb-4 rounded-lg bg-amber-50 p-3 text-sm dark:bg-amber-950/30">Builder filter is on. <button className="underline" onClick={() => setPrefs((p) => ({ ...p, contentMode: "broad" }))}>Show broad AI news</button></p>}
       {pending && <div className="sticky top-2 z-10 mb-3 flex justify-center"><button className="action-button reader-primary shadow-md" onClick={() => { apply(); scroll.current?.scrollTo({ top: 0, behavior: "instant" }); }}>New coverage available · Update brief</button></div>}
@@ -58,13 +66,15 @@ export default function BriefView({ refreshKey, category, onFocus, focusActive =
       {display.map((story, index) => {
         const members = story.members!;
         const first = members[0];
-        const record = records.get(stableStoryId(first));
+        const storyId = stableStoryId(first);
+        const record = records.get(storyId);
         const progress = storyProgress(story, records, arrivalBoundary);
         const readAlready = progress.read;
         const additional = progress.additional;
-        return <article key={story.id} data-item-key={story.id} tabIndex={-1} className={"brief-story border-b border-zinc-200 dark:border-zinc-800 " + (index === 0 ? "pb-6 pt-1" : "py-6")}>
+        const isSaved = saved.has(storyId);
+        return <article key={story.id} data-item-key={story.id} tabIndex={-1} className={"brief-story border-b border-zinc-200 dark:border-zinc-800 " + (index === 0 ? "pb-5 pt-1" : "py-5")}>
           <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
-            <span className="font-mono">{String(index + 1).padStart(2, "0")}</span>
+            <span className="tabular-nums">{String(index + 1).padStart(2, "0")}</span>
             <span>{first.curation?.kind ?? "AI news"}</span><span aria-hidden>·</span>
             <time dateTime={story.firstPublishedAt ?? first.timestamp}>{new Date(story.firstPublishedAt ?? first.timestamp).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time>
             {isNew(story) && <span className="text-teal-700 dark:text-teal-300">New to you</span>}
@@ -74,23 +84,26 @@ export default function BriefView({ refreshKey, category, onFocus, focusActive =
           <h2 className="text-xl font-semibold leading-snug tracking-tight sm:text-2xl"><a className="hover:text-teal-700 dark:hover:text-teal-300" href={story.primaryUrl ?? story.url} target="_blank" rel="noopener noreferrer" onClick={() => markRead(members)}>{story.title}</a></h2>
           {first.excerpt && <p className="reader-excerpt mt-3 leading-relaxed text-zinc-600 dark:text-zinc-300">{first.excerpt.slice(0, 450)}</p>}
           <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">{first.excerpt ? "Excerpt" : "Via"} · {first.sourceMeta ?? SOURCE_LABELS[first.source]}</p>
-          <details data-story-details className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-            <summary className="story-details-summary" aria-label={`Details for ${story.title}`}>Details</summary>
-            <div className="story-details-body">
-              <button className="story-action" onClick={() => read(members)}>Sources & discussion</button>
-              {story.primaryUrl && <a href={story.primaryUrl} target="_blank" rel="noopener noreferrer" className="story-action">Primary source ↗</a>}
-              <button className="story-action" aria-label={saved.has(stableStoryId(first)) ? "Remove from saved" : "Save story"} aria-pressed={saved.has(stableStoryId(first))} onClick={() => toggleSaved(first)}>{saved.has(stableStoryId(first)) ? "Saved ✓" : "Save"}</button>
-              <QueueButton id={`feed:${stableStoryId(first)}`} title={story.title} url={story.primaryUrl ?? story.url} source={first.sourceMeta ?? SOURCE_LABELS[first.source]} />
-              <button className="story-action" onClick={() => markRead(members, !readAlready)}>{readAlready ? "Mark unread" : "Mark read"}</button>
-              <button className="story-action" aria-pressed={Boolean(record?.followedAt)} onClick={() => toggleFollowStory(first)}>{record?.followedAt ? "Following" : "Follow story"}</button>
-              <button className="story-action" onClick={() => members.forEach((item) => setDismissed(item, true))}>Dismiss</button>
+          <div className="mt-1 flex items-start gap-2">
+            <details data-story-details className="min-w-0 flex-1 text-xs text-zinc-600 dark:text-zinc-400">
+              <summary className="story-details-summary" aria-label={`Details for ${story.title}`}>Details</summary>
+              <div className="story-details-body">
+                <button className="story-action" onClick={() => read(members)}>Sources & discussion</button>
+                <button className="story-action" onClick={() => markRead(members, !readAlready)}>{readAlready ? "Mark unread" : "Mark read"}</button>
+                <button className="story-action" aria-pressed={Boolean(record?.followedAt)} onClick={() => toggleFollowStory(first)}>{record?.followedAt ? "Following" : "Follow story"}</button>
+                <button className="story-action" onClick={() => members.forEach((item) => setDismissed(item, true))}>Dismiss</button>
+              </div>
+              <div className="space-y-2 pb-3">
+                <p>{story.publishers?.length ?? 0} reporting {story.publishers?.length === 1 ? "publisher" : "publishers"}{story.platforms?.length ? ` · ${story.platforms.length} discussion ${story.platforms.length === 1 ? "platform" : "platforms"}` : ""}</p>
+                <ul className="list-inside list-disc space-y-1">{(story.reasons ?? ["Selected from recent AI reporting."]).map((reason) => <li key={reason}>{reason}</li>)}</ul>
+                <p>Rule-based selection, not verification of claims.</p>
+              </div>
+            </details>
+            <div className="flex shrink-0 items-center">
+              <button className="story-icon" aria-label={isSaved ? "Remove from saved" : "Save story"} title={isSaved ? "Remove from saved" : "Save story"} aria-pressed={isSaved} onClick={() => toggleSaved(first)}><StarIcon className="h-4 w-4" filled={isSaved} /></button>
+              <QueueButton variant="icon" id={`feed:${storyId}`} title={story.title} url={story.primaryUrl ?? story.url} source={first.sourceMeta ?? SOURCE_LABELS[first.source]} />
             </div>
-            <div className="space-y-2 pb-3">
-              <p>{story.publishers?.length ?? 0} reporting {story.publishers?.length === 1 ? "publisher" : "publishers"}{story.platforms?.length ? ` · ${story.platforms.length} discussion ${story.platforms.length === 1 ? "platform" : "platforms"}` : ""}</p>
-              <ul className="list-inside list-disc space-y-1">{(story.reasons ?? ["Selected from recent AI reporting."]).map((reason) => <li key={reason}>{reason}</li>)}</ul>
-              <p>Rule-based selection, not verification of claims.</p>
-            </div>
-          </details>
+          </div>
         </article>;
       })}
       {status !== "loading" && display.length === 0 && <div className="rounded-xl border border-dashed border-zinc-300 px-5 py-10 text-center dark:border-zinc-700">

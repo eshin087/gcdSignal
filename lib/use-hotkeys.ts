@@ -132,14 +132,10 @@ export function useHotkeys(handlers: HotkeyHandlers) {
         case "o":
           clickIn(focusedCard(), "a[href]");
           break;
-        case "s": {
-          // Secondary actions are intentionally quiet until Details is opened.
-          // Reveal the saved state when the shortcut changes it.
-          const details = focusedCard()?.querySelector<HTMLDetailsElement>("details[data-story-details]");
-          if (details) details.open = true;
+        case "s":
+          // Save is an always-visible icon on the row; toggle it in place.
           clickIn(focusedCard(), 'button[aria-label^="Save"], button[aria-label^="Remove from saved"]');
           break;
-        }
         case "r": {
           const cols = columns();
           clickIn(cols[Math.min(activeColumn, cols.length - 1)] ?? null, 'button[data-refresh], button[aria-label^="Refresh"]');

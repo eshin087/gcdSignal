@@ -148,7 +148,7 @@ export default function XDiscoveryFeed({ refreshKey, savedUrls, ready, onSave, o
   return <section aria-label="X discoveries">
     <div className="flex items-start gap-2 border-b border-black/[0.06] px-3 dark:border-white/[0.06]">
       <details className="min-w-0 flex-1 text-[length:var(--fs-ui-sm)] leading-relaxed text-zinc-500 dark:text-zinc-400">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 font-mono" title="Coverage and selection details">All AI · {sort === "popular" ? "Popular" : "Newly shared"} · {windowHours / 24}d <span aria-hidden>⌄</span><span className="sr-only"> · Source coverage</span></summary>
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1" title="Coverage and selection details">All AI · {sort === "popular" ? "Popular" : "Newly shared"} · {windowHours / 24}d <span aria-hidden>⌄</span><span className="sr-only"> · Source coverage</span></summary>
         <div className="pb-3">
           <p className="font-medium">{data?.health.degraded || data?.stale ? "Partial or delayed coverage" : "Source coverage"}</p>
           <p className="mt-1">{data ? `${filtered.length} ${filtered.length === 1 ? "post" : "posts"} · checked ${timeAgo(data.fetchedAt)}` : "Checking public sources"}</p>
@@ -161,7 +161,7 @@ export default function XDiscoveryFeed({ refreshKey, savedUrls, ready, onSave, o
           <p className="mt-2">No X requests happen until you open a link or load a post. Saved X links have their own export, separate from Library.</p>
         </div>
       </details>
-      <button className="min-h-11 shrink-0 px-2 text-[length:var(--fs-ui-sm)] font-medium text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300" aria-label="Filter" aria-expanded={filterOpen} aria-controls="x-discovery-filter" onClick={() => setFilterOpen((open) => !open)}>Filter{query ? " · 1" : ""}</button>
+      <button className="min-h-11 shrink-0 px-2 text-[length:var(--fs-ui-sm)] font-medium text-teal-700 hover:bg-teal-700/10 dark:text-teal-300" aria-label="Filter" aria-expanded={filterOpen} aria-controls="x-discovery-filter" onClick={() => setFilterOpen((open) => !open)}>Filter{query ? " · 1" : ""}</button>
     </div>
     {filterOpen && <div id="x-discovery-filter" className="space-y-3 border-b border-black/[0.06] bg-black/[0.02] p-3 dark:border-white/[0.06] dark:bg-white/[0.02]">
       <div className="grid grid-cols-2 gap-3">
@@ -180,7 +180,7 @@ export default function XDiscoveryFeed({ refreshKey, savedUrls, ready, onSave, o
         <input type="search" className="reader-input mt-1 block min-h-11 w-full" placeholder="Company, topic, or author" value={query} onChange={(event) => { setQuery(event.target.value); setLimit(20); }} />
       </label>
     </div>}
-    {pending && <div className="pointer-events-none sticky top-2 z-10 flex justify-center"><button className="pointer-events-auto min-h-11 rounded-full bg-cyan-500 px-3 font-mono text-[length:var(--fs-ui-sm)] font-semibold text-white shadow-lg shadow-cyan-500/30 dark:bg-cyan-400 dark:text-cyan-950" onClick={() => {
+    {pending && <div className="pointer-events-none sticky top-2 z-10 flex justify-center"><button className="pointer-events-auto min-h-11 rounded-full bg-teal-700 px-3 text-[length:var(--fs-ui-sm)] font-semibold text-white shadow-md transition-colors hover:bg-teal-600 dark:bg-teal-400 dark:text-teal-950 dark:hover:bg-teal-300" onClick={() => {
       displayed.current = pending; setData(pending); setPending(null); setViewTime(Date.now()); setLimit(20);
     }}>Show updated discoveries</button></div>}
     {(problem || data?.health.degraded || data?.stale) && <p role="status" className="border-b border-amber-500/20 bg-amber-500/[0.07] px-3 py-2 text-[length:var(--fs-ui-sm)] leading-relaxed text-amber-800 dark:text-amber-300">{problem || "Partial or delayed coverage."}{data?.items.length ? " Showing available discoveries; check source coverage for details." : " Your saved sources are still available."}</p>}
@@ -195,8 +195,8 @@ export default function XDiscoveryFeed({ refreshKey, savedUrls, ready, onSave, o
         return <XDiscoveryCard key={post.id} post={post} saved={saved} ready={ready} onPreview={() => setPreview(post)} onSave={() => setNotice(onSave(post.url) ? "Post added to Saved sources." : "Your 50 saved-link slots are full. Remove a saved source to make room.")} />;
       })}
     </div>
-    {filtered.length > limit && <button className="min-h-11 w-full px-3 font-mono text-[length:var(--fs-ui-sm)] text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300" onClick={() => setLimit((value) => value + 20)}>Show more discoveries</button>}
-    <p role="status" className={notice ? "p-3 text-[length:var(--fs-ui-sm)] text-cyan-700 dark:text-cyan-300" : "sr-only"}>{notice}</p>
+    {filtered.length > limit && <button className="min-h-11 w-full px-3 text-[length:var(--fs-ui-sm)] font-medium text-teal-700 hover:bg-teal-700/10 dark:text-teal-300" onClick={() => setLimit((value) => value + 20)}>Show more discoveries</button>}
+    <p role="status" className={notice ? "p-3 text-[length:var(--fs-ui-sm)] text-teal-700 dark:text-teal-300" : "sr-only"}>{notice}</p>
     {preview && <PostPreview key={preview.id} post={preview} onClose={() => setPreview(null)} />}
   </section>;
 }

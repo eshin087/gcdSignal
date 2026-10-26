@@ -80,7 +80,8 @@ try {
   assert.equal(await firstDiscovery.getByRole("heading").innerText(), "AI model release with a useful demo");
   assert.equal(await firstDiscovery.locator("details[data-story-details]").getAttribute("open"), null, "story Details start collapsed");
   assert.equal(await firstDiscovery.locator('button[aria-label="Load post from X"]').isVisible(), false, "collapsed cards hide the bulky X preview action");
-  assert.equal(await firstDiscovery.locator('button[aria-label="Save post"]').isVisible(), false, "collapsed cards hide the X save action");
+  assert.equal(await firstDiscovery.locator('button[aria-label="Save post"]').isVisible(), true, "collapsed cards keep the X save icon visible");
+  assert.equal(await firstDiscovery.locator('button[aria-label="Add to Must read"]').isVisible(), true, "collapsed cards keep the Must read icon visible");
   const collapsedText = await firstDiscovery.innerText();
   assert.match(collapsedText, /30 HN comments/, "the visible discussion count is labeled as Hacker News comments");
   assert.doesNotMatch(collapsedText, /\b(?:views?|likes?|replies?)\b/i, "the collapsed card makes no visible claim about unavailable X metrics");

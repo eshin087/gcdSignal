@@ -18,8 +18,8 @@ The column shares flat card rows, typography, metadata styling and density
 preferences with other feeds. Its shared aligned header includes source status,
 an available-post count, a bookmark control for Saved sources and refresh.
 Filter opens the optional text/date/order controls; the All AI scope summary
-expands coverage and selection details. Each row keeps sources and actions under
-one Details control. Load post from X is an explicit widget request, while the
+expands coverage and selection details. Each row shows Save and Must read icons and
+keeps sources and other actions under one Details control. Load post from X is an explicit widget request, while the
 headline and Open on X remain direct outbound links.
 
 ## Sources and selection
