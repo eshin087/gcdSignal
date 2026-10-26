@@ -16,8 +16,8 @@ export default function ShortcutsOverlay({ open, onClose }: { open: boolean; onC
           </li>
         ))}
       </ul>
-      <p className="mt-3 font-mono text-[10px] text-zinc-400 dark:text-zinc-600">
-        shortcuts are off while typing in a field
+      <p className="mt-3 text-[11px] text-zinc-500 dark:text-zinc-400">
+        Shortcuts are off while typing in a field.
       </p>
     </Modal>
   );

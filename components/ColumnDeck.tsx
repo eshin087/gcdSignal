@@ -175,7 +175,7 @@ export default function ColumnDeck({
             onClick={() => jumpTo(it.id)}
             className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[length:var(--fs-ui-sm)] font-medium transition-colors ${
               activeId === it.id
-                ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+                ? "border-teal-500/50 bg-teal-500/10 text-teal-700 dark:text-teal-300"
                 : "border-black/10 text-zinc-500 dark:border-white/15"
             }`}
           >
@@ -226,7 +226,7 @@ export default function ColumnDeck({
                 {showDrop && (
                   <span
                     aria-hidden
-                    className={`absolute inset-y-3 z-20 hidden w-[3px] rounded-full bg-cyan-400 md:block ${
+                    className={`absolute inset-y-3 z-20 hidden w-[3px] rounded-full bg-teal-400 md:block ${
                       dropTarget!.side === "before" ? "-left-[7.5px]" : "-right-[7.5px]"
                     }`}
                   />

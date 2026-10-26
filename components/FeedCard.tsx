@@ -7,7 +7,7 @@ import { usePrefs } from "@/lib/use-prefs";
 import { seenKey } from "@/lib/use-seen";
 import { toggleSaved, useSavedKeys } from "@/lib/use-saved";
 import type { FeedItem, SourceId } from "@/lib/types";
-import { ClockIcon, CommentIcon } from "./icons";
+import { ClockIcon, CommentIcon, StarIcon } from "./icons";
 import SourceIcon from "./SourceIcon";
 import { useReading } from "./ReadingContext";
 import { markRead } from "@/lib/use-library";
@@ -106,7 +106,7 @@ export default function FeedCard({
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Clipboard unavailable (permissions/insecure context) — ignore.
+      // Clipboard unavailable (permissions/insecure context): ignore.
     }
   };
 
@@ -120,7 +120,7 @@ export default function FeedCard({
   }
 
   const scoreChip = typeof item.score === "number" && (
-    <span className="inline-flex items-center gap-0.5 tabular-nums text-zinc-600 dark:text-zinc-400">
+    <span className="inline-flex items-center gap-0.5 tabular-nums text-zinc-600 dark:text-zinc-400" title="Source score">
       {SCORE_GLYPH[item.source]} {formatFeedCount(item.score)}
     </span>
   );
@@ -130,6 +130,7 @@ export default function FeedCard({
       {formatFeedCount(item.comments)}
     </span>
   );
+  const saveLabel = saved ? "Remove from saved" : "Save for later";
   return (
     <article
       data-item-key={itemKey}
@@ -173,6 +174,7 @@ export default function FeedCard({
             </span>
           </span>
         )}
+        {scoreChip}
         {commentChip &&
           (discussHref ? (
             <a
@@ -180,7 +182,7 @@ export default function FeedCard({
               target="_blank"
               rel="noopener noreferrer"
               title="Open discussion"
-              className="inline-flex items-center gap-1 hover:text-cyan-700 dark:hover:text-cyan-300"
+              className="inline-flex items-center gap-1 hover:text-teal-700 dark:hover:text-teal-300"
             >
               {commentChip}
             </a>
@@ -188,7 +190,7 @@ export default function FeedCard({
             commentChip
           ))}
         {ago && (
-          <span className="tabular-nums text-sky-600/80 dark:text-sky-400/70">{ago}</span>
+          <span className="tabular-nums text-zinc-500 dark:text-zinc-400">{ago}</span>
         )}
         {typeof item.durationSec === "number" && item.durationSec > 0 && (
           <span className="inline-flex items-center gap-0.5 tabular-nums text-zinc-400 dark:text-zinc-500">
@@ -211,17 +213,21 @@ export default function FeedCard({
           </span>
         )}
       </div>
-      <details data-story-details className="text-[length:var(--fs-meta)] text-zinc-600 dark:text-zinc-400">
-        <summary className="story-details-summary" aria-label={`Details for ${item.title}`}>Details</summary>
-        <div className="story-details-body">
-          {preview && <button onClick={() => read(related ?? [item])} className="story-action" aria-label={`Preview ${item.title}`}>{related && related.length > 1 ? `${related.length} sources & discussion` : "Sources & discussion"}</button>}
-          {scoreChip && <span className="inline-flex min-h-11 items-center">{scoreChip}</span>}
-          {distinctDiscussHref && <a href={distinctDiscussHref} target="_blank" rel="noopener noreferrer" className="story-action">Open discussion ↗</a>}
-          <button onClick={() => toggleSaved(item)} aria-label={saved ? "Remove from saved" : "Save for later"} aria-pressed={saved} className="story-action">{saved ? "Saved ✓" : "Save"}</button>
-          {shareHref && <QueueButton id={`feed:${itemKey}`} title={item.title} url={shareHref} source={item.sourceMeta ?? SOURCE_LABELS[item.source]} />}
-          {shareHref && <button onClick={copyLink} aria-label={copied ? "Link copied" : "Copy link"} className="story-action">{copied ? "Copied ✓" : "Copy link"}</button>}
+      {/* Save and Must read stay visible; everything else sits behind Details. */}
+      <div className="flex items-start gap-2">
+        <details data-story-details className="min-w-0 flex-1 text-[length:var(--fs-meta)] text-zinc-600 dark:text-zinc-400">
+          <summary className="story-details-summary" aria-label={`Details for ${item.title}`}>Details</summary>
+          <div className="story-details-body">
+            {preview && <button onClick={() => read(related ?? [item])} className="story-action" aria-label={`Preview ${item.title}`}>{related && related.length > 1 ? `${related.length} sources & discussion` : "Sources & discussion"}</button>}
+            {distinctDiscussHref && <a href={distinctDiscussHref} target="_blank" rel="noopener noreferrer" className="story-action">Open discussion ↗</a>}
+            {shareHref && <button onClick={copyLink} aria-label={copied ? "Link copied" : "Copy link"} className="story-action">{copied ? "Copied ✓" : "Copy link"}</button>}
+          </div>
+        </details>
+        <div className="flex shrink-0 items-center">
+          <button onClick={() => toggleSaved(item)} aria-label={saveLabel} title={saveLabel} aria-pressed={saved} className="story-icon"><StarIcon className="h-4 w-4" filled={saved} /></button>
+          {shareHref && <QueueButton variant="icon" id={`feed:${itemKey}`} title={item.title} url={shareHref} source={item.sourceMeta ?? SOURCE_LABELS[item.source]} />}
         </div>
-      </details>
+      </div>
     </article>
   );
 }

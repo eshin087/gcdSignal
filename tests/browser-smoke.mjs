@@ -378,6 +378,8 @@ try {
   await page.getByRole("button", { name: "Return to the last 24 hours", exact: true }).click();
   await page.locator("main .reader-eyebrow").filter({ hasText: "24h" }).waitFor();
 
+  // Phones reach search through Library; the header field is desktop-only.
+  await mainNav(page, "Library");
   await page.getByRole("searchbox", { name: "Search your collection", exact: true }).first().fill("budget-0-0");
   const library = page.getByRole("region", { name: "Research library", exact: true });
   await library.getByRole("heading", { name: "Your research library", exact: true }).waitFor();
