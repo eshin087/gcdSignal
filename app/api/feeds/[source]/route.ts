@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { selectItems } from "@/lib/curation";
 import { parseFeedRequest } from "@/lib/feed-request";
 import { recallGood, rememberGood } from "@/lib/last-good";
+import { trendingFloor } from "@/lib/recency";
 import { applyRelevance } from "@/lib/relevance";
 import { isSourceId, loadSource } from "@/lib/sources";
 import { canonicalKey, sharedServerLoad } from "@/lib/server-cache";
@@ -30,8 +32,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ source: str
       const raw = await loadSource(source, parsed.params);
       const health = sourceHealth(raw, source);
       let items = applyRelevance(source, raw, { custom: parsed.custom });
+      // The reader applies this same topic rule. Trimming here keeps a pool that
+      // topics share (Hacker News) from sending every AI story to each column.
+      if (!parsed.custom) items = selectItems(items, { contentMode: "broad", mutedAuthors: [], mutedOutlets: [] }, parsed.category);
       if (parsed.category === "trending" && !parsed.custom) {
-        const floor = Date.now() - 72 * 3600_000;
+        const floor = trendingFloor(source, items);
         items = items.filter((item) => Date.parse(item.timestamp) > floor);
       }
       const checkedAt = health.details?.map((detail) => detail.checkedAt ?? "").sort().at(-1);

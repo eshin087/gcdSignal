@@ -45,6 +45,9 @@ export interface FeedItem {
   externalUrl?: string;
   score?: number;
   comments?: number;
+  /** Position in the source's own ranking when it publishes no counts: 1 is the top
+   *  of its list, 0 the bottom. An ordinal hint, never shown as a vote total. */
+  sourceRank?: number;
   author?: string;
   /** ISO 8601 */
   timestamp: string;

@@ -55,6 +55,7 @@ export default function FeedColumn({
     apply,
     refetch,
     requestKey,
+    health: coverage,
   } = useFeed(
     feed.source,
     feed.params,
@@ -121,6 +122,9 @@ export default function FeedColumn({
   }, [feed.id, health, poolSize, fetchedAt]);
   useEffect(() => () => clearHealth(feed.id), [feed.id]);
 
+  // A contributor can be available yet limited, e.g. Reddit without vote counts.
+  const coverageNote = coverage?.details?.find((detail) => detail.status === "ok" && detail.message)?.message;
+
   const badgeValue = useCountUp(sortedUnseen.length);
   const color = SOURCE_COLORS[feed.source];
   const networkBlocked = error !== null && /\b(403|429|blocked|rate limited)\b/i.test(error);
@@ -152,6 +156,12 @@ export default function FeedColumn({
             Retry
           </button>
         </div>
+      )}
+
+      {status === "ok" && coverageNote && (
+        <p data-coverage-note className="shrink-0 border-b border-black/[0.06] px-3 py-1.5 text-[length:var(--fs-ui-sm)] leading-tight text-zinc-600 dark:border-white/[0.06] dark:text-zinc-400">
+          {coverageNote}
+        </p>
       )}
 
       <div
