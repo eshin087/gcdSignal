@@ -8,12 +8,14 @@
 > for Brief, Deck, Library and the category (20). The sections below describe the
 > September state and are kept as a dated handoff.
 
-## Coverage fixes, 2026-11-08 (open PR, not merged)
+## Coverage fixes, 2026-11-08 (PR 22)
 
-Branch fix/coverage-gaps, based on master f5de216. A live check of production on
-2026-11-08 found the 24-hour Brief showing three stories from one outlet while
-Hacker News's top AI stories, Reddit link posts and every featured paper were
-missing, with all contributors reported healthy. The branch:
+Delivered through [PR #22](https://github.com/eshin087/gcdSignal/pull/22) from
+branch fix/coverage-gaps; this note reaches master only with that merge. A live
+check of production on 2026-11-08 had found the 24-hour Brief showing three
+stories from one outlet while Hacker News's top AI stories, Reddit link posts
+and every featured paper were missing, with all contributors reported healthy.
+The change:
 
 - takes Hacker News candidates from popular stories and the front page instead
   of a title search for "AI";
@@ -24,12 +26,15 @@ missing, with all contributors reported healthy. The branch:
 - replaces The Register's quiet AI feed with its main feed and adds Google
   Research, The Guardian AI, NVIDIA and Techmeme.
 
-Checked on the branch the same day: 128 unit tests, lint, the production build
-and the fixture browser suite (browser-smoke) passed. A local run against live
-sources returned ten Brief stories with 25 of 25 contributors available, led by
-a story with three reporting publishers. Production still runs master and is
-unchanged until the PR is merged. Not diagnosed: why Reddit's scored listing
-fails from production hosting. Selection details are in
+Checked before the merge, the same day: 128 unit tests, lint, the production
+build and the fixture browser suite (browser-smoke) passed. On the branch's
+Vercel preview the Brief returned ten stories with 25 of 25 contributors
+available, led by a story with three reporting publishers, and Reddit was served
+by its public feed with article links and its missing-counts note. Those
+responses were cached, so they do not measure a cold start. Production delivery
+of the merge commit is not recorded here: recheck the live deployment before
+treating it as shipped. Not diagnosed: why Reddit's scored listing fails from
+production hosting. Selection details are in
 [feed-selection.md](feed-selection.md); what was left out is in
 [ROADMAP.md](ROADMAP.md).
 
