@@ -72,6 +72,26 @@ async function getOauthToken(): Promise<string | null> {
 // burning a doomed request every fetch.
 let htmlBlockedUntil = 0;
 
+/** Reddit redirects a multireddit to this ordering (ASCII, capitals first);
+ *  asking for it directly saves a request against a tight per-IP limit. */
+const canonicalMulti = (subs: string) => subs.split("+").filter(Boolean).sort().join("+");
+
+/**
+ * The article behind a link post. Self posts point back to Reddit and media
+ * posts to Reddit's own image and video hosts; neither is an outside source.
+ */
+export function redditOutboundLink(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length > 2048) return undefined;
+  try {
+    const url = new URL(decodeEntities(value));
+    if (url.protocol !== "https:" && url.protocol !== "http:") return undefined;
+    if (/(?:^|\.)(?:reddit\.com|redd\.it|redditmedia\.com|redditstatic\.com)$/i.test(url.hostname)) return undefined;
+    return url.toString();
+  } catch { return undefined; }
+}
+
+export const REDDIT_FEED_NOTICE = "Votes and comment counts are unavailable; showing Reddit's public feed order.";
+
 export interface RedditGate {
   subs: string[];
   terms: string[];
@@ -110,13 +130,19 @@ export async function fetchReddit(
     seen.add(it.id);
     return true;
   });
-  return attachHealth(diversify(applyGates(deduped, gates)), results.map((result, i) =>
-    healthDetail(`Reddit ${multis[i]}`, result.status === "fulfilled" ? "ok" : "error")));
+  return attachHealth(diversify(applyGates(deduped, gates)), results.map((result, i) => {
+    const detail = healthDetail(`Reddit ${multis[i]}`, result.status === "fulfilled" ? "ok" : "error");
+    // The public feed still lists the day's top posts, so coverage is available,
+    // but say plainly that nothing here carries a vote or comment count.
+    const countless = result.status === "fulfilled" && result.value.every((item) => typeof item.score !== "number");
+    return countless ? { ...detail, message: REDDIT_FEED_NOTICE } : detail;
+  }));
 }
 
 /** OAuth (if creds) → HTML scrape (real scores, no key) → Atom fallback
  *  (hot-ranked but scoreless). Anonymous JSON is confirmed 403 — not attempted. */
-async function fetchOneMulti(subs: string, t: string, rv?: number): Promise<FeedItem[]> {
+async function fetchOneMulti(configured: string, t: string, rv?: number): Promise<FeedItem[]> {
+  const subs = canonicalMulti(configured);
   const token = await getOauthToken();
   const attempts: Array<() => Promise<FeedItem[]>> = [];
   if (token) {
@@ -216,7 +242,7 @@ function mapListing(listing: RedditListing): FeedItem[] {
         source: "reddit" as const,
         title: d.title,
         url: `https://www.reddit.com${d.permalink}`,
-        externalUrl: !d.is_self && d.url?.startsWith("http") ? d.url : undefined,
+        externalUrl: d.is_self ? undefined : redditOutboundLink(d.url),
         thumbnail: d.thumbnail?.startsWith("https://") ? d.thumbnail : undefined,
         score: d.score,
         comments: d.num_comments,
@@ -283,13 +309,12 @@ async function fetchViaHtml(subs: string, t: string, revalidate?: number): Promi
         ? rawThumb
         : undefined;
 
-    const dataUrl = attrs["data-url"] ?? "";
     items.push({
       id: `reddit:${fullname.slice(3)}`,
       source: "reddit",
       title,
       url: `https://www.reddit.com${attrs["data-permalink"]}`,
-      externalUrl: dataUrl.startsWith("http") ? dataUrl : undefined,
+      externalUrl: redditOutboundLink(attrs["data-url"]),
       thumbnail,
       score: Number(attrs["data-score"]) || 0,
       comments: Number(attrs["data-comments-count"]) || 0,
@@ -310,24 +335,41 @@ async function fetchViaRss(subs: string, t: string, revalidate?: number): Promis
     revalidate: revalidate ?? 600,
   });
   const parsed = await new Parser().parseString(xml);
-  return (parsed.items ?? [])
+  return mapRedditAtom(parsed.items ?? []);
+}
+
+interface AtomEntry { id?: string; title?: string; link?: string; content?: string; isoDate?: string; author?: string }
+
+/**
+ * The public feed carries no votes or comment counts, but it is ordered by the
+ * day's top score and each entry's body links the article behind a link post.
+ * Keep both: the link lets a post join its story across sources, and the list
+ * position stands in for popularity without inventing a number.
+ */
+export function mapRedditAtom(entries: AtomEntry[]): FeedItem[] {
+  const usable = entries
     .filter((item) => item.title && item.link?.startsWith("http"))
-    .filter((item) => !/^(mentorship monday|weekly.*thread)/i.test(item.title ?? ""))
-    .map((item) => {
-      const sub = /\/r\/([^/]+)\//.exec(item.link ?? "")?.[1];
-      const body = stripHtml(item.content ?? "")
-        .replace(/submitted by\s.*$/i, "")
-        .replace(/\[link\]|\[comments\]/gi, "")
-        .trim();
-      return {
-        id: `reddit:${item.id ?? item.link}`,
-        source: "reddit" as const,
-        title: (item.title ?? "").trim(),
-        url: item.link as string,
-        author: (item as { author?: string }).author?.replace(/^\/u\//, ""),
-        timestamp: item.isoDate ?? new Date().toISOString(),
-        excerpt: body ? truncate(body, 280) : undefined,
-        sourceMeta: sub ? `r/${sub}` : undefined,
-      };
-    });
+    .filter((item) => !/^(mentorship monday|weekly.*thread)/i.test(item.title ?? ""));
+  return usable.map((item, index) => {
+    const content = item.content ?? "";
+    const sub = /\/r\/([^/]+)\//.exec(item.link ?? "")?.[1];
+    const body = stripHtml(content)
+      .replace(/submitted by\s.*$/i, "")
+      .replace(/\[link\]|\[comments\]/gi, "")
+      .trim();
+    const thumbnail = /<img[^>]*\bsrc="(https:\/\/[^"]+)"/i.exec(content)?.[1];
+    return {
+      id: `reddit:${item.id ?? item.link}`,
+      source: "reddit" as const,
+      title: (item.title ?? "").trim(),
+      url: item.link as string,
+      externalUrl: redditOutboundLink(/<a\s[^>]*\bhref="([^"]+)"[^>]*>\s*\[link\]\s*<\/a>/i.exec(content)?.[1]),
+      thumbnail: thumbnail && thumbnail.length <= 2048 ? decodeEntities(thumbnail) : undefined,
+      author: item.author?.replace(/^\/u\//, ""),
+      timestamp: item.isoDate ?? new Date().toISOString(),
+      excerpt: body ? truncate(body, 280) : undefined,
+      sourceMeta: sub ? `r/${sub}` : undefined,
+      ...(usable.length > 1 ? { sourceRank: 1 - index / (usable.length - 1) } : {}),
+    };
+  });
 }

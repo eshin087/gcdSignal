@@ -1,4 +1,4 @@
-import { isPrimarySource } from "./curation";
+import { isCommunityUpload, isPrimarySource } from "./curation";
 import type { FeedItem, SourceId } from "./types";
 
 /** Remove tracking, preserving parameters that identify articles and videos. */
@@ -16,7 +16,7 @@ export function canonicalUrl(value: string): string {
   } catch { return value; }
 }
 
-const socialHosts = new Set(["reddit.com", "old.reddit.com", "news.ycombinator.com", "bsky.app", "x.com", "twitter.com", "youtube.com", "youtu.be", "4chan.org"]);
+const socialHosts = new Set(["reddit.com", "old.reddit.com", "redd.it", "i.redd.it", "v.redd.it", "news.ycombinator.com", "bsky.app", "x.com", "twitter.com", "youtube.com", "youtu.be", "4chan.org"]);
 const socialSources = new Set<SourceId>(["reddit", "hackernews", "bluesky", "youtube", "fourchan"]);
 const hostname = (value: string) => {
   try { return new URL(value).hostname.replace(/^www\./, "").toLowerCase(); } catch { return null; }
@@ -25,7 +25,7 @@ const hostname = (value: string) => {
 /** A linked article is one reporting origin even when many platforms repost it. */
 export function reportingPublisher(item: FeedItem): string | null {
   const external = item.externalUrl && hostname(item.externalUrl);
-  if (external && !socialHosts.has(external)) return external;
+  if (external && !socialHosts.has(external) && !isCommunityUpload(item)) return external;
   if (item.source === "rss" || item.source === "papers") return hostname(item.externalUrl ?? item.url);
   if (item.source === "youtube" && isPrimarySource(item)) return (item.author ?? item.sourceMeta ?? "Official channel").trim().toLowerCase();
   return null;
@@ -91,6 +91,20 @@ const eventType = (title: string) => {
   if (/\b(?:launch|launches|release|releases|introduces|announces|unveils)\b/i.test(title)) return "release";
   return null;
 };
+
+/**
+ * Looser than sameEvent: three shared names or key words mark two headlines as
+ * the same developing topic ("Nvidia board investigates Jensen Huang" and "Nvidia
+ * CEO Jensen Huang's letter to staff"). It never merges stories or their read
+ * state; the Brief uses it only to stop one topic from filling the list.
+ */
+export function relatedTopic(a: string, b: string): boolean {
+  const words = (title: string) => tokens(title.replace(/[’']s\b/gi, ""));
+  const other = words(b);
+  let shared = 0;
+  for (const word of words(a)) if (other.has(word) && ++shared >= 3) return true;
+  return false;
+}
 
 export function sameEvent(a: FeedItem, b: FeedItem): boolean {
   const au = canonicalUrl(a.externalUrl ?? a.url), bu = canonicalUrl(b.externalUrl ?? b.url);

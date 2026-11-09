@@ -8,6 +8,33 @@
 > for Brief, Deck, Library and the category (20). The sections below describe the
 > September state and are kept as a dated handoff.
 
+## Coverage fixes, 2026-11-08 (open PR, not merged)
+
+Branch fix/coverage-gaps, based on master f5de216. A live check of production on
+2026-11-08 found the 24-hour Brief showing three stories from one outlet while
+Hacker News's top AI stories, Reddit link posts and every featured paper were
+missing, with all contributors reported healthy. The branch:
+
+- takes Hacker News candidates from popular stories and the front page instead
+  of a title search for "AI";
+- labels unmatched articles from recognized news publishers as News;
+- reads article links and list order from Reddit's public feed, and says when
+  vote counts are missing;
+- dates featured papers by the day they were featured;
+- replaces The Register's quiet AI feed with its main feed and adds Google
+  Research, The Guardian AI, NVIDIA and Techmeme.
+
+Checked on the branch the same day: 128 unit tests, lint, the production build
+and the fixture browser suite (browser-smoke) passed. A local run against live
+sources returned ten Brief stories with 25 of 25 contributors available, led by
+a story with three reporting publishers. Production still runs master and is
+unchanged until the PR is merged. Not diagnosed: why Reddit's scored listing
+fails from production hosting. Selection details are in
+[feed-selection.md](feed-selection.md); what was left out is in
+[ROADMAP.md](ROADMAP.md).
+
+## September snapshot
+
 Snapshot verified **2026-09-11, America/Los_Angeles**. Recheck GitHub before
 treating this as current; this file is intentionally a dated handoff.
 

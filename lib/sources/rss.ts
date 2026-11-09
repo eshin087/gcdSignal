@@ -1,9 +1,11 @@
 import Parser from "rss-parser";
-import { makeMatcher, stripHtml, truncate } from "../fetch-helpers";
+import { decodeEntities, makeMatcher, stripHtml, truncate } from "../fetch-helpers";
+import { AI_PREFILTER_TERMS } from "../ai-lexicon";
 import { AI_TERMS } from "../categories";
 import type { CategoryId, FeedItem } from "../types";
 import { readCachedRssDocument, readRssDocument } from "../rss-fetch";
 import { attachHealth, healthDetail, sourceHealth } from "../source-health";
+import { canonicalUrl } from "../stories";
 
 export interface RssFeedDef {
   label: string;
@@ -14,6 +16,9 @@ export interface RssFeedDef {
   categories?: CategoryId[];
   /** Whole-site feed (not an AI section) — the relevance gate runs strict on these. */
   siteWide?: boolean;
+  /** The feed curates other publishers' articles: each item is credited to the
+   *  article it links, never to the aggregator. */
+  aggregator?: boolean;
 }
 
 export const RSS_FEEDS: RssFeedDef[] = [
@@ -25,7 +30,9 @@ export const RSS_FEEDS: RssFeedDef[] = [
   { label: "The Decoder", url: "https://the-decoder.com/feed/" },
   { label: "Simon Willison", url: "https://simonwillison.net/atom/everything/", siteWide: true },
   { label: "Wired AI", url: "https://www.wired.com/feed/tag/ai/latest/rss" },
-  { label: "The Register AI", url: "https://www.theregister.com/software/ai_ml/headlines.atom" },
+  // The AI section feed went quiet (three entries in eighteen days when checked
+  // 2026-11-08) while the main feed carried daily AI coverage; gate that instead.
+  { label: "The Register", url: "https://www.theregister.com/headlines.atom", keywords: AI_PREFILTER_TERMS, siteWide: true },
   { label: "ZDNet AI", url: "https://www.zdnet.com/topic/artificial-intelligence/rss.xml" },
   { label: "IEEE Spectrum", url: "https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss" },
   { label: "Hugging Face", url: "https://huggingface.co/blog/feed.xml" },
@@ -41,12 +48,18 @@ export const RSS_FEEDS: RssFeedDef[] = [
     siteWide: true,
   },
   { label: "TechRadar AI", url: "https://www.techradar.com/feeds/tag/artificial-intelligence" },
+  { label: "Google Research", url: "https://research.google/blog/rss/" },
+  { label: "The Guardian AI", url: "https://www.theguardian.com/technology/artificialintelligenceai/rss" },
+  { label: "NVIDIA", url: "https://blogs.nvidia.com/feed/", keywords: AI_PREFILTER_TERMS, siteWide: true },
   // Security-category bonus outlets — site-wide feeds, so each is AI-gated.
   { label: "The Hacker News", url: "https://feeds.feedburner.com/TheHackersNews", keywords: AI_TERMS, categories: ["security"], siteWide: true },
   { label: "BleepingComputer", url: "https://www.bleepingcomputer.com/feed/", keywords: AI_TERMS, categories: ["security"], siteWide: true },
   { label: "Krebs on Security", url: "https://krebsonsecurity.com/feed/", keywords: AI_TERMS, categories: ["security"], siteWide: true },
   { label: "Schneier", url: "https://www.schneier.com/feed/atom/", keywords: AI_TERMS, categories: ["security"], siteWide: true },
   { label: "Dark Reading", url: "https://www.darkreading.com/rss.xml", keywords: AI_TERMS, categories: ["security"], siteWide: true },
+  // Keep the aggregator last: when it links an article a publisher above already
+  // supplied, the publisher's own item wins the duplicate check.
+  { label: "Techmeme", url: "https://www.techmeme.com/feed.xml", keywords: AI_PREFILTER_TERMS, siteWide: true, aggregator: true },
 ];
 
 const SITE_WIDE_LABELS = new Set(RSS_FEEDS.filter((f) => f.siteWide).map((f) => f.label));
@@ -133,6 +146,38 @@ function extractThumbnail(item: {
   return candidates.find((c) => typeof c === "string" && c.length <= 2048 && c.startsWith("https://"));
 }
 
+/**
+ * An aggregator item links to the aggregator's own page; the reported article is
+ * the headline link inside the item body. Returns nothing when that link cannot
+ * be read, so a story is never credited to the aggregator itself.
+ */
+export function aggregatedArticle(html: string, feedUrl: string): string | undefined {
+  let own = "";
+  try { own = new URL(feedUrl).hostname.replace(/^www\./, "").toLowerCase(); } catch { return undefined; }
+  const href = /<a\s[^>]*\bhref\s*=\s*"([^"]+)"/gi;
+  // The bold headline link first, then any other outside article link.
+  const candidates = [/<b>\s*<a\s[^>]*\bhref\s*=\s*"([^"]+)"/i.exec(html)?.[1], ...[...html.matchAll(href)].map((match) => match[1])];
+  for (const candidate of candidates) {
+    if (!candidate || candidate.length > 2048) continue;
+    try {
+      const url = new URL(decodeEntities(candidate));
+      const host = url.hostname.replace(/^www\./, "").toLowerCase();
+      if (url.protocol !== "https:" || host === own || host.endsWith("." + own)) continue;
+      if (url.pathname === "/" && !url.search) continue; // a publication's homepage, not the article
+      return url.toString();
+    } catch { /* try the next link */ }
+  }
+  return undefined;
+}
+
+/** "Headline (Reporter/Publication)" → the headline and its credit. */
+export function splitAggregatedTitle(title: string): { title: string; credit?: string } {
+  const match = /\s*\(([^()]{2,80})\)\s*$/.exec(title);
+  return match && match.index > 0
+    ? { title: title.slice(0, match.index).trim(), credit: match[1].replace(/\s*\/\s*/g, " / ").trim() }
+    : { title: title.trim() };
+}
+
 export async function fetchRss(
   {
     url,
@@ -160,25 +205,36 @@ export async function fetchRss(
       const feedFilter = makeMatcher(f.keywords ?? []);
       const items: FeedItem[] = (parsed.items ?? [])
         .filter((item) => item.title && item.link && item.link.length <= 2048 && /^https?:\/\//i.test(item.link))
-        .map((item) => ({ item, time: Date.parse(item.isoDate ?? item.pubDate ?? ""), excerpt: stripHtml(item.contentSnippet ?? item.content ?? "") }))
+        .map((item) => {
+          const text = stripHtml(item.contentSnippet ?? item.content ?? "");
+          const headline = f.aggregator ? splitAggregatedTitle(item.title ?? "") : { title: (item.title ?? "").trim() };
+          return {
+            item, headline, time: Date.parse(item.isoDate ?? item.pubDate ?? ""),
+            // An aggregator's text is "Reporter / Publication: headline — summary".
+            excerpt: f.aggregator ? text.split(/\s+—\s+/).slice(1).join(" — ") : text,
+            article: f.aggregator ? aggregatedArticle(typeof item.content === "string" ? item.content : "", f.url) : undefined,
+          };
+        })
         // Apply topic and date validity before the outlet cap. A publisher's
         // newer unrelated stories must not hide its older relevant coverage.
-        .filter(({ item, time, excerpt }) => Number.isFinite(time) &&
-          feedFilter(item.title ?? "", excerpt) && matches(item.title ?? "", excerpt))
+        .filter(({ headline, time, excerpt, article }) => Number.isFinite(time) && (!f.aggregator || article) &&
+          feedFilter(headline.title, excerpt) && matches(headline.title, excerpt))
         .sort((a, b) => b.time - a.time)
         .slice(0, 8)
-        .map(({ item, time, excerpt }) => {
+        .map(({ item, headline, time, excerpt, article }) => {
           return {
             id: `rss:${String(item.guid ?? item.link).slice(0, 2048)}`,
             source: "rss" as const,
-            title: truncate((item.title ?? "").trim(), 500),
+            title: truncate(headline.title, 500),
             url: item.link as string,
+            ...(article ? { externalUrl: article } : {}),
             thumbnail: extractThumbnail(item as Parameters<typeof extractThumbnail>[0]),
-            author: normalizeRssAuthor(item.creator) ?? normalizeRssAuthor((item as { author?: unknown }).author),
+            author: (headline.credit ? truncate(headline.credit, 120) : undefined)
+              ?? normalizeRssAuthor(item.creator) ?? normalizeRssAuthor((item as { author?: unknown }).author),
             timestamp: new Date(time).toISOString(),
             excerpt: excerpt ? truncate(excerpt, 280) : undefined,
             sourceMeta: feedLabel,
-            readMinutes: estimateReadMinutes(item as { contentEncoded?: string; content?: string }),
+            readMinutes: f.aggregator ? undefined : estimateReadMinutes(item as { contentEncoded?: string; content?: string }),
           };
         });
       const status = Date.now() - Date.parse(fetchedAt) >= 300_000 ? "stale" : "ok";
@@ -200,8 +256,10 @@ export async function fetchRss(
   const candidates = fulfilled
     .flatMap((r) => r.value)
     .filter((item) => {
-      if (seen.has(item.url)) return false;
-      seen.add(item.url);
+      // One row per article, whether a publisher or an aggregator supplied it.
+      const key = canonicalUrl(item.externalUrl ?? item.url);
+      if (seen.has(key)) return false;
+      seen.add(key);
       return Date.parse(item.timestamp) > floor;
     });
 

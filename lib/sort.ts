@@ -34,14 +34,17 @@ export function sortItems(items: FeedItem[], mode: SortMode, followed: CategoryI
   ];
 }
 
-/** Missing values are neutral. Equal engagement values share their midrank. */
+/** Missing values are neutral unless the source ranked the item itself. Equal
+ *  engagement values share their midrank. */
 export function engagementPercentiles(items: FeedItem[]): Map<FeedItem, number> {
   const result = new Map<FeedItem, number>();
   for (const source of new Set(items.map((it) => it.source))) {
     const group = items.filter((it) => it.source === source);
     const value = (it: FeedItem) => Math.max(0, it.score ?? 0) + 2 * Math.max(0, it.comments ?? 0);
     const measured = group.filter((it) => typeof it.score === "number" || typeof it.comments === "number").sort((a, b) => value(a) - value(b));
-    for (const item of group) result.set(item, 0.5);
+    // A source that publishes an order but no counts still says which posts lead.
+    for (const item of group) result.set(item, typeof item.sourceRank === "number" && Number.isFinite(item.sourceRank)
+      ? Math.min(1, Math.max(0, item.sourceRank)) : 0.5);
     for (let i = 0; i < measured.length;) {
       let end = i + 1;
       while (end < measured.length && value(measured[end]) === value(measured[i])) end++;

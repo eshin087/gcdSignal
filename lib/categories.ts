@@ -30,6 +30,7 @@ export interface CategoryDef {
     gate2Subs?: string[];
     gate2Terms?: string[];
   };
+  /** Keyword search a topic column adds to the shared popular pool; All AI uses the pool alone. */
   hackernews: { q: string };
   bluesky: { q: string };
   fourchan: { board: string; keywords: string[]; aiGate?: boolean };
@@ -239,8 +240,14 @@ export function resolveParams(
         gate2Terms: (def.reddit.gate2Terms ?? []).join(","),
       };
     }
-    case "hackernews":
-      return { q: sp.get("q") ?? def.hackernews.q };
+    case "hackernews": {
+      // A custom feed keeps its explicit query. Built-in columns share one pool
+      // of popular stories filtered by the AI gate and topic rules; topic
+      // columns add their keyword search so a thin topic keeps its depth.
+      const q = sp.get("q");
+      if (q) return { q, topic: "" };
+      return { q: "", topic: category === "trending" ? "" : def.hackernews.q };
+    }
     case "bluesky":
       return { q: sp.get("q") ?? def.bluesky.q };
     case "fourchan": {

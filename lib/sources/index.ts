@@ -30,7 +30,7 @@ export const SOURCES: Record<
       },
       f
     ),
-  hackernews: (p, f) => fetchHackerNews({ q: p.q }, f),
+  hackernews: (p, f) => fetchHackerNews({ q: p.q || undefined, topic: p.topic || undefined }, f),
   bluesky: (p, f) => fetchBluesky({ q: p.q }, f),
   fourchan: (p, f) =>
     fetchFourchan({ board: p.board, keywords: splitList(p.keywords), aiGate: p.aiGate === "1" }, f),

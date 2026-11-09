@@ -9,7 +9,12 @@ The default experience is a broad AI **Brief**; Builder is an optional filter.
 1. Adapters request category-specific communities, searches, channels and RSS
    sources. A story absent from those candidate pools cannot be recovered by
    later ranking. The “All AI” category retains the internal identifier
-   "trending" for API and stored-preference compatibility.
+   "trending" for API and stored-preference compatibility. Hacker News does
+   not use a keyword for its built-in columns: they take the past week's
+   stories with at least 40 points plus the live front page, and the AI gate
+   chooses from that pool. A title search for “AI” never requested a story
+   such as “Goldman Sachs is pulling Claude Code from its bankers”. Topic
+   columns add their keyword search for depth; a custom query keeps its scope.
 2. A source-aware AI gate checks the editorial headline/excerpt. General
    sources normally need a headline match; balanced sources may match two
    distinct excerpt keywords or a contextual model name. A sparse strict source
@@ -17,12 +22,23 @@ The default experience is a broad AI **Brief**; Builder is an optional filter.
 3. Ambiguous names such as “Gemini” or “Llama” need AI/model context. Sponsor
    copy and URLs embedded in promotional text do not establish AI relevance.
    Known AI-native primary announcement sites can introduce unfamiliar names.
-   These remain imperfect text rules, not semantic understanding.
+   “Claude” alone counts as the assistant unless a well-known person's surname
+   follows, and Nvidia counts unless the headline is about graphics cards or
+   drivers. Robotics and embodied-AI terms are part of the word list. Whole-site
+   feeds (The Register, NVIDIA, Techmeme, the security outlets) are prefiltered
+   on the wide term list before each outlet's eight-item cap, then pass the
+   strict headline gate. These remain imperfect text rules, not semantic
+   understanding, and a fixed word list ages as new names appear.
 4. Content labels and topics use editorial text plus the linked article path.
    Explicit research, security, industry and technical cues produce labels such
    as News, Release, Research or Tool. Broad/All AI does not remove the selected
    topic filter. Builder additionally retains technical types; it carries no
-   hidden ranking bonus.
+   hidden ranking bonus. When no cue matches, an article from a recognized
+   news publisher is labeled News instead of Commentary, and the reason
+   “Reported by a recognized news publisher” is shown. First-person, question,
+   list, opinion and review headlines keep the Commentary label. A lab's own
+   headline that leads with a versioned product name (“Gemini 4 Carbon: …”) is
+   a Release, and a post that links straight to arXiv is Research.
 5. Explicit custom feeds retain their chosen scope instead of inheriting the
    built-in AI/topic gates. Author/outlet mutes apply even to custom feeds.
 
@@ -48,9 +64,12 @@ Bluesky is an optional Deck source and is not requested for the Brief.
 Ranking favors primary sources, bounded reporting breadth and freshness.
 Engagement is a small tie-breaker, not proof of importance. Primary papers have
 a smaller source bonus than other primary announcements. While substantive
-non-paper stories remain, at most two paper-only stories are selected; an outlet
-diversity pass also reduces domination by one publisher. Quiet windows may
-contain fewer than ten stories.
+non-paper stories remain, at most two paper-only stories are selected; a post
+that links straight to arXiv counts as a paper here. An outlet diversity pass
+also reduces domination by one publisher, and one developing topic (headlines
+that share three names or key words) takes at most two places while other
+stories are available. That pass never merges stories or their read state.
+Quiet windows may contain fewer than ten stories.
 
 The main Brief is not reranked by followed topics or company terms. Following
 adds a separate section using recently collected items. “Since your last visit”
@@ -61,12 +80,17 @@ published during this visit.
 
 - A **primary source** is an original announcement/research link recognized by
   source/domain rules. This is provenance, not a quality or truth guarantee.
+  On Hugging Face only blog and paper pages qualify: anyone can upload a model,
+  dataset or demo there, so such a link is neither primary nor reporting.
 - A **reporting publisher** is the article's domain (or a recognized official
   video channel). The same article linked by RSS, Reddit and Hacker News counts
   as one reporting origin.
 - A **discussion platform** records circulation on services such as Reddit,
   Hacker News or YouTube. It is counted separately and does not add independent
-  reporting weight.
+  reporting weight. Reddit's own image and video hosts are not outside sources.
+- An **aggregator** (Techmeme) curates other publishers' articles. Each item is
+  credited to the article it links; when a publisher's own feed already
+  supplied that article, the aggregator's copy is dropped.
 
 Different publisher domains may still repeat one press release or claim.
 Counts are never presented as verification. The source drawer lets you inspect
@@ -78,7 +102,9 @@ Deck sorting remains available for deeper browsing:
 
 - **Signal:** 45% freshness, 30% engagement percentile within each source and
   25% followed-topic match. Equal metric values share a rank; missing engagement
-  is neutral. There is no Builder bonus.
+  is neutral. There is no Builder bonus. When Reddit serves only its public
+  feed, which has no vote or comment counts, a post's position in Reddit's own
+  top-of-day order stands in for engagement; no number is invented or shown.
 - **New:** publication time.
 - **Hot:** the adapter's existing ordering.
 - **Top / Discussed:** available score/comment values; missing metrics follow
@@ -111,6 +137,18 @@ Cold Brief loads request news/RSS and Hacker News first, followed by the full
 source set. The API calls this first pass phase=primary; it means the initial
 reporting pass, not “every item is a primary source.” A complete response may
 still have failed contributors, which are reported separately.
+
+A featured paper is dated by the day Hugging Face featured it, stamped at the
+start of that UTC day. Its arXiv date is typically two days older and used to
+push every community-ranked paper out of the recency windows. A paper resurfaced
+more than a week after publication keeps its original date. All AI columns show
+the last 72 hours; because papers arrive in weekday batches, the Papers column
+keeps its newest batch over weekends and holidays, for at most seven days.
+
+Reddit's public feed still links the article behind a link post, so such a post
+can join its story across sources. A contributor that is available but limited,
+such as Reddit without counts, reports that in its coverage details and in a
+note on its Deck column rather than as a failure.
 
 Responses include retrieval time, aggregate source health and available
 publisher/channel details. Health distinguishes successful, failed and stale
@@ -183,7 +221,8 @@ Run npm test, npm run lint and npm run build. Pure fixtures cover AI/topic
 gates, sponsor and ambiguous-name rejection, unbiased Signal ranking,
 reporting-versus-platform counts, substantive Brief eligibility, 24/72-hour
 windows, repost age, release identity, library import/retention and security
-helpers.
+helpers. The coverage-gaps suite covers the Hacker News pool, publisher-default
+labels, Reddit's public feed, paper dating and the news roster.
 
 Optional node tests/library-browser.mjs exercises real IndexedDB with an
 isolated browser origin. node tests/browser-smoke.mjs runs fixture-based UI

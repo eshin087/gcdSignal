@@ -20,12 +20,12 @@ The default is **Brief + All AI**, not Builder. Selection uses transparent rules
 
 Server adapters normalize source data into feed items. Availability, metrics and coverage vary; no source supplies an exhaustive view of AI news.
 
-- **AI News:** curated editorial RSS plus verified primary feeds including OpenAI, Google AI and Hugging Face. Anthropic and Microsoft AI newsroom links are provided as direct links, not claimed as live feed integrations.
-- **Reddit:** optional OAuth credentials; HTML and Atom paths provide best-effort fallbacks. Missing engagement is not fabricated.
+- **AI News:** curated editorial RSS plus verified primary feeds including OpenAI, Google AI, Google Research and Hugging Face. Techmeme's curated headlines are credited to the publisher each one links, not to Techmeme. Anthropic and Microsoft AI newsroom links are provided as direct links, not claimed as live feed integrations.
+- **Reddit:** optional OAuth credentials; HTML and Atom paths provide best-effort fallbacks. The Atom path has no vote or comment counts: the column says so, keeps Reddit's own top-of-day order and still reads the article behind a link post. Missing engagement is not fabricated.
 - **YouTube:** an optional YOUTUBE_API_KEY enables API search; curated channel RSS is the fallback. Quotas and channel availability still apply.
-- **Hacker News:** category queries over available posts.
+- **Hacker News:** the past week's stories that drew real attention plus the live front page, filtered by the AI rules. Topic columns add a keyword search.
 - **Bluesky:** an optional Deck source, disabled by default and excluded from the Brief because of recurring connection errors. Explicit custom feeds and a later choice to enable its column remain available.
-- **Papers / GitHub / 4chan:** optional Deck columns. GitHub shows recently active repositories ranked by existing stars, not measured star growth. Papers combine Hugging Face and arXiv; 4chan is text-only, opt-in and hidden by default.
+- **Papers / GitHub / 4chan:** optional Deck columns. GitHub shows recently active repositories ranked by existing stars, not measured star growth. Papers combine Hugging Face and arXiv, and a featured paper is dated by the day it was featured; 4chan is text-only, opt-in and hidden by default.
 
 Custom feeds support subreddit groups, RSS URLs, YouTube channels, GitHub/Hacker News/Bluesky searches and 4chan boards. Their explicitly chosen scope is kept across topic changes; author/outlet mutes still apply.
 

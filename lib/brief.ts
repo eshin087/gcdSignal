@@ -1,6 +1,6 @@
-import { classify, isPrimarySource } from "./curation";
+import { classify, isPaper, isPrimarySource } from "./curation";
 import { engagementPercentiles } from "./sort";
-import { discussionPlatform, groupStories, reportingPublisher, stableStoryId } from "./stories";
+import { discussionPlatform, groupStories, relatedTopic, reportingPublisher, stableStoryId } from "./stories";
 import type { BriefStory, FeedItem, SourceId } from "./types";
 
 /** Importance-first, source-backed briefing; no private personalization or paid AI. */
@@ -32,7 +32,7 @@ export function buildTop10(items: FeedItem[], now = Date.now(), windowHours: 24 
       // Engagement is only a small tie-breaker. Reposts do not add reporting
       // breadth, and independent origins have a bounded contribution.
       const engagement = Math.max(...members.map((it) => pcts.get(it) ?? 0.5));
-      const paperOnly = members.every((it) => it.source === "papers");
+      const paperOnly = members.every(isPaper);
       const score = (primary ? paperOnly ? 0.55 : 1.2 : 0) + Math.min(3, Math.max(0, origins.length - 1))
         + 0.6 * Math.pow(0.5, Math.max(0, (now - first) / 3600000) / 24) + 0.25 * engagement;
       const ordered = [...members].sort((a, b) => {
@@ -68,11 +68,15 @@ export function buildTop10(items: FeedItem[], now = Date.now(), windowHours: 24 
   const counts = new Map<string, number>();
   let papers = 0;
   while (ranked.length && chosen.length < 10) {
-    const paperOnly = (story: BriefStory) => story.members!.every((it) => it.source === "papers");
+    const paperOnly = (story: BriefStory) => story.members!.every(isPaper);
     const nonPapersRemain = ranked.some(({ story }) => !paperOnly(story));
     const eligible = ranked.filter(({ story }) => papers < 2 || !nonPapersRemain || !paperOnly(story));
     const origin = (story: BriefStory) => reportingPublisher(story.members![0]) ?? story.sources[0];
-    const next = eligible.find(({ story }) => (counts.get(origin(story)) ?? 0) < 3) ?? eligible[0];
+    const outletOpen = ({ story }: { story: BriefStory }) => (counts.get(origin(story)) ?? 0) < 3;
+    // One developing topic covered from several angles takes at most two places
+    // while other stories are waiting; the rest stay available in the Deck.
+    const topicOpen = ({ story }: { story: BriefStory }) => chosen.filter((picked) => relatedTopic(picked.title, story.title)).length < 2;
+    const next = eligible.find((entry) => outletOpen(entry) && topicOpen(entry)) ?? eligible.find(outletOpen) ?? eligible[0];
     ranked.splice(ranked.indexOf(next), 1);
     counts.set(origin(next.story), (counts.get(origin(next.story)) ?? 0) + 1);
     if (paperOnly(next.story)) papers++;

@@ -17,7 +17,7 @@ notes and reading history remain in the browser.
 | Brief loading and rendering | [BriefView](../components/BriefView.tsx), [use-brief](../lib/use-brief.ts), [Brief API](../app/api/brief/route.ts), [brief selection](../lib/brief.ts) |
 | Deck loading and rendering | [ColumnDeck](../components/ColumnDeck.tsx), [FeedColumn](../components/FeedColumn.tsx), [use-feed](../lib/use-feed.ts), [feed API](../app/api/feeds/[source]/route.ts) |
 | Queries and source adapters | [categories](../lib/categories.ts), [feed-request](../lib/feed-request.ts), [source registry](../lib/sources/index.ts), [adapters](../lib/sources/) |
-| Relevance, classification and ranking | [relevance](../lib/relevance.ts), [curation](../lib/curation.ts), [sort](../lib/sort.ts), [stories](../lib/stories.ts), [story-progress](../lib/story-progress.ts) |
+| Relevance, classification and ranking | [AI word list](../lib/ai-lexicon.ts), [relevance](../lib/relevance.ts), [curation](../lib/curation.ts), [recency windows](../lib/recency.ts), [sort](../lib/sort.ts), [stories](../lib/stories.ts), [story-progress](../lib/story-progress.ts) |
 | Research library and source inspection | [ResearchScreen](../components/ResearchScreen.tsx), [LibraryView](../components/LibraryView.tsx), [StoryDrawer](../components/StoryDrawer.tsx), [library](../lib/library.ts), [use-library](../lib/use-library.ts) |
 | X sources and widgets | [XReadingPanel](../components/XReadingPanel.tsx), [x-links](../lib/x-links.ts) |
 | Fetch boundaries and security headers | [safe-fetch](../lib/safe-fetch.ts), [rss-fetch](../lib/rss-fetch.ts), [fetch-helpers](../lib/fetch-helpers.ts), [Next config](../next.config.ts) |

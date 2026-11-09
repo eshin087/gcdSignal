@@ -8,6 +8,9 @@ interface HfPaper {
     id?: string;
     title?: string;
     summary?: string;
+    publishedAt?: string;
+    /** When the paper joined the daily list; stamped at the start of that UTC day. */
+    submittedOnDailyAt?: string;
     upvotes?: number;
     organization?: string | { name?: string; fullname?: string };
     authors?: Array<{ name?: string }>;
@@ -69,6 +72,25 @@ export function normalizePaperAuthor(organization: unknown, fallback: unknown): 
   return text(organization) ?? text(fallback);
 }
 
+const RESURFACED_MS = 7 * 86400_000;
+
+/**
+ * A featured paper is dated by the day Hugging Face featured it. Its arXiv date
+ * is typically two days older, which pushed every community-ranked paper out of
+ * the recency windows and left the Papers column empty. A paper resurfaced more
+ * than a week after publication keeps its original date, so an old paper is not
+ * presented as new.
+ */
+export function paperTimestamp(publishedAt: unknown, featuredAt: unknown, now = Date.now()): string {
+  const published = typeof publishedAt === "string" ? Date.parse(publishedAt) : NaN;
+  const featured = typeof featuredAt === "string" ? Date.parse(featuredAt) : NaN;
+  const usable = (time: number) => Number.isFinite(time) && time <= now + 300_000;
+  if (usable(featured) && (!usable(published) || (featured >= published && featured - published <= RESURFACED_MS))) {
+    return new Date(featured).toISOString();
+  }
+  return new Date(usable(published) ? published : now).toISOString();
+}
+
 async function fetchHf(revalidate?: number): Promise<FeedItem[]> {
   const papers = await fetchJson<HfPaper[]>("https://huggingface.co/api/daily_papers?limit=50", {
     revalidate,
@@ -88,7 +110,7 @@ async function fetchHf(revalidate?: number): Promise<FeedItem[]> {
       score: p.paper!.upvotes ?? 0,
       comments: p.numComments ?? 0,
       author: normalizePaperAuthor(p.paper!.organization, p.paper!.authors?.[0]?.name),
-      timestamp: p.publishedAt ?? new Date().toISOString(),
+      timestamp: paperTimestamp(p.publishedAt ?? p.paper!.publishedAt, p.paper!.submittedOnDailyAt),
       excerpt: p.paper!.summary ? truncate(p.paper!.summary.replace(/\s+/g, " "), 240) : undefined,
       // These are all arXiv papers — HF just supplies the community engagement.
       sourceMeta: "arXiv",
