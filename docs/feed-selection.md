@@ -96,6 +96,19 @@ Different publisher domains may still repeat one press release or claim.
 Counts are never presented as verification. The source drawer lets you inspect
 the actual coverage, and excerpts remain publisher-provided text.
 
+A Brief card states this evidence on one line under its excerpt: where the
+headline leads, who wrote the excerpt, the number of reporting publishers when
+there is more than one, the largest Hacker News or Reddit vote total, and the
+comment total. The headline member is chosen for its link, so when it carries
+no publisher text the card shows another member's summary from a publisher's
+own feed and names that feed. A poster's remark is used only when no publisher
+text exists and is credited to where it was posted, never to the linked site.
+Views and likes are not shown as points.
+
+RSS excerpts leave out image captions and credits, and list items that are
+mostly link text (newsletter prompts, related headlines). A body with neither
+keeps the feed parser's own text.
+
 ## Deck ranking and story identity
 
 Deck sorting remains available for deeper browsing:

@@ -113,13 +113,33 @@ body { background-color: #f8f9fa; }
 /* Share the existing html[data-text] scale without changing Deck typography. */
 .reader-page, [aria-label="Research library"] {
   --reader-title: calc(var(--fs-title) + 6px);
-  --reader-title-wide: calc(var(--fs-title) + 10px);
-  --reader-body: calc(var(--fs-excerpt) + 2px);
+  --reader-title-wide: calc(var(--fs-title) + 8px);
+  --reader-body: calc(var(--fs-excerpt) + 3px);
   --library-title: calc(var(--fs-title) + 4px);
   --library-body: calc(var(--fs-excerpt) + 1px);
 }
 .reader-page .brief-story h2 { font-size: var(--reader-title); }
-.reader-page .reader-excerpt { font-size: var(--reader-body); line-height: 1.85; }
+/* A measure of about 75 characters (em, since ch is wide in this face). The
+   excerpt is cut to roughly 140 characters, which is three lines on a phone and
+   two on a wide screen, until the story's Details open. */
+.reader-page .reader-excerpt {
+  max-width: 36em; font-size: var(--reader-body); line-height: 1.6;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+}
+@media (min-width: 640px) { .reader-page .reader-excerpt { -webkit-line-clamp: 2; } }
+.reader-page .brief-story:has(details[open]) .reader-excerpt { display: block; overflow: visible; }
+.reader-page .brief-story .text-xs { font-size: calc(var(--fs-meta) + 1px); }
+/* The signal line is the Details summary: counted evidence, then the toggle. */
+.brief-summary {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0 .75rem;
+  cursor: pointer; list-style: none; line-height: 1.45; padding-block: .35rem;
+}
+.brief-summary::-webkit-details-marker { display: none; }
+.brief-details-toggle { white-space: nowrap; color: #71717a; }
+.dark .brief-details-toggle { color: #a1a1aa; }
+.brief-details-toggle::after { content: " +"; }
+details[open] > .brief-summary .brief-details-toggle::after { content: " \2212"; }
+.brief-summary:hover .brief-details-toggle { color: var(--accent); }
 [aria-label="Research library"] article h2 { font-size: var(--library-title); }
 [aria-label="Research library"] article > p { font-size: var(--library-body); }
 .reader-page .text-sm, [aria-label="Research library"] .text-sm { font-size: var(--fs-ui); }

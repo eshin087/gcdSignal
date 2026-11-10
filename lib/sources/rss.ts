@@ -1,5 +1,5 @@
 import Parser from "rss-parser";
-import { decodeEntities, makeMatcher, stripHtml, truncate } from "../fetch-helpers";
+import { decodeEntities, excerptMarkup, makeMatcher, stripHtml, truncate } from "../fetch-helpers";
 import { AI_PREFILTER_TERMS } from "../ai-lexicon";
 import { AI_TERMS } from "../categories";
 import type { CategoryId, FeedItem } from "../types";
@@ -206,7 +206,12 @@ export async function fetchRss(
       const items: FeedItem[] = (parsed.items ?? [])
         .filter((item) => item.title && item.link && item.link.length <= 2048 && /^https?:\/\//i.test(item.link))
         .map((item) => {
-          const text = stripHtml(item.contentSnippet ?? item.content ?? "");
+          // Captions and link lists can only be told apart from the article's
+          // own text while the tags are still there. A body with neither keeps
+          // the parser's snippet, which decodes every named entity.
+          const markup = typeof item.content === "string" ? item.content : "";
+          const cleaned = excerptMarkup(markup);
+          const text = stripHtml(cleaned !== markup ? cleaned : item.contentSnippet ?? markup);
           const headline = f.aggregator ? splitAggregatedTitle(item.title ?? "") : { title: (item.title ?? "").trim() };
           return {
             item, headline, time: Date.parse(item.isoDate ?? item.pubDate ?? ""),

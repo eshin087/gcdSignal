@@ -55,6 +55,19 @@ export async function fetchText(url: string, opts: FetchOpts = {}): Promise<stri
   return readLimitedText(res);
 }
 
+/** Named entities that appear in headlines and summaries: Latin-1 in code-point
+ *  order from U+00A1, then punctuation. An unlisted name is left as written. */
+const NAMED_ENTITIES: ReadonlyMap<string, string> = new Map([
+  ...("iexcl cent pound curren yen brvbar sect uml copy ordf laquo not shy reg macr deg plusmn sup2 sup3 acute micro para middot cedil sup1 ordm raquo frac14 frac12 frac34 iquest "
+    + "Agrave Aacute Acirc Atilde Auml Aring AElig Ccedil Egrave Eacute Ecirc Euml Igrave Iacute Icirc Iuml ETH Ntilde Ograve Oacute Ocirc Otilde Ouml times Oslash Ugrave Uacute Ucirc Uuml Yacute THORN szlig "
+    + "agrave aacute acirc atilde auml aring aelig ccedil egrave eacute ecirc euml igrave iacute icirc iuml eth ntilde ograve oacute ocirc otilde ouml divide oslash ugrave uacute ucirc uuml yacute thorn yuml")
+    .split(" ").map((name, index): [string, string] => [name, String.fromCodePoint(0xa1 + index)]),
+  ...Object.entries({
+    ndash: 0x2013, mdash: 0x2014, lsquo: 0x2018, rsquo: 0x2019, sbquo: 0x201a, ldquo: 0x201c, rdquo: 0x201d, bdquo: 0x201e,
+    bull: 0x2022, hellip: 0x2026, prime: 0x2032, lsaquo: 0x2039, rsaquo: 0x203a, euro: 0x20ac, trade: 0x2122, larr: 0x2190, rarr: 0x2192, minus: 0x2212,
+  }).map(([name, code]): [string, string] => [name, String.fromCodePoint(code)]),
+]);
+
 export function decodeEntities(s: string): string {
   return s
     .replace(/&#(\d+);/g, (_, n) => safeCodePoint(Number(n)))
@@ -64,6 +77,7 @@ export function decodeEntities(s: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&nbsp;/g, " ")
+    .replace(/&([A-Za-z][A-Za-z0-9]{2,6});/g, (entity, name: string) => NAMED_ENTITIES.get(name) ?? entity)
     .replace(/&amp;/g, "&");
 }
 
@@ -84,6 +98,23 @@ export function stripHtml(html: string): string {
   )
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * A feed body without the parts that are not the article's own summary. Image
+ * captions and credits are not its words, and a list item that is mostly link
+ * text is a newsletter prompt or a related headline. Returns the input
+ * unchanged when it has neither, so callers can tell nothing was removed.
+ */
+export function excerptMarkup(html: string): string {
+  const linkShare = (inner: string) => {
+    const linked = [...inner.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/gi)].reduce((sum, match) => sum + stripHtml(match[1]).length, 0);
+    return linked / Math.max(1, stripHtml(inner).length);
+  };
+  return html
+    .replace(/<figure\b[\s\S]*?<\/figure>/gi, " ")
+    .replace(/<figcaption\b[\s\S]*?<\/figcaption>/gi, " ")
+    .replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (item, inner: string) => (linkShare(inner) >= 0.5 ? " " : item));
 }
 
 export function truncate(s: string, max: number): string {

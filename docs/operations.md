@@ -28,6 +28,7 @@ Select additional checks for the affected contract:
 | --- | --- |
 | Relevance, categories, ranking, identity/progress | Unit suites curation, dependable-ranking, story-progress and coverage-gaps |
 | Source normalization and partial Brief failures | Unit suites source-quality, papers-contract, brief-resilience and coverage-gaps |
+| Brief card evidence line, excerpt choice and excerpt cleanup | Unit suite brief-card; node tests/browser-smoke.mjs for the card layout |
 | Caches, fetch boundaries and headers | Unit suites security, server-cache, feed-cache and rss-cache |
 | Preferences and X URL validation | Unit suite reader-preferences |
 | Library/backup contracts | Unit suite library; node tests/library-browser.mjs for real IndexedDB |

@@ -8,6 +8,29 @@
 > for Brief, Deck, Library and the category (20). The sections below describe the
 > September state and are kept as a dated handoff.
 
+## Brief card readability, 2026-11-09 (local branch)
+
+Committed on branch feat/brief-card-signal. It was not pushed, merged or
+deployed when this note was written, so check Git and the live deployment
+before treating it as delivered. The change:
+
+- puts the evidence that was behind Details on the card: link origin, excerpt
+  credit, publisher count, top Hacker News or Reddit votes and comments;
+- shows a publisher's summary when the headline member has no text;
+- shortens the excerpt line to about 75 characters, clamps it until Details
+  open, and folds Details into the evidence line;
+- shows relative times, and removes captions, newsletter prompts and related
+  headlines from RSS excerpts.
+
+Checked the same day: 135 unit tests, lint, the production build, and the
+browser-smoke and reading-queue fixture suites passed. On a local run with live
+sources at 1440 by 900, ten stories took 2,203px of scroll, down from 2,995px,
+and the Guardian excerpts no longer carried the newsletter prompt. That run
+reported 6 of 25 contributors on its first request, the known stale local
+cache, so it is not a coverage measurement. Not done from the same review:
+merging near-duplicate events, separating corroborated from latest stories,
+phone header height, Deck card chrome and the command palette label.
+
 ## Coverage fixes, 2026-11-08 (PR 22)
 
 Delivered through [PR #22](https://github.com/eshin087/gcdSignal/pull/22) from

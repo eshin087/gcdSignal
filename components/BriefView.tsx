@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useBrief } from "@/lib/use-brief";
+import { briefCard } from "@/lib/brief-card";
+import { timeAgo } from "@/lib/fetch-helpers";
 import { SOURCE_LABELS } from "@/lib/feeds";
 import { stableStoryId } from "@/lib/stories";
 import { followedBriefRecords, storyProgress, visibleBriefStory } from "@/lib/story-progress";
@@ -12,9 +14,15 @@ import type { BriefStory, CategoryId, FeedItem } from "@/lib/types";
 import { useReading } from "./ReadingContext";
 import CoveragePanel from "./CoveragePanel";
 import { StarIcon } from "./icons";
+import { formatFeedCount } from "./feed-card-style";
 import QueueButton from "./QueueButton";
 
 const EMPTY: FeedItem[] = [];
+/** "6h ago" within the window; the exact time stays in the element's title. */
+function agoLabel(iso: string): string {
+  const ago = timeAgo(iso);
+  return ago === "now" ? "Just now" : /^\d+[mhd]$/.test(ago) ? ago + " ago" : ago;
+}
 export default function BriefView({ refreshKey, category, onFocus, focusActive = false }: { refreshKey: number; category: CategoryId; onFocus?: (trigger: HTMLElement) => void; focusActive?: boolean }) {
   const { prefs, setPrefs } = usePrefs();
   const [windowHours, setWindowHours] = useState<24 | 72>(24);
@@ -72,21 +80,33 @@ export default function BriefView({ refreshKey, category, onFocus, focusActive =
         const readAlready = progress.read;
         const additional = progress.additional;
         const isSaved = saved.has(storyId);
-        return <article key={story.id} data-item-key={story.id} tabIndex={-1} className={"brief-story border-b border-zinc-200 dark:border-zinc-800 " + (index === 0 ? "pb-5 pt-1" : "py-5")}>
-          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+        const card = briefCard(story);
+        const published = story.firstPublishedAt ?? first.timestamp;
+        // The line under the excerpt: where the link leads, who wrote the
+        // excerpt, and the counted evidence that used to wait behind Details.
+        const signals = card ? [
+          ...(!card.excerpt ? ["Via · " + card.origin] : card.excerpt.fromHeadline ? ["Excerpt · " + card.excerpt.credit] : [card.origin, "Excerpt · " + card.excerpt.credit]),
+          ...(card.publishers > 1 ? [card.publishers + " publishers"] : []),
+          ...(card.points ? [`${formatFeedCount(card.points.count)} ${card.points.platform === "reddit" ? (card.points.count === 1 ? "upvote" : "upvotes") : card.points.count === 1 ? "point" : "points"} on ${SOURCE_LABELS[card.points.platform]}`] : []),
+          ...(card.comments ? [`${formatFeedCount(card.comments)} ${card.comments === 1 ? "comment" : "comments"}`] : []),
+        ] : [];
+        return <article key={story.id} data-item-key={story.id} tabIndex={-1} className={"brief-story border-b border-zinc-200 pb-1 dark:border-zinc-800 " + (index === 0 ? "pt-1" : "pt-4")}>
+          <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-zinc-600 dark:text-zinc-400">
             <span className="tabular-nums">{String(index + 1).padStart(2, "0")}</span>
             <span>{first.curation?.kind ?? "AI news"}</span><span aria-hidden>·</span>
-            <time dateTime={story.firstPublishedAt ?? first.timestamp}>{new Date(story.firstPublishedAt ?? first.timestamp).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time>
+            <time dateTime={published} title={new Date(published).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}>{agoLabel(published)}</time>
             {isNew(story) && <span className="text-teal-700 dark:text-teal-300">New to you</span>}
             {additional && <span>Additional coverage</span>}
             {readAlready && <span>Read</span>}
           </div>
           <h2 className="text-xl font-semibold leading-snug tracking-tight sm:text-2xl"><a className="hover:text-teal-700 dark:hover:text-teal-300" href={story.primaryUrl ?? story.url} target="_blank" rel="noopener noreferrer" onClick={() => markRead(members)}>{story.title}</a></h2>
-          {first.excerpt && <p className="reader-excerpt mt-3 leading-relaxed text-zinc-600 dark:text-zinc-300">{first.excerpt.slice(0, 450)}</p>}
-          <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">{first.excerpt ? "Excerpt" : "Via"} · {first.sourceMeta ?? SOURCE_LABELS[first.source]}</p>
-          <div className="mt-1 flex items-start gap-2">
+          {card?.excerpt && <p className="reader-excerpt mt-2 text-zinc-600 dark:text-zinc-300">{card.excerpt.text.slice(0, 450)}</p>}
+          <div className="flex items-start gap-2">
             <details data-story-details className="min-w-0 flex-1 text-xs text-zinc-600 dark:text-zinc-400">
-              <summary className="story-details-summary" aria-label={`Details for ${story.title}`}>Details</summary>
+              <summary className="brief-summary">
+                <span className="min-w-0">{signals.join(" · ")}</span>
+                <span className="brief-details-toggle">Details<span className="sr-only"> for {story.title}</span></span>
+              </summary>
               <div className="story-details-body">
                 <button className="story-action" onClick={() => read(members)}>Sources & discussion</button>
                 <button className="story-action" onClick={() => markRead(members, !readAlready)}>{readAlready ? "Mark unread" : "Mark read"}</button>
@@ -94,7 +114,7 @@ export default function BriefView({ refreshKey, category, onFocus, focusActive =
                 <button className="story-action" onClick={() => members.forEach((item) => setDismissed(item, true))}>Dismiss</button>
               </div>
               <div className="space-y-2 pb-3">
-                <p>{story.publishers?.length ?? 0} reporting {story.publishers?.length === 1 ? "publisher" : "publishers"}{story.platforms?.length ? ` · ${story.platforms.length} discussion ${story.platforms.length === 1 ? "platform" : "platforms"}` : ""}</p>
+                {!!story.platforms?.length && <p>Discussed on {story.platforms.map((platform) => SOURCE_LABELS[platform]).join(", ")}</p>}
                 <ul className="list-inside list-disc space-y-1">{(story.reasons ?? ["Selected from recent AI reporting."]).map((reason) => <li key={reason}>{reason}</li>)}</ul>
                 <p>Rule-based selection, not verification of claims.</p>
               </div>
