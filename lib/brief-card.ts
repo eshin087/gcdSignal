@@ -6,9 +6,8 @@ import type { BriefStory, FeedItem, SourceId } from "./types";
 export interface BriefCard {
   /** Where the headline link leads. */
   origin: string;
-  /** Text to show, and who wrote it. `fromHeadline` is false when it was taken
-   *  from another member of the story than the one the headline links to. */
-  excerpt?: { text: string; credit: string; fromHeadline: boolean };
+  /** Text to show, and who wrote it, which is not always where the headline leads. */
+  excerpt?: { text: string; credit: string };
   /** Distinct reporting publishers. */
   publishers: number;
   /** The largest counted vote total among discussion threads. */
@@ -30,6 +29,18 @@ export function originLabel(item: FeedItem): string {
   return reportingPublisher(item) ?? textCredit(item);
 }
 
+/**
+ * The opening of a card's evidence line. Where the headline leads and who
+ * wrote the excerpt are named separately whenever they differ, whether the
+ * text was borrowed from another publisher or is the poster's own remark on a
+ * shared link.
+ */
+export function briefAttribution(card: BriefCard): string[] {
+  if (!card.excerpt) return ["Via · " + card.origin];
+  const credit = "Excerpt · " + card.excerpt.credit;
+  return card.excerpt.credit === card.origin ? [credit] : [card.origin, credit];
+}
+
 /** Vote totals that mean the same thing to a reader; views and likes do not. */
 const COUNTED: ReadonlySet<SourceId> = new Set<SourceId>(["hackernews", "reddit"]);
 
@@ -49,7 +60,7 @@ export function briefCard(story: BriefStory): BriefCard | null {
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.id.localeCompare(b.id))[0];
   return {
     origin: originLabel(first),
-    ...(summarized ? { excerpt: { text: summarized.excerpt!.trim(), credit: textCredit(summarized), fromHeadline: summarized === first } } : {}),
+    ...(summarized ? { excerpt: { text: summarized.excerpt!.trim(), credit: textCredit(summarized) } } : {}),
     publishers: story.publishers?.length ?? 0,
     ...(counted ? { points: { count: counted.score!, platform: counted.source } } : {}),
     ...(story.comments ? { comments: story.comments } : {}),

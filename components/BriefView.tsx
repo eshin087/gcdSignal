@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useBrief } from "@/lib/use-brief";
-import { briefCard } from "@/lib/brief-card";
+import { briefAttribution, briefCard } from "@/lib/brief-card";
 import { timeAgo } from "@/lib/fetch-helpers";
 import { SOURCE_LABELS } from "@/lib/feeds";
 import { stableStoryId } from "@/lib/stories";
@@ -22,6 +22,15 @@ const EMPTY: FeedItem[] = [];
 function agoLabel(iso: string): string {
   const ago = timeAgo(iso);
   return ago === "now" ? "Just now" : /^\d+[mhd]$/.test(ago) ? ago + " ago" : ago;
+}
+/** Re-renders each minute, so an age stays true while the Brief sits open with auto-refresh off. */
+function StoryTime({ iso }: { iso: string }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((tick) => tick + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return <time dateTime={iso} title={new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}>{agoLabel(iso)}</time>;
 }
 export default function BriefView({ refreshKey, category, onFocus, focusActive = false }: { refreshKey: number; category: CategoryId; onFocus?: (trigger: HTMLElement) => void; focusActive?: boolean }) {
   const { prefs, setPrefs } = usePrefs();
@@ -85,7 +94,7 @@ export default function BriefView({ refreshKey, category, onFocus, focusActive =
         // The line under the excerpt: where the link leads, who wrote the
         // excerpt, and the counted evidence that used to wait behind Details.
         const signals = card ? [
-          ...(!card.excerpt ? ["Via · " + card.origin] : card.excerpt.fromHeadline ? ["Excerpt · " + card.excerpt.credit] : [card.origin, "Excerpt · " + card.excerpt.credit]),
+          ...briefAttribution(card),
           ...(card.publishers > 1 ? [card.publishers + " publishers"] : []),
           ...(card.points ? [`${formatFeedCount(card.points.count)} ${card.points.platform === "reddit" ? (card.points.count === 1 ? "upvote" : "upvotes") : card.points.count === 1 ? "point" : "points"} on ${SOURCE_LABELS[card.points.platform]}`] : []),
           ...(card.comments ? [`${formatFeedCount(card.comments)} ${card.comments === 1 ? "comment" : "comments"}`] : []),
@@ -94,7 +103,7 @@ export default function BriefView({ refreshKey, category, onFocus, focusActive =
           <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-zinc-600 dark:text-zinc-400">
             <span className="tabular-nums">{String(index + 1).padStart(2, "0")}</span>
             <span>{first.curation?.kind ?? "AI news"}</span><span aria-hidden>·</span>
-            <time dateTime={published} title={new Date(published).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}>{agoLabel(published)}</time>
+            <StoryTime iso={published} />
             {isNew(story) && <span className="text-teal-700 dark:text-teal-300">New to you</span>}
             {additional && <span>Additional coverage</span>}
             {readAlready && <span>Read</span>}

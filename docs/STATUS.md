@@ -22,7 +22,7 @@ before treating it as delivered. The change:
 - shows relative times, and removes captions, newsletter prompts and related
   headlines from RSS excerpts.
 
-Checked the same day: 135 unit tests, lint, the production build, and the
+Checked the same day: 136 unit tests, lint, the production build, and the
 browser-smoke and reading-queue fixture suites passed. On a local run with live
 sources at 1440 by 900, ten stories took 2,203px of scroll, down from 2,995px,
 and the Guardian excerpts no longer carried the newsletter prompt. That run

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { load } from "./load-ts.mjs";
-const { briefCard, originLabel } = load("../lib/brief-card.ts");
+const { briefAttribution, briefCard, originLabel } = load("../lib/brief-card.ts");
 const { decodeEntities, excerptMarkup, stripHtml } = load("../lib/fetch-helpers.ts");
 const excerptText = (html) => stripHtml(excerptMarkup(html));
 
@@ -15,7 +15,7 @@ test("a shared link with no text borrows a publisher's summary and credits that 
   const thread = item("thread", { source: "hackernews", url: "https://news.ycombinator.com/item?id=1", externalUrl: "https://lab.example/news/model", score: 950, comments: 576 });
   const card = briefCard(story([shared, report, thread], { publishers: ["lab.example", "news.example"], comments: 781 }));
   assert.equal(card.origin, "lab.example");
-  assert.deepEqual(card.excerpt, { text: "The lab announced two models today.", credit: "The Outlet", fromHeadline: false });
+  assert.deepEqual(card.excerpt, { text: "The lab announced two models today.", credit: "The Outlet" });
   assert.equal(card.publishers, 2);
   assert.deepEqual(card.points, { count: 950, platform: "hackernews" });
   assert.equal(card.comments, 781);
@@ -26,7 +26,7 @@ test("a publisher's own excerpt stays with its headline", () => {
   const other = item("other", { sourceMeta: "Another Outlet", excerpt: "A different summary." });
   const card = briefCard(story([own, other], { publishers: ["news.example"] }));
   assert.equal(card.origin, "The Outlet");
-  assert.deepEqual(card.excerpt, { text: "Its own summary.", credit: "The Outlet", fromHeadline: true });
+  assert.deepEqual(card.excerpt, { text: "Its own summary.", credit: "The Outlet" });
   assert.equal(card.points, undefined);
   assert.equal(card.comments, undefined);
 });
@@ -35,12 +35,22 @@ test("a poster's remark is a last resort and is credited to where it was posted,
   const shared = item("post", { source: "reddit", url: "https://reddit.com/r/ai/comments/one", externalUrl: "https://lab.example/news/model", sourceMeta: "r/ai", excerpt: "This looks big." });
   const alone = briefCard(story([shared]));
   assert.equal(alone.origin, "lab.example");
-  assert.deepEqual(alone.excerpt, { text: "This looks big.", credit: "r/ai", fromHeadline: true });
+  assert.deepEqual(alone.excerpt, { text: "This looks big.", credit: "r/ai" });
   const report = item("report", { sourceMeta: "The Outlet", excerpt: "The publisher's account." });
   assert.equal(briefCard(story([shared, report])).excerpt.credit, "The Outlet");
   // A discussion thread's own text never describes someone else's reporting.
   const thread = item("thread", { source: "hackernews", url: "https://news.ycombinator.com/item?id=1", excerpt: "Ask HN text" });
   assert.equal(briefCard(story([item("bare"), thread])).excerpt, undefined);
+});
+
+test("the evidence line names the link's site and the excerpt's author whenever they differ", () => {
+  const shared = item("post", { source: "reddit", url: "https://reddit.com/r/ai/comments/one", externalUrl: "https://lab.example/news/model", sourceMeta: "r/ai", excerpt: "This looks big." });
+  // The poster's own remark on a shared link: the reader still sees where the headline leads.
+  assert.deepEqual(briefAttribution(briefCard(story([shared]))), ["lab.example", "Excerpt · r/ai"]);
+  const report = item("report", { sourceMeta: "The Outlet", excerpt: "The publisher's account." });
+  assert.deepEqual(briefAttribution(briefCard(story([{ ...shared, excerpt: undefined }, report]))), ["lab.example", "Excerpt · The Outlet"]);
+  assert.deepEqual(briefAttribution(briefCard(story([report]))), ["Excerpt · The Outlet"]);
+  assert.deepEqual(briefAttribution(briefCard(story([item("bare", { sourceMeta: "The Outlet" })]))), ["Via · The Outlet"]);
 });
 
 test("only comparable vote totals are shown, and views are never called points", () => {
