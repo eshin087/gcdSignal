@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { THEME_SCRIPT, TEXT_SCRIPT } from "@/lib/prepaint";
 import "./globals.css";
@@ -40,6 +41,7 @@ export default function RootLayout({
       </head>
       <body className="h-dvh overflow-hidden flex flex-col font-sans text-zinc-800 dark:text-zinc-200">
         {children}
+        <Analytics />
       </body>
     </html>
   );
